@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "pull-request-title-pattern": "chore(repo): release v${version}",
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "itacr-backend",
+      "initial-version": "0.1.0",
+      "include-component-in-tag": false,
+      "bump-minor-pre-major": true,
+      "changelog-sections": [
+        { "type": "feat", "section": "Added" },
+        { "type": "fix", "section": "Fixed" },
+        { "type": "perf", "section": "Changed" },
+        { "type": "refactor", "section": "Changed" },
+        { "type": "revert", "section": "Reverted" },
+        { "type": "docs", "section": "Documentation" },
+        { "type": "build", "section": "Build and CI", "hidden": true },
+        { "type": "ci", "section": "Build and CI", "hidden": true },
+        { "type": "test", "section": "Tests", "hidden": true },
+        { "type": "style", "section": "Style", "hidden": true },
+        { "type": "chore", "section": "Miscellaneous", "hidden": true }
+      ]
+    }
+  }
+}

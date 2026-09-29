@@ -1,0 +1,22 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or update the release PR, tag, and GitHub Release
+        uses: googleapis/release-please-action@v4
+        with:
+          # A personal access token is needed so the release PR triggers CI.
+          # PRs opened with the default GITHUB_TOKEN never run workflows, so the required checks would never pass.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

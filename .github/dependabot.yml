@@ -1,0 +1,45 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    # Dependency updates are integrated like any other change and reach main through release.
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+      time: '07:00'
+      timezone: America/Mexico_City
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      nestjs:
+        patterns:
+          - '@nestjs/*'
+      prisma:
+        patterns:
+          - 'prisma'
+          - '@prisma/*'
+      dev-tooling:
+        dependency-type: development
+    ignore:
+      # NestJS, Prisma, and TypeScript majors need manual migration in a personal branch.
+      - dependency-name: '@nestjs/*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'prisma'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@prisma/*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+      time: '07:00'
+      timezone: America/Mexico_City
+    commit-message:
+      prefix: chore(deps)
