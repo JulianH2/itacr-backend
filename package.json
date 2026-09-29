@@ -1,6 +1,6 @@
 {
   "name": "itacr-backend",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "ITACR backend: NestJS API, real-time kitchen updates, push notifications, and PostgreSQL database",
   "private": true,
   "license": "UNLICENSED",
