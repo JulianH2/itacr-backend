@@ -1,0 +1,27 @@
+{
+  "name": "itacr-backend",
+  "version": "0.0.0",
+  "description": "ITACR backend: NestJS API, real-time kitchen updates, push notifications, and PostgreSQL database",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:up": "docker compose -f docker/docker-compose.yml --env-file .env up -d postgres",
+    "db:tools": "docker compose -f docker/docker-compose.yml --env-file .env --profile tools up -d",
+    "db:down": "docker compose -f docker/docker-compose.yml --env-file .env down",
+    "db:logs": "docker compose -f docker/docker-compose.yml --env-file .env logs -f postgres",
+    "prepare": "husky"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "packageManager": "npm@11.17.0",
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.9"
+  }
+}

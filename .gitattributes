@@ -1,0 +1,14 @@
+# Normalize all text files to LF in the repository and working tree
+* text=auto eol=lf
+
+# SQL files are diffed as text
+*.sql text diff
+
+# Binary files: never normalize or diff as text
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
