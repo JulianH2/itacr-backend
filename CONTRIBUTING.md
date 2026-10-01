@@ -45,23 +45,23 @@ personal branches                    sprint            integration     QA/stagin
 
 feature/ITACR-7-pin-login --+
 fix/ITACR-9-order-total ----+--PR--> sprint-01 --PR--> develop --PR--> release --PR--> main --> vX.Y.Z tag
-docs/ITACR-29-readme -------+                             ^               ^             |      (release-please)
-                                                          |               |             |
-                                                          +---------------+-back-merge--+
+docs/ITACR-29-readme -------+                                             ^             |      (release-please)
+                                                                          |             |
+                                                                          +-back-merge--+
 
-hotfix/ITACR-N-description (from main) --PR--> main, then back-merge main into release and develop
+hotfix/ITACR-N-description (from main) --PR--> main, then the same branch --PR--> develop
 ```
 
 ### 2.1 Branches
 
-| Branch                           | Role                                                                                   | Created from | Receives PRs from                            |
-| -------------------------------- | -------------------------------------------------------------------------------------- | ------------ | -------------------------------------------- |
-| `main`                           | Production. release-please creates the version tag, `CHANGELOG.md`, and GitHub Release | -            | `release`, `hotfix/*`, the release-please PR |
-| `release`                        | Staging / QA. The sprint increment is tested here before production                    | `main`       | `develop`, `main` (back-merge)               |
-| `develop`                        | Integration. **Default branch** on GitHub                                              | `main`       | `sprint-XX`, `main` (back-merge), Dependabot |
-| `sprint-XX`                      | One per weekly sprint (`sprint-01`, `sprint-02`, ...). Nobody commits to it directly   | `develop`    | Personal branches only                       |
-| `<type>/ITACR-<N>-<description>` | Personal work branch, one per Jira issue. Deleted after merge                          | `sprint-XX`  | -                                            |
-| `hotfix/ITACR-<N>-<description>` | Urgent fix for production                                                              | `main`       | -                                            |
+| Branch                           | Role                                                                                   | Created from | Receives PRs from                                |
+| -------------------------------- | -------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------ |
+| `main`                           | Production. release-please creates the version tag, `CHANGELOG.md`, and GitHub Release | -            | `release`, `hotfix/*`, the release-please PR     |
+| `release`                        | Staging / QA. The sprint increment is tested here before production                    | `main`       | `develop`, `main` (back-merge)                   |
+| `develop`                        | Integration. **Default branch** on GitHub                                              | `main`       | `sprint-XX`, `hotfix/*` (back-merge), Dependabot |
+| `sprint-XX`                      | One per weekly sprint (`sprint-01`, `sprint-02`, ...). Nobody commits to it directly   | `develop`    | Personal branches only                           |
+| `<type>/ITACR-<N>-<description>` | Personal work branch, one per Jira issue. Deleted after merge                          | `sprint-XX`  | -                                                |
+| `hotfix/ITACR-<N>-<description>` | Urgent fix for production                                                              | `main`       | -                                                |
 
 ### 2.2 Protection rules
 
@@ -215,14 +215,17 @@ If `prisma/schema.prisma` conflicts, keep both sets of changes, then create a ne
 
 ### 6.1 Opening a PR
 
-| From                           | To                   | Compare URL                                                                                  | When                       |
-| ------------------------------ | -------------------- | -------------------------------------------------------------------------------------------- | -------------------------- |
-| `feature/ITACR-9-create-order` | `sprint-01`          | `https://github.com/JulianH2/itacr-backend/compare/sprint-01...feature/ITACR-9-create-order` | Issue finished             |
-| `sprint-01`                    | `develop`            | `https://github.com/JulianH2/itacr-backend/compare/develop...sprint-01`                      | Sprint close               |
-| `develop`                      | `release`            | `https://github.com/JulianH2/itacr-backend/compare/release...develop`                        | Sprint close               |
-| `release`                      | `main`               | `https://github.com/JulianH2/itacr-backend/compare/main...release`                           | Sprint close, after QA     |
-| `hotfix/ITACR-N-...`           | `main`               | `https://github.com/JulianH2/itacr-backend/compare/main...hotfix/ITACR-N-...`                | Urgent production fix      |
-| `main`                         | `release`, `develop` | `.../compare/release...main`, `.../compare/develop...main`                                   | Back-merge after a release |
+| From                           | To          | Compare URL                                                                                  | When                          |
+| ------------------------------ | ----------- | -------------------------------------------------------------------------------------------- | ----------------------------- |
+| `feature/ITACR-9-create-order` | `sprint-01` | `https://github.com/JulianH2/itacr-backend/compare/sprint-01...feature/ITACR-9-create-order` | Issue finished                |
+| `sprint-01`                    | `develop`   | `https://github.com/JulianH2/itacr-backend/compare/develop...sprint-01`                      | Sprint close                  |
+| `develop`                      | `release`   | `https://github.com/JulianH2/itacr-backend/compare/release...develop`                        | Sprint close                  |
+| `release`                      | `main`      | `https://github.com/JulianH2/itacr-backend/compare/main...release`                           | Sprint close, after QA        |
+| `hotfix/ITACR-N-...`           | `main`      | `https://github.com/JulianH2/itacr-backend/compare/main...hotfix/ITACR-N-...`                | Urgent production fix         |
+| `hotfix/ITACR-N-...`           | `develop`   | `https://github.com/JulianH2/itacr-backend/compare/develop...hotfix/ITACR-N-...`             | After the hotfix is in `main` |
+| `main`                         | `release`   | `https://github.com/JulianH2/itacr-backend/compare/release...main`                           | Back-merge after a release    |
+
+Any other combination is rejected by the `branch-name` CI check, which prints the allowed flow in its log.
 
 - **Personal PR title**: a Conventional Commit with the key, e.g. `feat(orders): add idempotent order creation (ITACR-9)`.
 - **Flow PR title**: `Sprint 01: sprint-01 into develop`, `Sprint 01: develop into release`, `Release: release into main`.
@@ -313,17 +316,16 @@ The Scrum Master runs the close; the other team member approves each PR. Replace
 
 - [ ] **5. Merge the release-please PR.** A few seconds after step 4, release-please opens (or updates) the PR `chore(repo): release vX.Y.Z` on `main`. Review the version and the generated `CHANGELOG.md`, approve, and merge. release-please then creates the tag `vX.Y.Z` and the GitHub Release.
 
-- [ ] **6. Back-merge `main` into `release` and `develop`**, so the version bump and `CHANGELOG.md` are in sync. The branches are protected, so this is done with two PRs:
+- [ ] **6. Back-merge `main` into `release`**, so `release` has the version bump and `CHANGELOG.md` before the next sprint. The branch is protected, so this is done with a PR:
 
   ```bash
   git fetch origin --tags
   git log --oneline origin/release..origin/main    # what the back-merge brings into release
-  git log --oneline origin/develop..origin/main    # what the back-merge brings into develop
   ```
 
-  Open and merge (merge commit) both PRs:
-  - `https://github.com/JulianH2/itacr-backend/compare/release...main`
-  - `https://github.com/JulianH2/itacr-backend/compare/develop...main`
+  Open `https://github.com/JulianH2/itacr-backend/compare/release...main` and merge it (merge commit). It cannot conflict: `release` was merged into `main` in step 4, so the only new commit is the release-please one.
+
+  `develop` is not back-merged. It never edits `CHANGELOG.md` or the version, and release-please only reads `main`, so the next `develop` → `release` → `main` PRs stay conflict-free.
 
   Then update your local copies:
 
@@ -332,23 +334,8 @@ The Scrum Master runs the close; the other team member approves each PR. Replace
   git pull
   git switch release
   git pull
-  git switch develop
-  git pull
   git tag --list "v*"                              # the new tag must appear
   ```
-
-  If a back-merge PR has conflicts (rare; only when `develop` changed the same lines), resolve them in a sync branch, which is the only other source allowed by the `branch-name` check:
-
-  ```bash
-  git switch -c sync/main-into-develop origin/develop
-  git merge origin/main
-  # resolve the conflicts, then:
-  git add .
-  git commit
-  git push -u origin sync/main-into-develop
-  ```
-
-  Open a PR `sync/main-into-develop` → `develop`, merge it, and delete the branch. Use `sync/main-into-release` from `origin/release` for `release`.
 
 - [ ] **7. On Monday, create `sprint-02` from `develop`** (see [section 7](#7-starting-a-sprint-monday)).
 
@@ -367,16 +354,28 @@ git commit -m "fix(orders): reject duplicate idempotency keys (ITACR-35)"
 git push -u origin hotfix/ITACR-35-duplicate-orders-on-sync
 ```
 
-1. Open a PR `hotfix/ITACR-35-duplicate-orders-on-sync` → `main`, get 1 approval and green checks, and merge it.
+1. Open a PR `hotfix/ITACR-35-duplicate-orders-on-sync` → `main`, get 1 approval and green checks, and merge it. **Do not delete the branch yet.**
 2. release-please opens a patch release PR (for example `v0.1.1`). Merge it.
-3. Back-merge `main` into `release` and `develop`, exactly like [step 6 of the sprint close](#8-closing-a-sprint-friday).
-4. Delete the hotfix branch.
+3. Open a second PR from **the same hotfix branch** into `develop` (`https://github.com/JulianH2/itacr-backend/compare/develop...hotfix/ITACR-35-duplicate-orders-on-sync`) and merge it. If it conflicts, bring `develop` into the hotfix branch first:
+
+   ```bash
+   git switch hotfix/ITACR-35-duplicate-orders-on-sync
+   git fetch origin
+   git merge origin/develop
+   # resolve the conflicts, then:
+   git add .
+   git commit
+   git push
+   ```
+
+4. Back-merge `main` into `release`, exactly like [step 6 of the sprint close](#8-closing-a-sprint-friday).
+5. Delete the hotfix branch.
 
 The current `sprint-XX` receives the fix at the next sprint close. If someone needs it earlier, they merge `origin/develop` into their personal branch ([5.1](#51-bring-the-latest-sprint-changes-into-your-branch), with `origin/develop` instead of `origin/sprint-01`). If the hotfix includes a migration, it must be a new migration, never an edit of an existing one.
 
 ## 10. Releases and versioning
 
-Releases are automated with [release-please](https://github.com/googleapis/release-please) (`.github/workflows/release-please.yml`), which runs on every push to `main`:
+Releases are automated with [release-please](https://github.com/googleapis/release-please) (`.github/workflows/release-please.yml`). It runs **only** on pushes to `main` and always opens its PR against `main` (`target-branch: main`); it never runs on or targets `sprint-XX`, `develop`, or `release`:
 
 - It reads the Conventional Commits merged into `main` since the last release, and opens or updates a PR `chore(repo): release vX.Y.Z` with the new version in `package.json` and `.release-please-manifest.json`, and the new `CHANGELOG.md` section.
 - Merging that PR creates the tag `vX.Y.Z` and the GitHub Release. The first release is `v0.1.0` (`initial-version` in `release-please-config.json`).
@@ -408,7 +407,7 @@ The Scrum Master role rotates every sprint. Regarding the repository, the Scrum 
 - Creates `sprint-XX` from `develop` on Monday and announces it.
 - Makes sure personal PRs are reviewed within one working day and that CI failures are fixed quickly.
 - Reviews and merges the weekly Dependabot PRs into `develop` (or assigns them).
-- On Friday, runs the [sprint close checklist](#8-closing-a-sprint-friday) up to the release and the back-merges.
+- On Friday, runs the [sprint close checklist](#8-closing-a-sprint-friday) up to the release and the back-merge into `release`.
 - Makes sure every Jira issue in the sprint is in the correct column and that closed issues meet the Definition of Done.
 
 ## 12. Definition of Done

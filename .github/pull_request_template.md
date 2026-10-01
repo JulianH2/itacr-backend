@@ -7,8 +7,9 @@ Check that the base branch is correct. CI rejects any other combination.
   sprint-XX                                          ->  develop
   develop                                            ->  release
   release                                            ->  main
-  hotfix/ITACR-<N>-<description>                     ->  main
-  main (back-merge after a release)                  ->  release, develop
+  hotfix/ITACR-<N>-<description>                     ->  main, then develop (back-merge)
+  main (back-merge after a release)                  ->  release
+  release-please--* (opened automatically)           ->  main
 -->
 
 - [ ] The base branch follows the flow above

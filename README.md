@@ -119,18 +119,19 @@ personal branches                    sprint            integration     QA/stagin
 
 feature/ITACR-7-pin-login --+
 fix/ITACR-9-order-total ----+--PR--> sprint-01 --PR--> develop --PR--> release --PR--> main --> vX.Y.Z tag
-docs/ITACR-29-readme -------+                             ^               ^             |      (release-please)
-                                                          |               |             |
-                                                          +---------------+-back-merge--+
+docs/ITACR-29-readme -------+                                             ^             |      (release-please)
+                                                                          |             |
+                                                                          +-back-merge--+
 
-hotfix/ITACR-N-description (from main) --PR--> main, then back-merge main into release and develop
+hotfix/ITACR-N-description (from main) --PR--> main, then the same branch --PR--> develop
 ```
 
 - `main` (production), `release` (QA/staging), and `develop` (integration, default branch) are protected: PR required, 1 approval, green CI, no direct or force pushes.
 - `sprint-XX` is created from `develop` every Monday and only receives PRs from personal branches.
 - Personal branches: `<type>/ITACR-<N>-<short-description>`, one per Jira issue, created from `sprint-XX` and deleted after merge. `type` is `feature`, `fix`, `docs`, `refactor`, `test`, or `chore`.
-- Every Friday: `sprint-XX` → `develop` → `release` (QA) → `main`. release-please then creates the version tag (`v0.1.0`, `v0.2.0`, ...), `CHANGELOG.md`, and the GitHub Release, and `main` is back-merged into `release` and `develop`.
-- CI validates that each PR comes from an allowed branch.
+- Every Friday: `sprint-XX` → `develop` → `release` (QA) → `main`. release-please then creates the version tag (`v0.1.0`, `v0.2.0`, ...), `CHANGELOG.md`, and the GitHub Release on `main` (it never runs on or targets other branches), and `main` is back-merged into `release`.
+- Hotfixes: `hotfix/ITACR-<N>-<description>` from `main`, PR into `main`, then the same branch into `develop`.
+- CI validates that each PR comes from an allowed branch and prints the allowed flow when it does not.
 
 Full workflow and sprint close checklist: [CONTRIBUTING.md](CONTRIBUTING.md).
 

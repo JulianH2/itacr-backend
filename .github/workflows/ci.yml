@@ -22,35 +22,45 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           KEBAB='[a-z0-9]+(-[a-z0-9]+)*'
+          PERSONAL="^(feature|fix|docs|refactor|test|chore)/ITACR-[0-9]+-${KEBAB}$"
+          HOTFIX="^hotfix/ITACR-[0-9]+-${KEBAB}$"
+          SPRINT='^sprint-[0-9]{2,}$'
+          DEPENDABOT='^dependabot/.+$'
+          RELEASE_PLEASE='^release-please--.+$'
+
+          allowed=false
           case "$BASE_REF" in
             sprint-*)
-              pattern="^(feature|fix|docs|refactor|test|chore)/ITACR-[0-9]+-${KEBAB}$"
-              expected='<type>/ITACR-<N>-<short-description> (type: feature, fix, docs, refactor, test, chore)'
+              if [[ "$HEAD_REF" =~ $PERSONAL ]]; then allowed=true; fi
               ;;
             develop)
-              pattern='^(sprint-[0-9]{2,}|main|sync/main-into-develop|dependabot/.+)$'
-              expected='sprint-XX, or main for a back-merge'
+              # Dependabot is allowed because its weekly update PRs target develop.
+              if [[ "$HEAD_REF" =~ $SPRINT || "$HEAD_REF" =~ $HOTFIX || "$HEAD_REF" =~ $DEPENDABOT ]]; then allowed=true; fi
               ;;
             release)
-              pattern='^(develop|main|sync/main-into-release)$'
-              expected='develop, or main for a back-merge'
+              if [[ "$HEAD_REF" == "develop" || "$HEAD_REF" == "main" ]]; then allowed=true; fi
               ;;
             main)
-              pattern="^(release|hotfix/ITACR-[0-9]+-${KEBAB}|release-please--.+)$"
-              expected='release, hotfix/ITACR-<N>-<short-description>, or the release-please branch'
-              ;;
-            *)
-              echo "No branch rules for target '$BASE_REF'."
-              exit 0
+              if [[ "$HEAD_REF" == "release" || "$HEAD_REF" =~ $HOTFIX || "$HEAD_REF" =~ $RELEASE_PLEASE ]]; then allowed=true; fi
               ;;
           esac
 
-          if [[ "$HEAD_REF" =~ $pattern ]]; then
+          if [[ "$allowed" == "true" ]]; then
             echo "OK: '$HEAD_REF' -> '$BASE_REF'"
-          else
-            echo "::error::Branch '$HEAD_REF' cannot open a PR into '$BASE_REF'. Expected: $expected. See CONTRIBUTING.md, section 2."
-            exit 1
+            exit 0
           fi
+
+          echo "::error title=Branch flow not allowed::'$HEAD_REF' cannot open a PR into '$BASE_REF'. See the allowed flow below and CONTRIBUTING.md, section 2."
+          cat <<'EOF'
+          Allowed flow (target <- source):
+            sprint-XX <- <type>/ITACR-<N>-<kebab-description>   (type: feature, fix, docs, refactor, test, chore)
+            develop   <- sprint-XX | hotfix/ITACR-<N>-<kebab-description> (back-merge) | dependabot/*
+            release   <- develop | main (back-merge after a release)
+            main      <- release | hotfix/ITACR-<N>-<kebab-description> | release-please--*
+          The description after the Jira key is lowercase kebab-case: letters, numbers, and single hyphens.
+          Example: feature/ITACR-7-pin-login -> sprint-01
+          EOF
+          exit 1
 
   ci:
     runs-on: ubuntu-latest
