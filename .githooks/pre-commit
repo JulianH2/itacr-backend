@@ -1,0 +1,23 @@
+#!/bin/sh
+# Formats the staged C# files with "dotnet format" (rules from .editorconfig) and stages the result.
+# Stage whole files: if a file is only partially staged, its unstaged changes are staged too.
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR -- '*.cs')
+if [ -z "$staged" ]; then
+  exit 0
+fi
+
+# Nothing to format until the solution exists (ITACR-26).
+solution=$(ls ./*.slnx ./*.sln 2>/dev/null | head -n 1)
+if [ -z "$solution" ]; then
+  exit 0
+fi
+
+# shellcheck disable=SC2086 # file names are split on purpose; repository paths contain no spaces.
+if ! dotnet format "$solution" --include $staged; then
+  echo "pre-commit: dotnet format failed. Fix the errors above and commit again." >&2
+  exit 1
+fi
+
+# shellcheck disable=SC2086
+git add $staged
