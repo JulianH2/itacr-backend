@@ -20,6 +20,7 @@ All commands work in PowerShell, Git Bash, and macOS/Linux terminals, one line a
 12. [Definition of Done](#12-definition-of-done)
 13. [Database workflow](#13-database-workflow)
 14. [Bootstrapping the backend (ITACR-26, ITACR-27, ITACR-28)](#14-bootstrapping-the-backend-itacr-26-itacr-27-itacr-28)
+15. [Deployment to Azure](#15-deployment-to-azure)
 
 ---
 
@@ -358,7 +359,9 @@ The Scrum Master runs the close; the other team member approves each PR. Replace
 
   Smoke test: `GET http://localhost:3000/api/v1/health` returns `200`, Scalar loads, and the sprint's endpoints work with the frontend. If you find a blocking bug, fix it with a personal branch into `sprint-01` and repeat steps 2 and 3. Do not go on to step 4 until QA passes.
 
-- [ ] **4. PR `release` → `main`.** Open `https://github.com/JulianH2/itacr-backend/compare/main...release`, get approval, and merge.
+- [ ] **4. PR `release` → `main`, then production deploy and migrations.** Open `https://github.com/JulianH2/itacr-backend/compare/main...release`, get approval, and merge. The push to `main` starts the **Deploy** workflow. When it finishes:
+  1. If the release has new migrations, apply them right away from the workflow's `ef-migrations` artifact ([section 15.3](#153-apply-migrations-to-azure-sql)). The new code is already running, so do not delay this step.
+  2. Check `GET https://app-itacr-backend-prod-b3hvcggncghafbgp.westus-01.azurewebsites.net/api/v1/health` returns `200 Healthy`.
 
 - [ ] **5. Merge the release-please PR.** A few seconds after step 4, release-please opens (or updates) the PR `chore(repo): release vX.Y.Z` on `main`. Review the version and the generated `CHANGELOG.md`, approve, and merge. release-please then creates the tag `vX.Y.Z` and the GitHub Release.
 
@@ -651,3 +654,68 @@ Branch `feature/ITACR-28-seed-data` from `sprint-01` after ITACR-27 is merged.
    ```
 
 4. Commit `feat(db): add idempotent seed data (ITACR-28)` and open the PR into `sprint-01`.
+
+## 15. Deployment to Azure
+
+The Azure resources are created by hand in the Azure Portal (see [README: Deployment](README.md#deployment)). This repository never creates or changes them.
+
+### 15.1 App Service settings
+
+The production settings (`ASPNETCORE_ENVIRONMENT`, `ConnectionStrings__Default`, `Jwt__Secret`, `Cors__Origins__0`) are listed in [README: Production settings](README.md#production-settings). They are set in App Service `app-itacr-backend-prod` > Settings > **Environment variables**, never in the repository, and must exist before the first deploy: the API validates them at startup and does not start without them.
+
+### 15.2 Deploy workflow
+
+`.github/workflows/deploy.yml` runs on every push to `main` (and by hand with **Run workflow**). It restores, builds, and tests the solution, publishes `src/Itacr.Api`, and deploys it to `app-itacr-backend-prod` with the `AZURE_WEBAPP_PUBLISH_PROFILE` secret. If the build or a test fails, nothing is deployed.
+
+It also uploads the `ef-migrations` artifact with every migration in two forms:
+
+| File                      | What it is                                                                   |
+| ------------------------- | ---------------------------------------------------------------------------- |
+| `migrations.sql`          | Idempotent SQL script: applies only the migrations the database is missing    |
+| `efbundle.exe`            | Windows migration bundle (needs the .NET 10 runtime or SDK installed): applies the migrations **and runs the seeder** |
+
+The workflow never touches the database: the Azure SQL firewall only allows Azure services and the team's IPs. The artifact is kept for 14 days (GitHub Free has 500 MB of artifact storage for private repositories); download it the same day as the deploy.
+
+**One-time setup (repository owner):** App Service `app-itacr-backend-prod` > Overview > **Download publish profile**, then paste the whole file into the repository secret `AZURE_WEBAPP_PUBLISH_PROFILE` (Settings > Secrets and variables > Actions). Delete the downloaded file afterwards, and never commit it. Downloading it requires App Service > Configuration > **SCM Basic Auth Publishing Credentials** turned on. If the file is ever exposed, reset it (Overview > **Reset publish profile**) and update the secret.
+
+### 15.3 Apply migrations to Azure SQL
+
+Done by the Scrum Master right after a deploy that includes new migrations ([section 8, step 4](#8-closing-a-sprint-friday)), from Windows in PowerShell:
+
+1. Allow your IP: Azure Portal > SQL server `itacr-sql` > Security > **Networking** > **Add your client IPv4 address** > Save.
+2. Download the artifact of the deploy run: GitHub > Actions > **Deploy** > the run > Artifacts > `ef-migrations`, and unzip it. Or: `gh run download <run-id> -R JulianH2/itacr-backend -n ef-migrations`.
+3. Apply the migrations with the bundle:
+
+   ```powershell
+   $env:ASPNETCORE_ENVIRONMENT = 'Production'
+   $env:ConnectionStrings__Default = '<the same connection string as in App Service>'
+   .\efbundle.exe
+   ```
+
+   The bundle prints each migration it applies, or that the database is already up to date, and then runs the seeder. It is safe to run it again.
+
+4. Remove the variables and your IP:
+
+   ```powershell
+   Remove-Item Env:ConnectionStrings__Default
+   ```
+
+   Then delete your IP rule in the SQL server **Networking** page.
+5. Check `GET https://app-itacr-backend-prod-b3hvcggncghafbgp.westus-01.azurewebsites.net/api/v1/health` returns `200 Healthy`.
+
+To review what will run before applying it, read `migrations.sql`. It can also be applied with the Azure Portal **Query editor** or `sqlcmd`, but the script does **not** run the seeder.
+
+**First deploy only:** the seeder creates the initial manager when no manager exists. Before step 3, also set:
+
+```powershell
+$env:Seed__ManagerName = '<full name>'
+$env:Seed__ManagerEmail = '<email>'
+$env:Seed__ManagerPin = '<4 digits>'
+```
+
+and remove them afterwards (`Remove-Item Env:Seed__*`). Without them the seeder only logs a warning, and no manager is created. The manager should change the PIN after the first login.
+
+**Rules:**
+
+- Between the deploy and step 3 the new code runs against the old schema, so the endpoints that need a new table or column fail. Apply the migrations as soon as the deploy finishes.
+- Keep migrations additive (new tables, nullable or defaulted columns) so the previous release still works against the new schema if a deploy has to be rolled back. Rename or drop columns in a later release.
