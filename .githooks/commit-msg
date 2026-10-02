@@ -1,0 +1,56 @@
+#!/bin/sh
+# Validates the commit message header: type(scope): short description (ITACR-N)
+# Same rules as commitlint in itacr-frontend. Keep TYPES and SCOPES identical in both repositories.
+# CI runs this same script on every commit of a PR into sprint-XX (see .github/workflows/ci.yml).
+
+TYPES='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
+SCOPES='auth|catalog|orders|kitchen|tracking|manager|pwa|db|core|deps|repo'
+# Dependency bumps (usually opened by Dependabot) do not belong to a Jira issue.
+SCOPE_WITHOUT_JIRA_KEY='deps'
+MAX_HEADER_LENGTH=100
+
+# First line that is not empty and not a git comment.
+header=$(grep -v '^#' "$1" | sed '/^[[:space:]]*$/d' | head -n 1 | tr -d '\r')
+
+# Messages written by git itself are not validated.
+case "$header" in
+  "Merge "* | "Revert \""* | "fixup! "* | "squash! "* | "amend! "*) exit 0 ;;
+esac
+
+fail() {
+  echo "" >&2
+  echo "commit-msg: $1" >&2
+  echo "  Your message: $header" >&2
+  echo "  Expected:     type(scope): short description (ITACR-N)" >&2
+  echo "  Example:      feat(orders): add idempotent order creation (ITACR-9)" >&2
+  echo "  Types:        $(echo "$TYPES" | tr '|' ' ')" >&2
+  echo "  Scopes:       $(echo "$SCOPES" | tr '|' ' ')" >&2
+  echo "  See CONTRIBUTING.md, section 3." >&2
+  echo "" >&2
+  exit 1
+}
+
+if ! printf '%s\n' "$header" | grep -Eq "^($TYPES)\(($SCOPES)\)!?: .+$"; then
+  fail "the header must be 'type(scope): description' with an allowed type and scope (lowercase)."
+fi
+
+if [ "${#header}" -gt "$MAX_HEADER_LENGTH" ]; then
+  fail "the header is longer than $MAX_HEADER_LENGTH characters."
+fi
+
+scope=$(printf '%s\n' "$header" | sed -E 's/^[a-z]+\(([a-z]+)\).*$/\1/')
+subject=${header#*: }
+
+if printf '%s\n' "$subject" | grep -Eq '^[A-Z]'; then
+  fail "the description must start in lowercase."
+fi
+
+case "$subject" in
+  *.) fail "the description must not end with a period." ;;
+esac
+
+if [ "$scope" != "$SCOPE_WITHOUT_JIRA_KEY" ] && ! printf '%s\n' "$subject" | grep -Eq '\(ITACR-[0-9]+\)$'; then
+  fail "the description must end with the Jira key, e.g. \"add pin validation (ITACR-7)\"."
+fi
+
+exit 0

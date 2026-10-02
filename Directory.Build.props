@@ -1,0 +1,26 @@
+<Project>
+  <!-- Shared MSBuild settings for every project in the solution (src/ and tests/). -->
+
+  <PropertyGroup>
+    <!-- Updated by release-please on every release. Never edit it by hand. -->
+    <Version>0.0.0</Version> <!-- x-release-please-version -->
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <!-- Applies the .editorconfig code style rules set to "warning" during the build. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- Required for IDE0005 (unnecessary usings) to run in the build. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- XML doc comments are recommended on public APIs, not required on every member. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <!-- Release builds (CI) fail on any warning. Debug builds only show them, so local work is not blocked. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>

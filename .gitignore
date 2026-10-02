@@ -1,0 +1,57 @@
+# Build output
+bin/
+obj/
+/artifacts/
+/publish/
+*.nupkg
+
+# User-specific files (Visual Studio, Rider)
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.rsuser
+*.DotSettings.user
+
+# Test and coverage output
+TestResults/
+/coverage/
+*.trx
+*.coverage
+coverage*.xml
+coverage*.json
+
+# Environment files (keep only the example)
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/
+
+# AI assistant files: local only, never committed
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+AGENTS.md
+GEMINI.md
+.cursor/
+.cursorrules
+.windsurfrules
+.github/copilot-instructions.md
+.vscode/mcp.json
+
+# System files
+.DS_Store
+Thumbs.db
+desktop.ini

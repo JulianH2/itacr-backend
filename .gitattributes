@@ -1,0 +1,21 @@
+# Normalize all text files to LF in the repository and working tree
+* text=auto eol=lf
+
+# Language-aware diffs
+*.cs diff=csharp
+*.sql text diff
+
+# Git hooks run with sh and must keep LF endings, even on Windows
+.githooks/* text eol=lf
+*.sh text eol=lf
+
+# Binary files: never normalize or diff as text
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.dll binary
+*.exe binary
