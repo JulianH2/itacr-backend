@@ -208,7 +208,7 @@ builder.Services
 ### 2.4 Security and operations
 
 - Security headers on every response (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`), HSTS and HTTPS redirection outside Development.
-- Strict CORS: only the frontend origins from `Cors:Origins` (the local dev server and the Azure Static Web Apps URLs). Never `AllowAnyOrigin` together with credentials.
+- Strict CORS: only the frontend origins from `Cors:Origins` (the local dev server, and in production the frontend App Service, set with the `Cors__Origins__0` environment variable). Never `AllowAnyOrigin` together with credentials.
 - Rate limiting with the built-in `AddRateLimiter` (a global limiter plus a stricter policy on the PIN login endpoint).
 - JWT bearer authentication with role-based authorization: `[Authorize(Roles = nameof(EmployeeRole.Manager))]`. The token lasts one shift (`Jwt:TokenLifetimeHours`, 12) and carries the `sub` (employee id), `name`, and `role` claims; there is no refresh token. Controllers are closed by default through a global `AuthorizeFilter`; public endpoints use `[AllowAnonymous]` explicitly, and SignalR hubs need `[Authorize]` on the hub class.
 - PIN login is locked per employee after `LoginSecurity:MaxFailedPinAttempts` (5) wrong PINs for `LoginSecurity:LockoutMinutes` (15), and the login endpoints have their own stricter rate limit (`LoginSecurity:PermitLimit` per minute and IP) on top of the global one.

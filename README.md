@@ -4,7 +4,7 @@
 
 This repository contains the backend: the ASP.NET Core REST API, real-time kitchen updates, push notifications, and the database (EF Core model, migrations, seed data, and T-SQL procedures, functions, views, and triggers). The Angular PWA lives in [itacr-frontend](https://github.com/JulianH2/itacr-frontend).
 
-> Course project: Progressive Web Applications, Universidad TecnolÃ³gica de Tula-Tepeji (UTTT), group 10IDGS-G3.
+> Course project: Progressive Web Applications, Universidad Tecnológica de Tula-Tepeji (UTTT), group 10IDGS-G3.
 
 ## Tech stack
 
@@ -76,46 +76,47 @@ The API listens on `http://localhost:3000`:
 
 ## Local development
 
-`dotnet ef database update` creates the database, applies the migrations, and seeds the catalog (categories, products, combo options, and tables 1 to 10). In the **Development** environment it also creates three test employees. Run the command with `ASPNETCORE_ENVIRONMENT=Development` (PowerShell: `$env:ASPNETCORE_ENVIRONMENT = 'Development'`) so they are created.
+`dotnet ef database update` creates the database, applies the migrations, and seeds the catalog (categories, products, combo options, and tables 1 to 10). In the **Development** environment it also creates four test employees, all with the password `Itacr2026!`. Run the command with `ASPNETCORE_ENVIRONMENT=Development` (PowerShell: `$env:ASPNETCORE_ENVIRONMENT = 'Development'`) so they are created.
 
-| Role    | Email                | PIN    |
-| ------- | -------------------- | ------ |
-| Waiter  | `mesero@itacr.test`  | `1111` |
-| Kitchen | `cocina@itacr.test`  | `2222` |
-| Manager | `gerente@itacr.test` | `3333` |
+| Role    | Email                  | PIN    | Status           |
+| ------- | ---------------------- | ------ | ---------------- |
+| Waiter  | `mesero@itacr.test`    | `1111` | Active           |
+| Kitchen | `cocina@itacr.test`    | `2222` | Active           |
+| Manager | `gerente@itacr.test`   | `3333` | Active           |
+| Waiter  | `pendiente@itacr.test` | `4444` | Pending approval |
 
-These PINs are for local development only and are never created in any other environment. See [docs/database.md](docs/database.md#seed-data) for what is seeded and why.
+These PINs and passwords are for local development only and are never created in any other environment. See [docs/database.md](docs/database.md#seed-data) for what is seeded and why.
 ## Folder structure
 
 ```
 itacr-backend/
-â”œâ”€â”€ .github/                    # CI and release-please workflows, Dependabot, PR and issue templates, CODEOWNERS
-â”œâ”€â”€ .githooks/                  # Git hooks: pre-commit (dotnet format), commit-msg (commit convention)
-â”œâ”€â”€ database/                   # T-SQL objects, one per file: procedures/, functions/, views/, triggers/, scripts/
-â”œâ”€â”€ docs/
-â”‚   â””â”€â”€ CODING_STANDARDS.md
-â”œâ”€â”€ src/
-â”‚   â””â”€â”€ Itacr.Api/
-â”‚       â”œâ”€â”€ Features/           # One folder per feature: controller, service, requests, responses
-â”‚       â”‚   â”œâ”€â”€ Auth/
-â”‚       â”‚   â”œâ”€â”€ Catalog/
-â”‚       â”‚   â”œâ”€â”€ Orders/
-â”‚       â”‚   â”œâ”€â”€ Kitchen/        # SignalR hub for the KDS
-â”‚       â”‚   â”œâ”€â”€ Notifications/  # Web Push subscriptions and delivery
-â”‚       â”‚   â””â”€â”€ Manager/
-â”‚       â”œâ”€â”€ Domain/             # Entities and enums shared by several features
-â”‚       â”œâ”€â”€ Infrastructure/
-â”‚       â”‚   â””â”€â”€ Persistence/    # ItacrDbContext, entity configurations, Migrations/, Seeding/
-â”‚       â”œâ”€â”€ Common/             # Cross-cutting code: errors, pagination, options, security headers
-â”‚       â”œâ”€â”€ Program.cs
-â”‚       â””â”€â”€ appsettings.json
-â”œâ”€â”€ tests/
-â”‚   â””â”€â”€ Itacr.Api.Tests/
-â”œâ”€â”€ compose.yaml                # Local SQL Server
-â”œâ”€â”€ Directory.Build.props       # Shared build settings and the version (updated by release-please)
-â”œâ”€â”€ Directory.Packages.props    # Central NuGet package versions
-â”œâ”€â”€ global.json                 # .NET SDK version
-â””â”€â”€ Itacr.slnx
+├── .github/                    # CI and release-please workflows, Dependabot, PR and issue templates, CODEOWNERS
+├── .githooks/                  # Git hooks: pre-commit (dotnet format), commit-msg (commit convention)
+├── database/                   # T-SQL objects, one per file: procedures/, functions/, views/, triggers/, scripts/
+├── docs/
+│   └── CODING_STANDARDS.md
+├── src/
+│   └── Itacr.Api/
+│       ├── Features/           # One folder per feature: controller, service, requests, responses
+│       │   ├── Auth/
+│       │   ├── Catalog/
+│       │   ├── Orders/
+│       │   ├── Kitchen/        # SignalR hub for the KDS
+│       │   ├── Notifications/  # Web Push subscriptions and delivery
+│       │   └── Manager/
+│       ├── Domain/             # Entities and enums shared by several features
+│       ├── Infrastructure/
+│       │   └── Persistence/    # ItacrDbContext, entity configurations, Migrations/, Seeding/
+│       ├── Common/             # Cross-cutting code: errors, pagination, options, security headers
+│       ├── Program.cs
+│       └── appsettings.json
+├── tests/
+│   └── Itacr.Api.Tests/
+├── compose.yaml                # Local SQL Server
+├── Directory.Build.props       # Shared build settings and the version (updated by release-please)
+├── Directory.Packages.props    # Central NuGet package versions
+├── global.json                 # .NET SDK version
+└── Itacr.slnx
 ```
 
 The API, the tests, the solution, and `compose.yaml` are created in ITACR-26, and `database/` in ITACR-27 ([CONTRIBUTING.md, section 14](CONTRIBUTING.md#14-bootstrapping-the-backend-itacr-26-itacr-27-itacr-28)).
@@ -127,14 +128,45 @@ The API, the tests, the solution, and `compose.yaml` are created in ITACR-26, an
 | `.env`                                       | Local SQL Server `sa` password (read by Docker Compose)                  | No        |
 | `src/Itacr.Api/appsettings.json`             | Non-secret settings: CORS origins, JWT issuer and lifetime, rate limits | Yes       |
 | `src/Itacr.Api/appsettings.Development.json` | Development overrides without secrets (log levels)                      | Yes       |
-| `dotnet user-secrets`                        | Local secrets: connection string, JWT secret, VAPID private key         | No        |
-| Azure App Service configuration              | Production values (`ConnectionStrings__Default`, `Jwt__Secret`, CORS origins, VAPID keys) | No |
+| `dotnet user-secrets`                        | Local secrets: connection string and JWT secret                         | No        |
+| Azure App Service environment variables      | Production values (see [Deployment](#deployment))                       | No        |
 
 Every settings section is bound to an options class validated at startup, so the API fails fast when a value is missing.
 
 ## Deployment
 
-Merging into `main` deploys the API to **Azure App Service** (Linux, .NET) with **Azure SQL Database**, applying pending EF Core migrations safely as part of the workflow. The deployment workflow and the Azure resources (resource group `rg-itacr`) are set up in task T09 (Azure and continuous deployment). Production configuration lives in Azure, never in the repository.
+Production runs on Azure (resource group `rg-itacr-prod-westus`, region West US):
+
+| Resource           | Name                     | Notes                                                        |
+| ------------------ | ------------------------ | ------------------------------------------------------------ |
+| Azure SQL server   | `itacr-sql`              | Free offer (serverless, pauses when idle)                    |
+| Azure SQL database | `itacr-sql`              |                                                              |
+| App Service plan   | `asp-itacr-prod-westus`  | Linux, F1 Free, shared with the frontend                     |
+| App Service        | `app-itacr-backend-prod` | .NET 10, HTTPS only, TLS 1.2, FTP disabled, WebSockets on    |
+
+| URL          | Value                                                                           |
+| ------------ | ------------------------------------------------------------------------------- |
+| API          | `https://app-itacr-backend-prod-b3hvcggncghafbgp.westus-01.azurewebsites.net/api/v1` |
+| Health check | `https://app-itacr-backend-prod-b3hvcggncghafbgp.westus-01.azurewebsites.net/api/v1/health` |
+| Frontend     | `https://app-itacr-frontend-prod-hchjfvaadffrhre3.westus-01.azurewebsites.net`  |
+
+Azure generates the domains with a unique suffix (`<app>-<suffix>.westus-01.azurewebsites.net`); `app-itacr-backend-prod.azurewebsites.net` does not exist. They are shown in each App Service > Overview > **Default domain**.
+
+The health check returns `200 Healthy` when the API runs and reaches Azure SQL, and `503 Unhealthy` when it cannot. The free serverless database pauses when idle, so the first request after a pause can take up to a minute or return `503` once while it resumes.
+
+### Production settings
+
+They live only in App Service `app-itacr-backend-prod` > Settings > **Environment variables**, never in the repository. The API validates them at startup and does not start if one is missing (the log stream says which one).
+
+| Variable                     | Value                                                                                       |
+| ---------------------------- | ------------------------------------------------------------------------------------------- |
+| `ASPNETCORE_ENVIRONMENT`     | `Production`                                                                                |
+| `ConnectionStrings__Default` | `Server=tcp:itacr-sql.database.windows.net,1433;Initial Catalog=itacr-sql;User ID=<user>;Password=<password>;Encrypt=True;TrustServerCertificate=False;Connection Timeout=60` |
+| `Jwt__Secret`                | Random value of at least 64 characters, different from every development secret            |
+| `Cors__Origins__0`           | `https://app-itacr-frontend-prod-hchjfvaadffrhre3.westus-01.azurewebsites.net`              |
+
+- `Cors:Origins` is a list, so each origin is its own variable (`Cors__Origins__0`, `Cors__Origins__1`, ...). A single `Cors__Origins` variable is ignored, the list stays empty, and the API does not start.
+- `Connection Timeout=60` gives the serverless database time to resume after a pause.
 
 ## Branching model
 
@@ -153,7 +185,7 @@ hotfix/ITACR-N-description (from main) --PR--> main, then the same branch --PR--
 - `main` (production), `release` (QA/staging), and `develop` (integration, default branch) are protected: PR required, 1 approval, green CI, no direct or force pushes.
 - `sprint-XX` is created from `develop` every Monday and only receives PRs from personal branches.
 - Personal branches: `<type>/ITACR-<N>-<short-description>`, one per Jira issue, created from `sprint-XX` and deleted after merge. `type` is `feature`, `fix`, `docs`, `refactor`, `test`, or `chore`.
-- Every Friday: `sprint-XX` â†’ `develop` â†’ `release` (QA) â†’ `main`. release-please then creates the version tag (`v0.1.0`, `v0.2.0`, ...), `CHANGELOG.md`, and the GitHub Release on `main`, and `main` is back-merged into `release`.
+- Every Friday: `sprint-XX` → `develop` → `release` (QA) → `main`. release-please then creates the version tag (`v0.1.0`, `v0.2.0`, ...), `CHANGELOG.md`, and the GitHub Release on `main`, and `main` is back-merged into `release`.
 - Hotfixes: `hotfix/ITACR-<N>-<description>` from `main`, PR into `main`, then the same branch into `develop`.
 - CI validates that each PR comes from an allowed branch and prints the allowed flow when it does not.
 
@@ -172,10 +204,10 @@ Checked by the `commit-msg` git hook and again by CI. Types, scopes, and details
 
 | Member                          | GitHub                                             |
 | ------------------------------- | -------------------------------------------------- |
-| JosÃ© JuliÃ¡n HernÃ¡ndez HernÃ¡ndez | [@JulianH2](https://github.com/JulianH2)           |
-| JosÃ© Guillermo Rangel HernÃ¡ndez | [@GuillermoRH19](https://github.com/GuillermoRH19) |
+| José Julián Hernández Hernández | [@JulianH2](https://github.com/JulianH2)           |
+| José Guillermo Rangel Hernández | [@GuillermoRH19](https://github.com/GuillermoRH19) |
 
-Instructor: Juan Carlos BenÃ­tez Reyes. The Scrum Master role rotates every sprint.
+Instructor: Juan Carlos Benítez Reyes. The Scrum Master role rotates every sprint.
 
 ## Project management
 
