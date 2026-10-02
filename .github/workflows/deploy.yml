@@ -1,0 +1,88 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  AZURE_WEBAPP_NAME: app-itacr-backend-prod
+  SOLUTION: Itacr.slnx
+  API_PROJECT: src/Itacr.Api/Itacr.Api.csproj
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Placeholder so design-time tools (dotnet ef) can create the DbContext. No database is used.
+      ConnectionStrings__Default: Server=localhost,1433;Database=Ci;User Id=ci;Password=ci;TrustServerCertificate=True
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up .NET from global.json
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore "$SOLUTION"
+
+      - name: Build
+        run: dotnet build "$SOLUTION" --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test "$SOLUTION" --configuration Release --no-build
+
+      - name: Publish API
+        run: dotnet publish "$API_PROJECT" --configuration Release --no-build --output artifacts/api
+
+      - name: Create EF Core migration artifacts
+        run: |
+          dotnet tool restore
+          dotnet ef migrations script --idempotent --project "$API_PROJECT" --configuration Release --no-build --output artifacts/ef-migrations/migrations.sql
+          dotnet ef migrations bundle --project "$API_PROJECT" --configuration Release --target-runtime win-x64 --force --output artifacts/ef-migrations/efbundle.exe
+
+      - name: Upload API package
+        uses: actions/upload-artifact@v4
+        with:
+          name: api
+          path: artifacts/api
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Upload migration artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ef-migrations
+          path: artifacts/ef-migrations
+          if-no-files-found: error
+          retention-days: 14
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download API package
+        uses: actions/download-artifact@v4
+        with:
+          name: api
+          path: api
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: api
