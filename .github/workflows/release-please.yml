@@ -1,0 +1,27 @@
+name: Release Please
+
+# Runs only when something is merged into main, and always releases from main.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    # Extra guard: never release from any other branch, even if the trigger changes.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or update the release PR, tag, and GitHub Release
+        uses: googleapis/release-please-action@v4
+        with:
+          # A personal access token is needed so the release PR triggers CI.
+          # PRs opened with the default GITHUB_TOKEN never run workflows, so the required checks would never pass.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          # Without this, the action targets the repository's default branch (develop), not main.
+          target-branch: main
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
