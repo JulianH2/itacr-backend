@@ -1,4 +1,5 @@
 using Itacr.Api.Common;
+using Itacr.Api.Features.Catalog;
 using Itacr.Api.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +11,7 @@ if (!builder.Environment.IsDevelopment())
 
 builder.Services.AddPersistence(builder.Configuration);
 builder.Services.AddApiBase();
+builder.Services.AddCatalogFeature();
 
 var app = builder.Build();
 
