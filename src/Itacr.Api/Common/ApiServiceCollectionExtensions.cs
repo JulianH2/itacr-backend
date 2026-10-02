@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Itacr.Api.Common.Options;
 using Itacr.Api.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
@@ -15,7 +16,7 @@ public static class ApiServiceCollectionExtensions
     {
         services.AddRouting(options => options.LowercaseUrls = true);
         services
-            .AddControllers()
+            .AddControllers(options => options.Filters.Add(new AuthorizeFilter()))
             .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
         services.AddProblemDetails();

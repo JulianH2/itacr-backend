@@ -1,7 +1,7 @@
 <Project>
   <!--
     Central Package Management: every NuGet version lives here, once.
-    Projects reference packages without a version: <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    Projects reference packages without a version: <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     "dotnet add package" adds the <PackageVersion> entry here automatically.
   -->
   <PropertyGroup>
@@ -9,6 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
