@@ -15,8 +15,10 @@ public static class PersistenceServiceCollectionExtensions
                 $"The connection string 'ConnectionStrings:{ConnectionStringName}' is missing. Set it with dotnet user-secrets (see CONTRIBUTING.md, section 1).");
         }
 
-        services.AddDbContext<ItacrDbContext>(options =>
-            options.UseAzureSql(connectionString, sql => sql.EnableRetryOnFailure()));
+        services.AddSingleton<AuditTimestampsInterceptor>();
+        services.AddDbContext<ItacrDbContext>((serviceProvider, options) => options
+            .UseAzureSql(connectionString, sql => sql.EnableRetryOnFailure())
+            .AddInterceptors(serviceProvider.GetRequiredService<AuditTimestampsInterceptor>()));
 
         return services;
     }
