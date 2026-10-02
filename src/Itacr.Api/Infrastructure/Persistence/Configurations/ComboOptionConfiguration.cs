@@ -1,4 +1,5 @@
 using Itacr.Api.Features.Catalog;
+using Itacr.Api.Infrastructure.Persistence.Seeding;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -16,5 +17,7 @@ internal sealed class ComboOptionConfiguration : IEntityTypeConfiguration<ComboO
         builder.Property(option => option.PriceAdjustment).HasPrecision(10, 2);
 
         builder.HasIndex(option => new { option.Type, option.Name }).IsUnique();
+
+        builder.HasData(CatalogSeedData.ComboOptions);
     }
 }

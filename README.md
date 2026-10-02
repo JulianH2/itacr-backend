@@ -4,7 +4,7 @@
 
 This repository contains the backend: the ASP.NET Core REST API, real-time kitchen updates, push notifications, and the database (EF Core model, migrations, seed data, and T-SQL procedures, functions, views, and triggers). The Angular PWA lives in [itacr-frontend](https://github.com/JulianH2/itacr-frontend).
 
-> Course project: Progressive Web Applications, Universidad Tecnológica de Tula-Tepeji (UTTT), group 10IDGS-G3.
+> Course project: Progressive Web Applications, Universidad TecnolÃ³gica de Tula-Tepeji (UTTT), group 10IDGS-G3.
 
 ## Tech stack
 
@@ -74,37 +74,48 @@ The API listens on `http://localhost:3000`:
 | `docker compose down`                                     | Stop SQL Server (data is kept)                         |
 | `docker compose down -v`                                  | Stop SQL Server and delete all local data              |
 
+## Local development
+
+`dotnet ef database update` creates the database, applies the migrations, and seeds the catalog (categories, products, combo options, and tables 1 to 10). In the **Development** environment it also creates three test employees. Run the command with `ASPNETCORE_ENVIRONMENT=Development` (PowerShell: `$env:ASPNETCORE_ENVIRONMENT = 'Development'`) so they are created.
+
+| Role    | Email                | PIN    |
+| ------- | -------------------- | ------ |
+| Waiter  | `mesero@itacr.test`  | `1111` |
+| Kitchen | `cocina@itacr.test`  | `2222` |
+| Manager | `gerente@itacr.test` | `3333` |
+
+These PINs are for local development only and are never created in any other environment. See [docs/database.md](docs/database.md#seed-data) for what is seeded and why.
 ## Folder structure
 
 ```
 itacr-backend/
-├── .github/                    # CI and release-please workflows, Dependabot, PR and issue templates, CODEOWNERS
-├── .githooks/                  # Git hooks: pre-commit (dotnet format), commit-msg (commit convention)
-├── database/                   # T-SQL objects, one per file: procedures/, functions/, views/, triggers/, scripts/
-├── docs/
-│   └── CODING_STANDARDS.md
-├── src/
-│   └── Itacr.Api/
-│       ├── Features/           # One folder per feature: controller, service, requests, responses
-│       │   ├── Auth/
-│       │   ├── Catalog/
-│       │   ├── Orders/
-│       │   ├── Kitchen/        # SignalR hub for the KDS
-│       │   ├── Notifications/  # Web Push subscriptions and delivery
-│       │   └── Manager/
-│       ├── Domain/             # Entities and enums shared by several features
-│       ├── Infrastructure/
-│       │   └── Persistence/    # ItacrDbContext, entity configurations, Migrations/, Seeding/
-│       ├── Common/             # Cross-cutting code: errors, pagination, options, security headers
-│       ├── Program.cs
-│       └── appsettings.json
-├── tests/
-│   └── Itacr.Api.Tests/
-├── compose.yaml                # Local SQL Server
-├── Directory.Build.props       # Shared build settings and the version (updated by release-please)
-├── Directory.Packages.props    # Central NuGet package versions
-├── global.json                 # .NET SDK version
-└── Itacr.slnx
+â”œâ”€â”€ .github/                    # CI and release-please workflows, Dependabot, PR and issue templates, CODEOWNERS
+â”œâ”€â”€ .githooks/                  # Git hooks: pre-commit (dotnet format), commit-msg (commit convention)
+â”œâ”€â”€ database/                   # T-SQL objects, one per file: procedures/, functions/, views/, triggers/, scripts/
+â”œâ”€â”€ docs/
+â”‚   â””â”€â”€ CODING_STANDARDS.md
+â”œâ”€â”€ src/
+â”‚   â””â”€â”€ Itacr.Api/
+â”‚       â”œâ”€â”€ Features/           # One folder per feature: controller, service, requests, responses
+â”‚       â”‚   â”œâ”€â”€ Auth/
+â”‚       â”‚   â”œâ”€â”€ Catalog/
+â”‚       â”‚   â”œâ”€â”€ Orders/
+â”‚       â”‚   â”œâ”€â”€ Kitchen/        # SignalR hub for the KDS
+â”‚       â”‚   â”œâ”€â”€ Notifications/  # Web Push subscriptions and delivery
+â”‚       â”‚   â””â”€â”€ Manager/
+â”‚       â”œâ”€â”€ Domain/             # Entities and enums shared by several features
+â”‚       â”œâ”€â”€ Infrastructure/
+â”‚       â”‚   â””â”€â”€ Persistence/    # ItacrDbContext, entity configurations, Migrations/, Seeding/
+â”‚       â”œâ”€â”€ Common/             # Cross-cutting code: errors, pagination, options, security headers
+â”‚       â”œâ”€â”€ Program.cs
+â”‚       â””â”€â”€ appsettings.json
+â”œâ”€â”€ tests/
+â”‚   â””â”€â”€ Itacr.Api.Tests/
+â”œâ”€â”€ compose.yaml                # Local SQL Server
+â”œâ”€â”€ Directory.Build.props       # Shared build settings and the version (updated by release-please)
+â”œâ”€â”€ Directory.Packages.props    # Central NuGet package versions
+â”œâ”€â”€ global.json                 # .NET SDK version
+â””â”€â”€ Itacr.slnx
 ```
 
 The API, the tests, the solution, and `compose.yaml` are created in ITACR-26, and `database/` in ITACR-27 ([CONTRIBUTING.md, section 14](CONTRIBUTING.md#14-bootstrapping-the-backend-itacr-26-itacr-27-itacr-28)).
@@ -142,7 +153,7 @@ hotfix/ITACR-N-description (from main) --PR--> main, then the same branch --PR--
 - `main` (production), `release` (QA/staging), and `develop` (integration, default branch) are protected: PR required, 1 approval, green CI, no direct or force pushes.
 - `sprint-XX` is created from `develop` every Monday and only receives PRs from personal branches.
 - Personal branches: `<type>/ITACR-<N>-<short-description>`, one per Jira issue, created from `sprint-XX` and deleted after merge. `type` is `feature`, `fix`, `docs`, `refactor`, `test`, or `chore`.
-- Every Friday: `sprint-XX` → `develop` → `release` (QA) → `main`. release-please then creates the version tag (`v0.1.0`, `v0.2.0`, ...), `CHANGELOG.md`, and the GitHub Release on `main`, and `main` is back-merged into `release`.
+- Every Friday: `sprint-XX` â†’ `develop` â†’ `release` (QA) â†’ `main`. release-please then creates the version tag (`v0.1.0`, `v0.2.0`, ...), `CHANGELOG.md`, and the GitHub Release on `main`, and `main` is back-merged into `release`.
 - Hotfixes: `hotfix/ITACR-<N>-<description>` from `main`, PR into `main`, then the same branch into `develop`.
 - CI validates that each PR comes from an allowed branch and prints the allowed flow when it does not.
 
@@ -161,10 +172,10 @@ Checked by the `commit-msg` git hook and again by CI. Types, scopes, and details
 
 | Member                          | GitHub                                             |
 | ------------------------------- | -------------------------------------------------- |
-| José Julián Hernández Hernández | [@JulianH2](https://github.com/JulianH2)           |
-| José Guillermo Rangel Hernández | [@GuillermoRH19](https://github.com/GuillermoRH19) |
+| JosÃ© JuliÃ¡n HernÃ¡ndez HernÃ¡ndez | [@JulianH2](https://github.com/JulianH2)           |
+| JosÃ© Guillermo Rangel HernÃ¡ndez | [@GuillermoRH19](https://github.com/GuillermoRH19) |
 
-Instructor: Juan Carlos Benítez Reyes. The Scrum Master role rotates every sprint.
+Instructor: Juan Carlos BenÃ­tez Reyes. The Scrum Master role rotates every sprint.
 
 ## Project management
 

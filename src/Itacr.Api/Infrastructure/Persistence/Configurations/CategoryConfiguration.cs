@@ -1,4 +1,5 @@
 using Itacr.Api.Features.Catalog;
+using Itacr.Api.Infrastructure.Persistence.Seeding;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -12,5 +13,7 @@ internal sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
     {
         builder.Property(category => category.Name).HasMaxLength(NameMaxLength);
         builder.HasIndex(category => category.Name).IsUnique();
+
+        builder.HasData(CatalogSeedData.Categories);
     }
 }
