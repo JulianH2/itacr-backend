@@ -515,10 +515,16 @@ namespace Itacr.Api.Infrastructure.Persistence.Migrations
                         .HasMaxLength(254)
                         .HasColumnType("nvarchar(254)");
 
+                    b.Property<int>("FailedLoginAttempts")
+                        .HasColumnType("int");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTime?>("LockoutEndAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("PasswordHash")
                         .HasMaxLength(255)
@@ -583,6 +589,9 @@ namespace Itacr.Api.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("SentAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("SubjectEmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -598,6 +607,8 @@ namespace Itacr.Api.Infrastructure.Persistence.Migrations
                     b.HasIndex("RecipientCustomerId");
 
                     b.HasIndex("RecipientEmployeeId");
+
+                    b.HasIndex("SubjectEmployeeId");
 
                     b.HasIndex("Type");
 
@@ -932,6 +943,11 @@ namespace Itacr.Api.Infrastructure.Persistence.Migrations
                     b.HasOne("Itacr.Api.Features.Employees.Employee", null)
                         .WithMany()
                         .HasForeignKey("RecipientEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Itacr.Api.Features.Employees.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("SubjectEmployeeId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 

@@ -25,6 +25,7 @@ erDiagram
     Product ||--o{ OrderItem : "sold as"
     Order ||--o{ Notification : "about (OrderId)"
     Employee ||--o{ Notification : "receives (RecipientEmployeeId)"
+    Employee ||--o{ Notification : "is about (SubjectEmployeeId)"
     Customer ||--o{ Notification : "receives (RecipientCustomerId)"
     Employee ||--o{ PushSubscription : owns
     Customer ||--o{ PushSubscription : owns
@@ -39,6 +40,8 @@ erDiagram
         string PasswordHash "nullable"
         string Status "PendingApproval, Active, Rejected"
         guid ApprovedById FK "nullable"
+        int FailedLoginAttempts
+        datetime2 LockoutEndAt "nullable"
     }
     Customer {
         guid Id PK
@@ -106,6 +109,7 @@ erDiagram
         guid Id PK
         string Type "PinReset, OrderReady, AccessRequest"
         guid RecipientEmployeeId FK "nullable"
+        guid SubjectEmployeeId FK "nullable"
         guid RecipientCustomerId FK "nullable"
         guid OrderId FK "nullable"
         datetime2 SentAt
@@ -140,10 +144,23 @@ Seed data is split in two because the two kinds of data have different needs.
 | Data | Where | Environments |
 | ---- | ----- | ------------ |
 | 5 categories (Combos, Hamburguesas, Complementos, Bebidas, Postres), 18 products, 9 combo options (sizes, drinks, extras), and dining tables 1 to 10 | `Infrastructure/Persistence/Seeding/CatalogSeedData.cs`, loaded with `HasData` in the entity configurations, migration `SeedCatalogData` | All, including production |
-| 3 test employees (waiter, kitchen, manager) | `EmployeeSeeder`, registered with `UseSeeding` and `UseAsyncSeeding` | Development only |
+| 4 test employees: active waiter, kitchen, and manager, plus a waiter pending approval | `EmployeeSeeder`, registered with `UseSeeding` and `UseAsyncSeeding` | Development only |
 | 1 initial manager | `EmployeeSeeder`, from the `Seed` settings | Any environment other than Development |
 
 User-facing names (categories, products, options) are stored in Spanish because the UI shows them as they are. Prices are in MXN.
+
+### Development test logins
+
+Every test employee also has the password `Itacr2026!` for the email and password login.
+
+| Employee          | Email                  | PIN    | Role    | Status          |
+| ----------------- | ---------------------- | ------ | ------- | --------------- |
+| Mesero de Prueba  | `mesero@itacr.test`    | `1111` | Waiter  | Active          |
+| Cocina de Prueba  | `cocina@itacr.test`    | `2222` | Kitchen | Active          |
+| Gerente de Prueba | `gerente@itacr.test`   | `3333` | Manager | Active          |
+| Mesero Pendiente  | `pendiente@itacr.test` | `4444` | Waiter  | PendingApproval |
+
+The pending waiter is not listed in the login picker (only active employees are), so HU_01 CA4 is checked with the email and password login.
 
 ### Why the catalog uses `HasData`
 

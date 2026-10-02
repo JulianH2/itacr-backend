@@ -8,6 +8,8 @@ public sealed class Notification : AuditableEntity
 
     public Guid? RecipientEmployeeId { get; set; }
 
+    public Guid? SubjectEmployeeId { get; set; }
+
     public Guid? RecipientCustomerId { get; set; }
 
     public Guid? OrderId { get; set; }

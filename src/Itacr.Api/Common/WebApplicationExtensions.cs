@@ -23,6 +23,7 @@ public static class WebApplicationExtensions
         var origins = app.Services.GetRequiredService<IOptions<CorsOptions>>().Value.Origins;
         app.UseCors(policy => policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod());
         app.UseRateLimiter();
+        app.UseAuthentication();
         app.UseAuthorization();
 
         app.MapControllers();

@@ -19,4 +19,8 @@ public sealed class Employee : AuditableEntity
     public EmployeeStatus Status { get; set; }
 
     public Guid? ApprovedById { get; set; }
+
+    public int FailedLoginAttempts { get; set; }
+
+    public DateTime? LockoutEndAt { get; set; }
 }

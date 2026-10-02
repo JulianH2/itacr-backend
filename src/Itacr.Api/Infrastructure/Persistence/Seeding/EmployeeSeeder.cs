@@ -6,7 +6,7 @@ namespace Itacr.Api.Infrastructure.Persistence.Seeding;
 
 /// <summary>
 /// Seeds employees at runtime because their PINs must be hashed and differ per environment.
-/// Development gets three test employees; any other environment gets one initial manager from configuration.
+/// Development gets four test employees; any other environment gets one initial manager from configuration.
 /// Every run first checks what already exists by email, so running it again never duplicates rows.
 /// </summary>
 public sealed class EmployeeSeeder(
@@ -17,12 +17,14 @@ public sealed class EmployeeSeeder(
 {
     private const int PinLength = 4;
     private const string PlaceholderPhone = "0000000000";
+    private const string DevelopmentPassword = "Itacr2026!";
 
-    private static readonly (string FullName, string Email, string Pin, EmployeeRole Role)[] DevelopmentEmployees =
+    private static readonly (string FullName, string Email, string Pin, EmployeeRole Role, EmployeeStatus Status)[] DevelopmentEmployees =
     [
-        ("Mesero de Prueba", "mesero@itacr.test", "1111", EmployeeRole.Waiter),
-        ("Cocina de Prueba", "cocina@itacr.test", "2222", EmployeeRole.Kitchen),
-        ("Gerente de Prueba", "gerente@itacr.test", "3333", EmployeeRole.Manager),
+        ("Mesero de Prueba", "mesero@itacr.test", "1111", EmployeeRole.Waiter, EmployeeStatus.Active),
+        ("Cocina de Prueba", "cocina@itacr.test", "2222", EmployeeRole.Kitchen, EmployeeStatus.Active),
+        ("Gerente de Prueba", "gerente@itacr.test", "3333", EmployeeRole.Manager, EmployeeStatus.Active),
+        ("Mesero Pendiente", "pendiente@itacr.test", "4444", EmployeeRole.Waiter, EmployeeStatus.PendingApproval),
     ];
 
     public void Seed(ItacrDbContext context)
@@ -62,7 +64,7 @@ public sealed class EmployeeSeeder(
         {
             return DevelopmentEmployees
                 .Where(candidate => !existingEmails.Contains(candidate.Email))
-                .Select(candidate => NewEmployee(candidate.FullName, candidate.Email, candidate.Pin, candidate.Role, PlaceholderPhone))
+                .Select(candidate => NewEmployee(candidate.FullName, candidate.Email, candidate.Pin, candidate.Role, candidate.Status, DevelopmentPassword))
                 .ToList();
         }
 
@@ -96,21 +98,26 @@ public sealed class EmployeeSeeder(
             return [];
         }
 
-        return [NewEmployee(options.ManagerName, options.ManagerEmail, options.ManagerPin, EmployeeRole.Manager, PlaceholderPhone)];
+        return [NewEmployee(options.ManagerName, options.ManagerEmail, options.ManagerPin, EmployeeRole.Manager, EmployeeStatus.Active, password: null)];
     }
 
-    private Employee NewEmployee(string fullName, string email, string pin, EmployeeRole role, string phone)
+    private Employee NewEmployee(string fullName, string email, string pin, EmployeeRole role, EmployeeStatus status, string? password)
     {
         var employee = new Employee
         {
             FullName = fullName,
             Email = email,
-            Phone = phone,
+            Phone = PlaceholderPhone,
             Role = role,
-            Status = EmployeeStatus.Active,
+            Status = status,
             PinHash = string.Empty,
         };
         employee.PinHash = passwordHasher.HashPassword(employee, pin);
+        if (password is not null)
+        {
+            employee.PasswordHash = passwordHasher.HashPassword(employee, password);
+        }
+
         return employee;
     }
 }
