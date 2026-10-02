@@ -1,0 +1,13 @@
+@baseUrl = http://localhost:3000
+
+### Health: 200 Healthy with the database running, 503 Unhealthy with it stopped
+GET {{baseUrl}}/api/v1/health
+
+### Catalog categories: 200 with the 5 seeded categories, no login needed
+GET {{baseUrl}}/api/v1/catalog/categories
+
+### Catalog products of "Combos" (seed id): 200 with 4 products
+GET {{baseUrl}}/api/v1/catalog/products?categoryId=10000000-0000-0000-0000-000000000001
+
+### Catalog products without categoryId: 400 problem details
+GET {{baseUrl}}/api/v1/catalog/products
