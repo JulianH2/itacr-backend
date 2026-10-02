@@ -1,0 +1,102 @@
+# Editor configuration, see https://editorconfig.org
+# C# rules with severity "warning" are checked in the build (EnforceCodeStyleInBuild in Directory.Build.props)
+# and fail CI, because Release builds treat warnings as errors. "dotnet format" fixes most of them.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.md]
+max_line_length = off
+trim_trailing_whitespace = false
+
+[*.{cs,csx}]
+indent_size = 4
+
+# --- Usings and namespaces ---
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+csharp_using_directive_placement = outside_namespace:warning
+csharp_style_namespace_declarations = file_scoped:warning
+
+# --- Braces and new lines ---
+csharp_prefer_braces = true:warning
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+
+# --- var ---
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = true:suggestion
+
+# --- Members and modifiers ---
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+dotnet_style_readonly_field = true:warning
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_property = false:warning
+dotnet_style_qualification_for_method = false:warning
+dotnet_style_qualification_for_event = false:warning
+csharp_style_prefer_primary_constructors = true:suggestion
+
+# --- Expressions ---
+csharp_prefer_simple_using_statement = true:suggestion
+csharp_style_prefer_pattern_matching = true:suggestion
+csharp_style_prefer_switch_expression = true:suggestion
+dotnet_style_prefer_conditional_expression_over_return = false:silent
+dotnet_style_coalesce_expression = true:suggestion
+dotnet_style_null_propagation = true:suggestion
+
+# --- Diagnostics enforced in the build ---
+# Unnecessary using directive
+dotnet_diagnostic.IDE0005.severity = warning
+# Forward the CancellationToken to methods that accept one
+dotnet_diagnostic.CA2016.severity = warning
+
+# --- Naming ---
+# Interfaces: IOrdersService
+dotnet_naming_symbols.interface_symbols.applicable_kinds = interface
+dotnet_naming_style.prefix_i.required_prefix = I
+dotnet_naming_style.prefix_i.capitalization = pascal_case
+dotnet_naming_rule.interfaces_begin_with_i.symbols = interface_symbols
+dotnet_naming_rule.interfaces_begin_with_i.style = prefix_i
+dotnet_naming_rule.interfaces_begin_with_i.severity = warning
+
+# Constants: MaxItemsPerOrder
+dotnet_naming_symbols.constant_symbols.applicable_kinds = field, local
+dotnet_naming_symbols.constant_symbols.required_modifiers = const
+dotnet_naming_style.pascal.capitalization = pascal_case
+dotnet_naming_rule.constants_are_pascal_case.symbols = constant_symbols
+dotnet_naming_rule.constants_are_pascal_case.style = pascal
+dotnet_naming_rule.constants_are_pascal_case.severity = warning
+
+# Private static readonly fields: DefaultPageSize
+dotnet_naming_symbols.static_readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_fields.applicable_accessibilities = private
+dotnet_naming_symbols.static_readonly_fields.required_modifiers = static, readonly
+dotnet_naming_rule.static_readonly_fields_are_pascal_case.symbols = static_readonly_fields
+dotnet_naming_rule.static_readonly_fields_are_pascal_case.style = pascal
+dotnet_naming_rule.static_readonly_fields_are_pascal_case.severity = warning
+
+# Other private fields: _ordersService
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel.required_prefix = _
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+dotnet_naming_rule.private_fields_are_underscore_camel.symbols = private_fields
+dotnet_naming_rule.private_fields_are_underscore_camel.style = underscore_camel
+dotnet_naming_rule.private_fields_are_underscore_camel.severity = warning
+
+# Test method names use underscores: CreateOrder_ShouldReturnExistingOrder_WhenClientIdIsRepeated
+[tests/**.cs]
+dotnet_diagnostic.CA1707.severity = none
+
+# EF Core migrations are generated code
+[**/Migrations/*.cs]
+generated_code = true

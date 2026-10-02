@@ -1,0 +1,13 @@
+<Project>
+  <!--
+    Central Package Management: every NuGet version lives here, once.
+    Projects reference packages without a version: <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    "dotnet add package" adds the <PackageVersion> entry here automatically.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+  </ItemGroup>
+</Project>
