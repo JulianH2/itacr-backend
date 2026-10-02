@@ -132,3 +132,49 @@ The unique index on `ClientOrderId` is what guarantees no duplicates: the API lo
 ## Why `UnitPrice` is copied into `OrderItem`
 
 `Product.Price` can change tomorrow, but an order taken today must keep what the customer was told. `OrderItem.UnitPrice` copies the price at order time, and `Subtotal` and `Order.Total` are computed from the copy. Reports and past orders never change when the menu is repriced, and the manager's sales totals stay correct. For the same reason the item stores the chosen `Size`, `Drink`, `Extras`, and `Exclusions` as values, not as references to the catalog.
+
+## Seed data
+
+Seed data is split in two because the two kinds of data have different needs.
+
+| Data | Where | Environments |
+| ---- | ----- | ------------ |
+| 5 categories (Combos, Hamburguesas, Complementos, Bebidas, Postres), 18 products, 9 combo options (sizes, drinks, extras), and dining tables 1 to 10 | `Infrastructure/Persistence/Seeding/CatalogSeedData.cs`, loaded with `HasData` in the entity configurations, migration `SeedCatalogData` | All, including production |
+| 3 test employees (waiter, kitchen, manager) | `EmployeeSeeder`, registered with `UseSeeding` and `UseAsyncSeeding` | Development only |
+| 1 initial manager | `EmployeeSeeder`, from the `Seed` settings | Any environment other than Development |
+
+User-facing names (categories, products, options) are stored in Spanish because the UI shows them as they are. Prices are in MXN.
+
+### Why the catalog uses `HasData`
+
+The catalog is the same everywhere, has no secrets, and the app cannot work without it. `HasData` puts it in a migration, so it is versioned, reviewed in the PR, and applied in the same order on every machine and in Azure. The ids and timestamps are fixed constants, so the migration is deterministic and a rerun never duplicates a row. Changing a price later is a new migration, never an edit of an applied one.
+
+### Why employees use a runtime seeder
+
+- Their PINs must be hashed with `PasswordHasher<Employee>` (PBKDF2 with a random salt), which gives a different hash on every run. `HasData` needs fixed values, so it would generate a new migration each time.
+- Production credentials must never be in code or in a migration, and they differ per environment. The seeder reads them from configuration and the test employees only exist in Development.
+- The seeder checks what exists before it inserts (employees by email, and "a manager exists" for production), so it can run any number of times.
+
+EF Core runs the seeder at the end of `dotnet ef database update` and `Database.MigrateAsync()`. It runs in the environment where the migration is applied, so that process needs the environment name and the `Seed` settings.
+
+### Initial manager in production
+
+The seeder creates the manager only if no manager exists. The settings are:
+
+| Setting | Meaning |
+| ------- | ------- |
+| `Seed__ManagerName` | Full name |
+| `Seed__ManagerEmail` | Email used to sign in |
+| `Seed__ManagerPin` | PIN of exactly 4 digits (stored hashed) |
+
+If any setting is missing or the PIN is not 4 digits, the seeder skips the manager and logs a warning (never the PIN). The manager should change the PIN after the first login. The placeholder phone `0000000000` is set because `Phone` is required.
+
+### Verify
+
+```sql
+SELECT COUNT(*) FROM dbo.Categories;     -- 5
+SELECT COUNT(*) FROM dbo.Products;       -- 18
+SELECT COUNT(*) FROM dbo.ComboOptions;   -- 9
+SELECT COUNT(*) FROM dbo.DiningTables;   -- 10
+SELECT FullName, Email, Role, Status FROM dbo.Employees;
+```

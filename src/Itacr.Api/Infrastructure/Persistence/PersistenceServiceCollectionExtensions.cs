@@ -1,4 +1,8 @@
+using Itacr.Api.Features.Employees;
+using Itacr.Api.Infrastructure.Persistence.Seeding;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Itacr.Api.Infrastructure.Persistence;
 
@@ -16,9 +20,22 @@ public static class PersistenceServiceCollectionExtensions
         }
 
         services.AddSingleton<AuditTimestampsInterceptor>();
-        services.AddDbContext<ItacrDbContext>((serviceProvider, options) => options
-            .UseAzureSql(connectionString, sql => sql.EnableRetryOnFailure())
-            .AddInterceptors(serviceProvider.GetRequiredService<AuditTimestampsInterceptor>()));
+        services.AddOptions<SeedOptions>().BindConfiguration(SeedOptions.SectionName);
+        services.AddSingleton<IPasswordHasher<Employee>, PasswordHasher<Employee>>();
+        services.AddSingleton(serviceProvider => new EmployeeSeeder(
+            serviceProvider.GetRequiredService<IHostEnvironment>().IsDevelopment(),
+            serviceProvider.GetRequiredService<IOptions<SeedOptions>>().Value,
+            serviceProvider.GetRequiredService<IPasswordHasher<Employee>>(),
+            serviceProvider.GetRequiredService<ILogger<EmployeeSeeder>>()));
+        services.AddDbContext<ItacrDbContext>((serviceProvider, options) =>
+        {
+            var seeder = serviceProvider.GetRequiredService<EmployeeSeeder>();
+            options
+                .UseAzureSql(connectionString, sql => sql.EnableRetryOnFailure())
+                .AddInterceptors(serviceProvider.GetRequiredService<AuditTimestampsInterceptor>())
+                .UseSeeding((context, _) => seeder.Seed((ItacrDbContext)context))
+                .UseAsyncSeeding((context, _, cancellationToken) => seeder.SeedAsync((ItacrDbContext)context, cancellationToken));
+        });
 
         return services;
     }

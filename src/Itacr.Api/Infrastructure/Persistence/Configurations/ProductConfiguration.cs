@@ -1,4 +1,5 @@
 using Itacr.Api.Features.Catalog;
+using Itacr.Api.Infrastructure.Persistence.Seeding;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -21,5 +22,7 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
 
         builder.HasOne<Category>().WithMany(category => category.Products)
             .HasForeignKey(product => product.CategoryId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasData(CatalogSeedData.Products);
     }
 }
