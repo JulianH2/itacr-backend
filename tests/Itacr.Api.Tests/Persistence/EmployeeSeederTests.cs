@@ -15,10 +15,10 @@ public sealed class EmployeeSeederTests
     };
 
     [Fact]
-    public void Seed_ShouldCreateThreeActiveEmployees_WhenEnvironmentIsDevelopment()
+    public void Seed_ShouldCreateAnActiveEmployeePerRoleAndAPendingWaiter_WhenEnvironmentIsDevelopment()
     {
         // Arrange
-        using var context = SeedingTestContext.CreateDatabase(nameof(Seed_ShouldCreateThreeActiveEmployees_WhenEnvironmentIsDevelopment));
+        using var context = SeedingTestContext.CreateDatabase(nameof(Seed_ShouldCreateAnActiveEmployeePerRoleAndAPendingWaiter_WhenEnvironmentIsDevelopment));
         var seeder = SeedingTestContext.CreateSeeder(isDevelopment: true);
 
         // Act
@@ -26,9 +26,29 @@ public sealed class EmployeeSeederTests
 
         // Assert
         var employees = context.Employees.ToList();
-        Assert.Equal(3, employees.Count);
-        Assert.All(employees, employee => Assert.Equal(EmployeeStatus.Active, employee.Status));
-        Assert.Equivalent(new[] { EmployeeRole.Waiter, EmployeeRole.Kitchen, EmployeeRole.Manager }, employees.Select(employee => employee.Role));
+        Assert.Equal(4, employees.Count);
+        var active = employees.Where(employee => employee.Status == EmployeeStatus.Active).ToList();
+        Assert.Equivalent(new[] { EmployeeRole.Waiter, EmployeeRole.Kitchen, EmployeeRole.Manager }, active.Select(employee => employee.Role));
+        var pending = Assert.Single(employees, employee => employee.Status == EmployeeStatus.PendingApproval);
+        Assert.Equal(EmployeeRole.Waiter, pending.Role);
+    }
+
+    [Fact]
+    public void Seed_ShouldGiveEveryTestEmployeeAHashedPassword_WhenEnvironmentIsDevelopment()
+    {
+        // Arrange
+        using var context = SeedingTestContext.CreateDatabase(nameof(Seed_ShouldGiveEveryTestEmployeeAHashedPassword_WhenEnvironmentIsDevelopment));
+        var seeder = SeedingTestContext.CreateSeeder(isDevelopment: true);
+
+        // Act
+        seeder.Seed(context);
+
+        // Assert
+        Assert.All(context.Employees.ToList(), employee =>
+        {
+            Assert.NotNull(employee.PasswordHash);
+            Assert.Equal(PasswordVerificationResult.Success, SeedingTestContext.PasswordHasher.VerifyHashedPassword(employee, employee.PasswordHash, "Itacr2026!"));
+        });
     }
 
     [Fact]
@@ -44,7 +64,7 @@ public sealed class EmployeeSeederTests
         seeder.Seed(context);
 
         // Assert
-        Assert.Equal(3, countAfterFirstRun);
+        Assert.Equal(4, countAfterFirstRun);
         Assert.Equal(countAfterFirstRun, context.Employees.Count());
     }
 
@@ -60,7 +80,7 @@ public sealed class EmployeeSeederTests
         await seeder.SeedAsync(context, CancellationToken.None);
 
         // Assert
-        Assert.Equal(3, await context.Employees.CountAsync());
+        Assert.Equal(4, await context.Employees.CountAsync());
     }
 
     [Fact]
@@ -69,7 +89,7 @@ public sealed class EmployeeSeederTests
         // Arrange
         using var context = SeedingTestContext.CreateDatabase(nameof(Seed_ShouldNeverStorePinsInPlainText_WhenEmployeesAreCreated));
         var seeder = SeedingTestContext.CreateSeeder(isDevelopment: true);
-        string[] testPins = ["1111", "2222", "3333"];
+        string[] testPins = ["1111", "2222", "3333", "4444"];
 
         // Act
         seeder.Seed(context);
@@ -78,7 +98,7 @@ public sealed class EmployeeSeederTests
         var employees = context.Employees.ToList();
         Assert.All(employees, employee => Assert.DoesNotContain(employee.PinHash, testPins));
         Assert.All(employees, employee => Assert.True(employee.PinHash.Length > 4));
-        var waiter = employees.Single(employee => employee.Role == EmployeeRole.Waiter);
+        var waiter = employees.Single(employee => employee.Email == "mesero@itacr.test");
         Assert.Equal(PasswordVerificationResult.Success, SeedingTestContext.PasswordHasher.VerifyHashedPassword(waiter, waiter.PinHash, "1111"));
     }
 
