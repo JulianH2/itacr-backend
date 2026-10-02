@@ -1,0 +1,154 @@
+name: CI
+
+on:
+  pull_request:
+    branches: ['sprint-*', develop, release, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  branch-name:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Validate source and target branches
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          KEBAB='[a-z0-9]+(-[a-z0-9]+)*'
+          PERSONAL="^(feature|fix|docs|refactor|test|chore)/ITACR-[0-9]+-${KEBAB}$"
+          HOTFIX="^hotfix/ITACR-[0-9]+-${KEBAB}$"
+          SPRINT='^sprint-[0-9]{2,}$'
+          DEPENDABOT='^dependabot/.+$'
+          RELEASE_PLEASE='^release-please--.+$'
+
+          allowed=false
+          case "$BASE_REF" in
+            sprint-*)
+              if [[ "$HEAD_REF" =~ $PERSONAL ]]; then allowed=true; fi
+              ;;
+            develop)
+              # Dependabot is allowed because its weekly update PRs target develop.
+              if [[ "$HEAD_REF" =~ $SPRINT || "$HEAD_REF" =~ $HOTFIX || "$HEAD_REF" =~ $DEPENDABOT ]]; then allowed=true; fi
+              ;;
+            release)
+              if [[ "$HEAD_REF" == "develop" || "$HEAD_REF" == "main" ]]; then allowed=true; fi
+              ;;
+            main)
+              if [[ "$HEAD_REF" == "release" || "$HEAD_REF" =~ $HOTFIX || "$HEAD_REF" =~ $RELEASE_PLEASE ]]; then allowed=true; fi
+              ;;
+          esac
+
+          if [[ "$allowed" == "true" ]]; then
+            echo "OK: '$HEAD_REF' -> '$BASE_REF'"
+            exit 0
+          fi
+
+          echo "::error title=Branch flow not allowed::'$HEAD_REF' cannot open a PR into '$BASE_REF'. See the allowed flow below and CONTRIBUTING.md, section 2."
+          cat <<'EOF'
+          Allowed flow (target <- source):
+            sprint-XX <- <type>/ITACR-<N>-<kebab-description>   (type: feature, fix, docs, refactor, test, chore)
+            develop   <- sprint-XX | hotfix/ITACR-<N>-<kebab-description> (back-merge) | dependabot/*
+            release   <- develop | main (back-merge after a release)
+            main      <- release | hotfix/ITACR-<N>-<kebab-description> | release-please--*
+          The description after the Jira key is lowercase kebab-case: letters, numbers, and single hyphens.
+          Example: feature/ITACR-7-pin-login -> sprint-01
+          EOF
+          exit 1
+
+  # Local hooks can be skipped, so the commit convention is also checked here.
+  # Only for personal branches into sprint-XX: flow PRs carry merge commits and the release-please commit.
+  commit-messages:
+    if: startsWith(github.base_ref, 'sprint-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Validate every commit message in the PR
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          failed=0
+          for sha in $(git rev-list --no-merges "$BASE_SHA..$HEAD_SHA"); do
+            git log -1 --format=%B "$sha" > "$RUNNER_TEMP/commit-msg.txt"
+            if ! sh .githooks/commit-msg "$RUNNER_TEMP/commit-msg.txt"; then
+              echo "::error title=Invalid commit message::Commit $sha does not follow the convention (CONTRIBUTING.md, section 3)."
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      # Placeholder so design-time tools (dotnet ef) can create the DbContext. No database is used.
+      ConnectionStrings__Default: Server=localhost,1433;Database=Ci;User Id=ci;Password=ci;TrustServerCertificate=True
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up .NET from global.json
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      # The .NET solution (ITACR-26) and the EF Core migrations (ITACR-27) do not exist yet.
+      # Until they do, the steps below are skipped with a notice instead of failing.
+      - name: Detect scaffolded project
+        id: project
+        run: |
+          solution=$(find . -maxdepth 1 \( -name '*.slnx' -o -name '*.sln' \) -print -quit)
+          if [ -n "$solution" ]; then
+            echo "solution=$solution" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No solution file found: restore, format, build, and tests are skipped until the .NET API exists (ITACR-26)."
+          fi
+          if [ -f .config/dotnet-tools.json ] && find src -path '*/Migrations/*.cs' -print -quit 2>/dev/null | grep -q .; then
+            echo "migrations=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No EF Core migrations found: the pending model changes check is skipped until ITACR-27."
+          fi
+
+      - name: Restore
+        if: steps.project.outputs.solution != ''
+        env:
+          SOLUTION: ${{ steps.project.outputs.solution }}
+        run: dotnet restore "$SOLUTION"
+
+      - name: Check formatting
+        if: steps.project.outputs.solution != ''
+        env:
+          SOLUTION: ${{ steps.project.outputs.solution }}
+        run: dotnet format "$SOLUTION" --verify-no-changes --no-restore
+
+      - name: Build (warnings are errors in Release)
+        if: steps.project.outputs.solution != ''
+        env:
+          SOLUTION: ${{ steps.project.outputs.solution }}
+        run: dotnet build "$SOLUTION" --configuration Release --no-restore
+
+      - name: Run tests
+        if: steps.project.outputs.solution != ''
+        env:
+          SOLUTION: ${{ steps.project.outputs.solution }}
+        run: dotnet test "$SOLUTION" --configuration Release --no-build
+
+      - name: Check that the EF Core model has no pending migration
+        if: steps.project.outputs.solution != '' && steps.project.outputs.migrations == 'true'
+        run: |
+          dotnet tool restore
+          dotnet ef migrations has-pending-model-changes --project src/Itacr.Api --configuration Release --no-build
