@@ -1,6 +1,9 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Itacr.Api/Itacr.Api.csproj" />
+    <Project Path="src/Itacr.Application/Itacr.Application.csproj" />
+    <Project Path="src/Itacr.Domain/Itacr.Domain.csproj" />
+    <Project Path="src/Itacr.Infrastructure/Itacr.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Itacr.Api.Tests/Itacr.Api.Tests.csproj" />

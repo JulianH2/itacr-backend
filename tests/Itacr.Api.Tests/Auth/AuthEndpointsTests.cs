@@ -1,10 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Itacr.Api.Features.Auth;
-using Itacr.Api.Features.Auth.Responses;
-using Itacr.Api.Features.Employees;
-using Itacr.Api.Features.Notifications;
+using Itacr.Application.Identity;
+using Itacr.Application.Identity.Responses;
+using Itacr.Domain.Identity;
+using Itacr.Domain.Notifications;
+using Itacr.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 

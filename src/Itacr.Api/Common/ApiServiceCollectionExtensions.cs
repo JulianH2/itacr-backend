@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Itacr.Api.Common.Options;
-using Itacr.Api.Infrastructure.Persistence;
+using Itacr.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;

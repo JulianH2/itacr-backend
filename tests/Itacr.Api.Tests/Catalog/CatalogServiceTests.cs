@@ -1,5 +1,5 @@
-using Itacr.Api.Features.Catalog;
 using Itacr.Api.Tests.Persistence;
+using Itacr.Application.Catalog;
 
 namespace Itacr.Api.Tests.Catalog;
 

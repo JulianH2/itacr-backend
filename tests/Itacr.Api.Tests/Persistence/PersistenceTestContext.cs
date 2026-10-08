@@ -1,4 +1,4 @@
-using Itacr.Api.Infrastructure.Persistence;
+using Itacr.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace Itacr.Api.Tests.Persistence;

@@ -1,5 +1,5 @@
-using Itacr.Api.Features.Catalog;
-using Itacr.Api.Features.Catalog.Responses;
+using Itacr.Application.Catalog;
+using Itacr.Application.Catalog.Responses;
 
 namespace Itacr.Api.Tests.Catalog;
 

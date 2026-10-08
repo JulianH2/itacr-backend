@@ -1,4 +1,4 @@
-using Itacr.Api.Features.Orders;
+using Itacr.Domain.Orders;
 using Microsoft.EntityFrameworkCore;
 
 namespace Itacr.Api.Tests.Persistence;
