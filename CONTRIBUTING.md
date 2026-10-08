@@ -59,7 +59,7 @@ Generate the JWT secret with `node -e "console.log(require('crypto').randomBytes
 Finally, create the database and run the API:
 
 ```bash
-dotnet ef database update --project src/Itacr.Api
+dotnet ef database update --project src/Itacr.Infrastructure --startup-project src/Itacr.Api
 dotnet run --project src/Itacr.Api               # http://localhost:3000/api/v1
 ```
 
@@ -167,10 +167,10 @@ Move the Jira issue to **In Progress**.
 
 ```bash
 docker compose up -d sqlserver                       # make sure SQL Server is running
-dotnet ef database update --project src/Itacr.Api    # apply any migration your teammate merged
+dotnet ef database update --project src/Itacr.Infrastructure --startup-project src/Itacr.Api    # apply any migration your teammate merged
 dotnet watch --project src/Itacr.Api                 # http://localhost:3000/api/v1, reloads on save
 git status
-git add src/Itacr.Api/Features/Orders                # stage specific paths; avoid "git add ." with unknown files
+git add src/Itacr.Application/Orders src/Itacr.Api/Endpoints/Orders  # stage specific paths; avoid "git add ." with unknown files
 git commit -m "feat(orders): add idempotent order creation (ITACR-9)"
 ```
 
@@ -212,7 +212,7 @@ Do this when your teammate merged something you need, or when GitHub says your P
 git switch feature/ITACR-9-create-order
 git fetch origin
 git merge origin/sprint-01
-dotnet ef database update --project src/Itacr.Api    # apply migrations that came with the merge
+dotnet ef database update --project src/Itacr.Infrastructure --startup-project src/Itacr.Api    # apply migrations that came with the merge
 ```
 
 If there are conflicts:
@@ -222,7 +222,7 @@ If there are conflicts:
 3. Finish the merge and push:
 
 ```bash
-git add src/Itacr.Api/Features/Orders/OrdersService.cs
+git add src/Itacr.Application/Orders/OrdersService.cs
 git commit                         # accept the default merge message
 dotnet build
 dotnet test
@@ -238,20 +238,20 @@ If `Directory.Packages.props` conflicts, keep every `<PackageVersion>` from both
 If you both added a migration, `ItacrDbContextModelSnapshot.cs` conflicts. Your migration is not merged anywhere yet, so regenerate it on top of your teammate's:
 
 ```bash
-git checkout --theirs src/Itacr.Api/Infrastructure/Persistence/Migrations/ItacrDbContextModelSnapshot.cs
+git checkout --theirs src/Itacr.Infrastructure/Persistence/Migrations/ItacrDbContextModelSnapshot.cs
 ```
 
 During `git merge origin/sprint-01`, "theirs" is the sprint version. Then:
 
 1. Delete **your** migration files (`<timestamp>_<YourMigration>.cs` and `<timestamp>_<YourMigration>.Designer.cs`). Never delete or edit your teammate's.
-2. `git add src/Itacr.Api/Infrastructure/Persistence/Migrations` and `git commit` to finish the merge.
+2. `git add src/Itacr.Infrastructure/Persistence/Migrations` and `git commit` to finish the merge.
 3. Rebuild your local database and create your migration again, now on top of the merged model:
 
 ```bash
-dotnet ef database drop --force --project src/Itacr.Api
-dotnet ef migrations add <YourMigration> --project src/Itacr.Api
-dotnet ef database update --project src/Itacr.Api
-git add src/Itacr.Api/Infrastructure/Persistence/Migrations
+dotnet ef database drop --force --project src/Itacr.Infrastructure --startup-project src/Itacr.Api
+dotnet ef migrations add <YourMigration> --project src/Itacr.Infrastructure --startup-project src/Itacr.Api
+dotnet ef database update --project src/Itacr.Infrastructure --startup-project src/Itacr.Api
+git add src/Itacr.Infrastructure/Persistence/Migrations
 git commit -m "feat(db): <description> (ITACR-N)"
 ```
 
@@ -290,7 +290,7 @@ Any other combination is rejected by the `branch-name` CI check, which prints th
    git switch feature/ITACR-9-create-order
    docker compose up -d sqlserver
    dotnet tool restore
-   dotnet ef database update --project src/Itacr.Api
+   dotnet ef database update --project src/Itacr.Infrastructure --startup-project src/Itacr.Api
    dotnet format --verify-no-changes
    dotnet build -c Release
    dotnet test
@@ -353,7 +353,7 @@ The Scrum Master runs the close; the other team member approves each PR. Replace
   docker compose down -v
   docker compose up -d sqlserver
   dotnet tool restore
-  dotnet ef database update --project src/Itacr.Api
+  dotnet ef database update --project src/Itacr.Infrastructure --startup-project src/Itacr.Api
   dotnet run --project src/Itacr.Api -c Release
   ```
 
@@ -479,35 +479,35 @@ The database is part of this repository and changes only through EF Core migrati
 
 | What                                   | Where                                                    | How it reaches the database                                   |
 | -------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------- |
-| Tables, enums, relations, indexes      | Entities in `Domain/`, configurations in `Infrastructure/Persistence/Configurations/` | `dotnet ef migrations add <Name>`, then `dotnet ef database update` |
+| Tables, enums, relations, indexes      | Entities in `src/Itacr.Domain/<Module>/`, configurations in `src/Itacr.Infrastructure/Persistence/Configurations/` | `dotnet ef migrations add <Name>`, then `dotnet ef database update` |
 | Procedures, functions, views, triggers | `database/<type>/<name>.sql`                             | `migrationBuilder.Sql(...)` in an empty migration             |
-| Seed data                              | `Infrastructure/Persistence/Seeding/`                    | Runs on `dotnet ef database update` (idempotent)              |
+| Seed data                              | `src/Itacr.Infrastructure/Persistence/Seeding/`          | Runs on `dotnet ef database update` (idempotent)              |
 | Reports and maintenance                | `database/scripts/`                                      | Run manually; never change schema or shared data              |
 
-Every `dotnet ef` command takes `--project src/Itacr.Api`. Migrations are created in `src/Itacr.Api/Infrastructure/Persistence/Migrations/`.
+Every `dotnet ef` command takes `--project src/Itacr.Infrastructure --startup-project src/Itacr.Api`: the `DbContext` and the migrations live in `Itacr.Infrastructure`, and the configuration (user secrets, `appsettings.json`) comes from `Itacr.Api`. Migrations are created in `src/Itacr.Infrastructure/Persistence/Migrations/`.
 
 ### 13.1 Change a table
 
 ```bash
 # edit the entity and its configuration
-dotnet ef migrations add AddNotesToOrders --project src/Itacr.Api
+dotnet ef migrations add AddNotesToOrders --project src/Itacr.Infrastructure --startup-project src/Itacr.Api
 # read the generated migration before applying it
-dotnet ef database update --project src/Itacr.Api
-git add src/Itacr.Api/Domain src/Itacr.Api/Infrastructure/Persistence
+dotnet ef database update --project src/Itacr.Infrastructure --startup-project src/Itacr.Api
+git add src/Itacr.Domain src/Itacr.Infrastructure/Persistence
 git commit -m "feat(db): add notes column to orders (ITACR-N)"
 ```
 
-If the migration is wrong and you have **not pushed it**, undo it with `dotnet ef database update <PreviousMigration> --project src/Itacr.Api` and then `dotnet ef migrations remove --project src/Itacr.Api`. Once it is pushed, fix it with a new migration.
+If the migration is wrong and you have **not pushed it**, undo it with `dotnet ef database update <PreviousMigration> --project src/Itacr.Infrastructure --startup-project src/Itacr.Api` and then `dotnet ef migrations remove --project src/Itacr.Infrastructure --startup-project src/Itacr.Api`. Once it is pushed, fix it with a new migration.
 
 ### 13.2 Add or change a procedure, function, view, or trigger
 
 ```bash
 # 1. write or update database/functions/fn_GetOrdersByStatus.sql (header comment + one CREATE OR ALTER)
-dotnet ef migrations add AddFnGetOrdersByStatus --project src/Itacr.Api
+dotnet ef migrations add AddFnGetOrdersByStatus --project src/Itacr.Infrastructure --startup-project src/Itacr.Api
 # 2. in the new migration, Up: migrationBuilder.Sql("""<full content of the file>""");
 #                          Down: migrationBuilder.Sql("DROP FUNCTION IF EXISTS dbo.fn_GetOrdersByStatus;");
-dotnet ef database update --project src/Itacr.Api
-git add database/functions/fn_GetOrdersByStatus.sql src/Itacr.Api/Infrastructure/Persistence/Migrations
+dotnet ef database update --project src/Itacr.Infrastructure --startup-project src/Itacr.Api
+git add database/functions/fn_GetOrdersByStatus.sql src/Itacr.Infrastructure/Persistence/Migrations
 git commit -m "feat(db): add fn_GetOrdersByStatus function (ITACR-N)"
 ```
 
@@ -516,8 +516,8 @@ Naming (`usp_`, `fn_`, `vw_`, `trg_`; never `sp_`), headers, `CREATE OR ALTER`, 
 ### 13.3 Reset your local database
 
 ```bash
-dotnet ef database drop --force --project src/Itacr.Api   # drops the local database
-dotnet ef database update --project src/Itacr.Api         # reapplies every migration and runs the seed
+dotnet ef database drop --force --project src/Itacr.Infrastructure --startup-project src/Itacr.Api   # drops the local database
+dotnet ef database update --project src/Itacr.Infrastructure --startup-project src/Itacr.Api         # reapplies every migration and runs the seed
 ```
 
 Only ever run this against your local Docker database. To delete the container's data completely: `docker compose down -v`, then `docker compose up -d sqlserver`.

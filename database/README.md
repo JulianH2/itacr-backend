@@ -1,6 +1,6 @@
 # database/
 
-T-SQL objects that EF Core does not model, one object per file. Tables, columns, relations, and indexes are **not** here: they live in the EF Core model (`src/Itacr.Api/Domain/` and `src/Itacr.Api/Infrastructure/Persistence/`) and reach the database through migrations.
+T-SQL objects that EF Core does not model, one object per file. Tables, columns, relations, and indexes are **not** here: they live in the EF Core model (`src/Itacr.Domain/` and `src/Itacr.Infrastructure/Persistence/`) and reach the database through migrations.
 
 The same scripts run on the local SQL Server container and on Azure SQL Database (production), so use only features available in both.
 
@@ -28,7 +28,7 @@ database/
 2. Create an empty migration (no model changes):
 
    ```bash
-   dotnet ef migrations add AddFnGetOrdersByStatus --project src/Itacr.Api
+   dotnet ef migrations add AddFnGetOrdersByStatus --project src/Itacr.Infrastructure --startup-project src/Itacr.Api
    ```
 
 3. Paste the full content of the file into the migration's `Up`, and drop the object in `Down`:
@@ -47,6 +47,6 @@ database/
    }
    ```
 
-4. Apply it with `dotnet ef database update --project src/Itacr.Api`, and commit the file and the migration together.
+4. Apply it with `dotnet ef database update --project src/Itacr.Infrastructure --startup-project src/Itacr.Api`, and commit the file and the migration together.
 
 Full naming and style rules: [docs/CODING_STANDARDS.md, section 3.2](../docs/CODING_STANDARDS.md#32-t-sql-objects-procedures-functions-views-and-triggers).

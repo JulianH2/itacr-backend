@@ -40,7 +40,7 @@ cp .env.example .env                 # PowerShell: Copy-Item .env.example .env
 docker compose up -d sqlserver
 dotnet tool restore
 dotnet user-secrets set "ConnectionStrings:Default" "Server=localhost,1433;Database=Itacr;User Id=sa;Password=<MSSQL_SA_PASSWORD from .env>;TrustServerCertificate=True" --project src/Itacr.Api
-dotnet ef database update --project src/Itacr.Api
+dotnet ef database update --project src/Itacr.Infrastructure --startup-project src/Itacr.Api
 dotnet run --project src/Itacr.Api
 ```
 
@@ -58,21 +58,21 @@ The API listens on `http://localhost:3000`:
 
 ## Commands
 
-| Command                                                   | Description                                            |
-| --------------------------------------------------------- | ------------------------------------------------------ |
-| `dotnet run --project src/Itacr.Api`                      | Run the API at `http://localhost:3000`                 |
-| `dotnet watch --project src/Itacr.Api`                    | Run with hot reload                                    |
-| `dotnet build`                                            | Build the solution (Debug)                             |
-| `dotnet build -c Release`                                 | Build like CI: warnings are errors                     |
-| `dotnet test`                                             | Run all tests                                          |
-| `dotnet format`                                           | Format and fix code style with `.editorconfig`         |
-| `dotnet format --verify-no-changes`                       | Check formatting (used by CI)                          |
-| `dotnet ef migrations add <Name> --project src/Itacr.Api` | Create a migration from the model changes              |
-| `dotnet ef database update --project src/Itacr.Api`       | Apply pending migrations and run the idempotent seed   |
-| `dotnet list package --vulnerable --include-transitive`   | List NuGet packages with known vulnerabilities         |
-| `docker compose up -d sqlserver`                          | Start SQL Server                                       |
-| `docker compose down`                                     | Stop SQL Server (data is kept)                         |
-| `docker compose down -v`                                  | Stop SQL Server and delete all local data              |
+| Command                                                                                              | Description                                          |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `dotnet run --project src/Itacr.Api`                                                                 | Run the API at `http://localhost:3000`               |
+| `dotnet watch --project src/Itacr.Api`                                                               | Run with hot reload                                  |
+| `dotnet build`                                                                                       | Build the solution (Debug)                           |
+| `dotnet build -c Release`                                                                            | Build like CI: warnings are errors                   |
+| `dotnet test`                                                                                        | Run all tests                                        |
+| `dotnet format`                                                                                      | Format and fix code style with `.editorconfig`       |
+| `dotnet format --verify-no-changes`                                                                  | Check formatting (used by CI)                        |
+| `dotnet ef migrations add <Name> --project src/Itacr.Infrastructure --startup-project src/Itacr.Api` | Create a migration from the model changes            |
+| `dotnet ef database update --project src/Itacr.Infrastructure --startup-project src/Itacr.Api`       | Apply pending migrations and run the idempotent seed |
+| `dotnet list package --vulnerable --include-transitive`                                              | List NuGet packages with known vulnerabilities       |
+| `docker compose up -d sqlserver`                                                                     | Start SQL Server                                     |
+| `docker compose down`                                                                                | Stop SQL Server (data is kept)                       |
+| `docker compose down -v`                                                                             | Stop SQL Server and delete all local data            |
 
 ## Local development
 
@@ -94,20 +94,17 @@ itacr-backend/
 ├── .githooks/                  # Git hooks: pre-commit (dotnet format), commit-msg (commit convention)
 ├── database/                   # T-SQL objects, one per file: procedures/, functions/, views/, triggers/, scripts/
 ├── docs/
-│   └── CODING_STANDARDS.md
-├── src/
+│   ├── CODING_STANDARDS.md
+│   └── database.md
+├── src/                        # Clean Architecture: references point inward only (see docs/CODING_STANDARDS.md, section 2.1)
+│   ├── Itacr.Domain/           # Entities and enums per module: Identity/, Catalog/, Orders/, Customers/, Notifications/
+│   ├── Itacr.Application/      # Services, interfaces, requests, and responses per module: Identity/, Catalog/
+│   ├── Itacr.Infrastructure/
+│   │   ├── Persistence/        # ItacrDbContext, entity configurations, Migrations/, Seeding/
+│   │   └── Identity/           # JWT token service
 │   └── Itacr.Api/
-│       ├── Features/           # One folder per feature: controller, service, requests, responses
-│       │   ├── Auth/
-│       │   ├── Catalog/
-│       │   ├── Orders/
-│       │   ├── Kitchen/        # SignalR hub for the KDS
-│       │   ├── Notifications/  # Web Push subscriptions and delivery
-│       │   └── Manager/
-│       ├── Domain/             # Entities and enums shared by several features
-│       ├── Infrastructure/
-│       │   └── Persistence/    # ItacrDbContext, entity configurations, Migrations/, Seeding/
-│       ├── Common/             # Cross-cutting code: errors, pagination, options, security headers
+│       ├── Endpoints/          # One folder per module with its controllers: Identity/, Catalog/
+│       ├── Common/             # Pipeline, options, rate limiting, security headers
 │       ├── Program.cs
 │       └── appsettings.json
 ├── tests/
