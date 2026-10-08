@@ -1,5 +1,5 @@
-using Itacr.Api.Features.Employees;
-using Itacr.Api.Infrastructure.Persistence.Seeding;
+using Itacr.Domain.Identity;
+using Itacr.Infrastructure.Persistence.Seeding;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 

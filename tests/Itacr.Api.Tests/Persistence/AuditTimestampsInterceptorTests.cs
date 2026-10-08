@@ -1,5 +1,5 @@
-using Itacr.Api.Features.Customers;
-using Itacr.Api.Infrastructure.Persistence;
+using Itacr.Domain.Customers;
+using Itacr.Infrastructure.Persistence;
 using Microsoft.Extensions.Time.Testing;
 
 namespace Itacr.Api.Tests.Persistence;

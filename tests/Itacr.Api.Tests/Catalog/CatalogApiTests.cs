@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Itacr.Api.Features.Catalog;
-using Itacr.Api.Features.Catalog.Responses;
+using Itacr.Application.Catalog;
+using Itacr.Application.Catalog.Responses;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 

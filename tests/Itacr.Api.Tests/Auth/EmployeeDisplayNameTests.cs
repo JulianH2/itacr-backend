@@ -1,4 +1,4 @@
-using Itacr.Api.Features.Auth;
+using Itacr.Domain.Identity;
 
 namespace Itacr.Api.Tests.Auth;
 

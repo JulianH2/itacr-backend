@@ -1,4 +1,4 @@
-using Itacr.Api.Features.Catalog;
+using Itacr.Domain.Catalog;
 
 namespace Itacr.Api.Tests.Persistence;
 

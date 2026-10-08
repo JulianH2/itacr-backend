@@ -1,6 +1,6 @@
 # Database model
 
-The database is Azure SQL (production) and SQL Server 2025 in Docker (local). The model lives in the EF Core code (`Features/*` entities and `Infrastructure/Persistence/Configurations`), and every change reaches the database through a migration. This file explains the decisions that are not obvious from the code.
+The database is Azure SQL (production) and SQL Server 2025 in Docker (local). The model lives in the EF Core code (entities in `src/Itacr.Domain/<Module>/` and their configurations in `src/Itacr.Infrastructure/Persistence/Configurations/`), and every change reaches the database through a migration. This file explains the decisions that are not obvious from the code.
 
 ## Conventions
 

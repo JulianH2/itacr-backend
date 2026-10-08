@@ -151,4 +151,4 @@ jobs:
         if: steps.project.outputs.solution != '' && steps.project.outputs.migrations == 'true'
         run: |
           dotnet tool restore
-          dotnet ef migrations has-pending-model-changes --project src/Itacr.Api --configuration Release --no-build
+          dotnet ef migrations has-pending-model-changes --project src/Itacr.Infrastructure --startup-project src/Itacr.Api --configuration Release --no-build
