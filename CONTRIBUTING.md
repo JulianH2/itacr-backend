@@ -452,6 +452,7 @@ The Scrum Master role rotates every sprint. Regarding the repository, the Scrum 
 - Makes sure personal PRs are reviewed within one working day and that CI failures are fixed quickly.
 - Reviews and merges the weekly Dependabot PRs into `develop` (or assigns them).
 - Runs `dotnet list package --vulnerable --include-transitive` before the sprint close and opens an issue for anything it reports.
+- Keeps the SQL Server image on a fixed cumulative update (`mcr.microsoft.com/mssql/server:2025-CU<N>-ubuntu-24.04`), the same in `compose.yaml` and in the `SqlServerContainers.Image` constant of `tests/Itacr.Api.Tests` and `tests/Itacr.Database.Migrator.Tests`. To move to a new CU, change the three together in one PR and check that CI passes. Dependabot does not update it.
 - On Friday, runs the [sprint close checklist](#8-closing-a-sprint-friday) up to the release and the back-merge into `release`.
 - Makes sure every Jira issue in the sprint is in the correct column and that closed issues meet the Definition of Done.
 
