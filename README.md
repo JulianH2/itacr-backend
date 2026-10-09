@@ -2,7 +2,7 @@
 
 **ITACR** is a Progressive Web App (PWA) for managing fast-food restaurants in Mexico. Waiters take orders from their phone or tablet (even offline), customers place pickup orders, the kitchen works from a Kitchen Display System (KDS), and managers review metrics.
 
-This repository contains the backend: the ASP.NET Core REST API, real-time kitchen updates, push notifications, and the database (EF Core model, migrations, seed data, and T-SQL procedures, functions, views, and triggers). The Angular PWA lives in [itacr-frontend](https://github.com/JulianH2/itacr-frontend).
+This repository contains the backend: the ASP.NET Core REST API, real-time kitchen updates, push notifications, and the database (versioned SQL scripts, T-SQL procedures, functions, views, and triggers, and the DbUp migrator that applies them). The Angular PWA lives in [itacr-frontend](https://github.com/JulianH2/itacr-frontend).
 
 > Course project: Progressive Web Applications, Universidad Tecnológica de Tula-Tepeji (UTTT), group 10IDGS-G3.
 
@@ -14,7 +14,8 @@ This repository contains the backend: the ASP.NET Core REST API, real-time kitch
 | API            | ASP.NET Core Web API (controllers), Problem Details (RFC 9457), built-in rate limiting  |
 | API docs       | OpenAPI (`Microsoft.AspNetCore.OpenApi`) + Scalar UI                                     |
 | Database       | Azure SQL Database (production), SQL Server 2025 in Docker (local development)          |
-| Data access    | Entity Framework Core 10 (SQL Server provider), migrations                              |
+| Data access    | Dapper over stored procedures (`Microsoft.Data.SqlClient`), one repository per module   |
+| Schema         | SQL scripts applied by `Itacr.Database.Migrator` (DbUp)                                  |
 | Real time      | ASP.NET Core SignalR (KDS and order tracking)                                           |
 | Notifications  | Web Push with VAPID keys                                                                |
 | Auth           | JWT bearer tokens with role-based authorization                                         |
@@ -38,13 +39,14 @@ cd itacr-backend
 git config core.hooksPath .githooks
 cp .env.example .env                 # PowerShell: Copy-Item .env.example .env
 docker compose up -d sqlserver
-dotnet tool restore
 dotnet user-secrets set "ConnectionStrings:Default" "Server=localhost,1433;Database=Itacr;User Id=sa;Password=<MSSQL_SA_PASSWORD from .env>;TrustServerCertificate=True" --project src/Itacr.Api
-dotnet ef database update --project src/Itacr.Api
+dotnet user-secrets set "Jwt:Secret" "<random value, at least 64 characters>" --project src/Itacr.Api
+dotnet user-secrets set "ConnectionStrings:Migrator" "Server=localhost,1433;Database=Itacr;User Id=sa;Password=<MSSQL_SA_PASSWORD from .env>;TrustServerCertificate=True" --project database/Itacr.Database.Migrator
+dotnet run --project database/Itacr.Database.Migrator
 dotnet run --project src/Itacr.Api
 ```
 
-Edit `.env` before starting the database and set a strong `MSSQL_SA_PASSWORD`. The full one-time setup, including the JWT secret, is in [CONTRIBUTING.md, section 1](CONTRIBUTING.md#1-one-time-setup).
+Edit `.env` before starting the database and set a strong `MSSQL_SA_PASSWORD`. The API does not start without `Jwt:Secret` (at least 64 characters); [CONTRIBUTING.md, section 1](CONTRIBUTING.md#1-one-time-setup) shows how to generate it and has the full one-time setup.
 
 The API listens on `http://localhost:3000`:
 
@@ -58,25 +60,24 @@ The API listens on `http://localhost:3000`:
 
 ## Commands
 
-| Command                                                   | Description                                            |
-| --------------------------------------------------------- | ------------------------------------------------------ |
-| `dotnet run --project src/Itacr.Api`                      | Run the API at `http://localhost:3000`                 |
-| `dotnet watch --project src/Itacr.Api`                    | Run with hot reload                                    |
-| `dotnet build`                                            | Build the solution (Debug)                             |
-| `dotnet build -c Release`                                 | Build like CI: warnings are errors                     |
-| `dotnet test`                                             | Run all tests                                          |
-| `dotnet format`                                           | Format and fix code style with `.editorconfig`         |
-| `dotnet format --verify-no-changes`                       | Check formatting (used by CI)                          |
-| `dotnet ef migrations add <Name> --project src/Itacr.Api` | Create a migration from the model changes              |
-| `dotnet ef database update --project src/Itacr.Api`       | Apply pending migrations and run the idempotent seed   |
-| `dotnet list package --vulnerable --include-transitive`   | List NuGet packages with known vulnerabilities         |
-| `docker compose up -d sqlserver`                          | Start SQL Server                                       |
-| `docker compose down`                                     | Stop SQL Server (data is kept)                         |
-| `docker compose down -v`                                  | Stop SQL Server and delete all local data              |
+| Command                                                 | Description                                                               |
+| ------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `dotnet run --project src/Itacr.Api`                    | Run the API at `http://localhost:3000`                                    |
+| `dotnet watch --project src/Itacr.Api`                  | Run with hot reload                                                       |
+| `dotnet build`                                          | Build the solution (Debug)                                                |
+| `dotnet build -c Release`                               | Build like CI: warnings are errors                                        |
+| `dotnet test`                                           | Run all tests (Docker must be running: the migrator tests use SQL Server) |
+| `dotnet format`                                         | Format and fix code style with `.editorconfig`                            |
+| `dotnet format --verify-no-changes`                     | Check formatting (used by CI)                                             |
+| `dotnet run --project database/Itacr.Database.Migrator` | Create or update the local database: scripts, catalog, and test employees |
+| `dotnet list package --vulnerable --include-transitive` | List NuGet packages with known vulnerabilities                            |
+| `docker compose up -d sqlserver`                        | Start SQL Server                                                          |
+| `docker compose down`                                   | Stop SQL Server (data is kept)                                            |
+| `docker compose down -v`                                | Stop SQL Server and delete all local data                                 |
 
 ## Local development
 
-`dotnet ef database update` creates the database, applies the migrations, and seeds the catalog (categories, products, combo options, and tables 1 to 10). In the **Development** environment it also creates four test employees, all with the password `Itacr2026!`. Run the command with `ASPNETCORE_ENVIRONMENT=Development` (PowerShell: `$env:ASPNETCORE_ENVIRONMENT = 'Development'`) so they are created.
+`dotnet run --project database/Itacr.Database.Migrator` creates the database, applies every script in `database/` (schema and catalog: categories, products, combo options, and tables 1 to 10), and, because `dotnet run` uses the `Development` environment, creates four test employees, all with the password `Itacr2026!`. Run it again after every pull that brings new scripts; it only applies what is missing.
 
 | Role    | Email                  | PIN    | Status           |
 | ------- | ---------------------- | ------ | ---------------- |
@@ -85,33 +86,34 @@ The API listens on `http://localhost:3000`:
 | Manager | `gerente@itacr.test`   | `3333` | Active           |
 | Waiter  | `pendiente@itacr.test` | `4444` | Pending approval |
 
-These PINs and passwords are for local development only and are never created in any other environment. See [docs/database.md](docs/database.md#seed-data) for what is seeded and why.
+These PINs and passwords are for local development only and are never created in any other environment. See [database/README.md](database/README.md#seed-data) for what is seeded and why.
+
 ## Folder structure
 
 ```
 itacr-backend/
 ├── .github/                    # CI and release-please workflows, Dependabot, PR and issue templates, CODEOWNERS
 ├── .githooks/                  # Git hooks: pre-commit (dotnet format), commit-msg (commit convention)
-├── database/                   # T-SQL objects, one per file: procedures/, functions/, views/, triggers/, scripts/
+├── database/                   # migrations/ (V001__...), functions/, views/, procedures/, triggers/ per module, scripts/, Itacr.Database.Migrator/
 ├── docs/
-│   └── CODING_STANDARDS.md
-├── src/
+│   ├── ARCHITECTURE.md
+│   ├── CODING_STANDARDS.md
+│   └── database.md
+├── src/                        # Clean Architecture: references point inward only (see docs/CODING_STANDARDS.md, section 2.1)
+│   ├── Itacr.Domain/           # Entities and enums per module: Identity/, Catalog/, Orders/, Customers/, Notifications/
+│   ├── Itacr.Application/      # Use cases per module: <Module>/<UseCase>/ (command, handler, validator), Common/ (Result, validation)
+│   ├── Itacr.Infrastructure/
+│   │   ├── Persistence/        # DbSession, <Module>/ repositories with Dapper, database health check
+│   │   └── Identity/           # JWT tokens and validation, credential hasher
 │   └── Itacr.Api/
-│       ├── Features/           # One folder per feature: controller, service, requests, responses
-│       │   ├── Auth/
-│       │   ├── Catalog/
-│       │   ├── Orders/
-│       │   ├── Kitchen/        # SignalR hub for the KDS
-│       │   ├── Notifications/  # Web Push subscriptions and delivery
-│       │   └── Manager/
-│       ├── Domain/             # Entities and enums shared by several features
-│       ├── Infrastructure/
-│       │   └── Persistence/    # ItacrDbContext, entity configurations, Migrations/, Seeding/
-│       ├── Common/             # Cross-cutting code: errors, pagination, options, security headers
+│       ├── Endpoints/          # <Module>/<UseCase>Endpoint.cs: one controller per use case
+│       ├── Common/             # Pipeline, options, rate limiting, security headers
 │       ├── Program.cs
 │       └── appsettings.json
 ├── tests/
-│   └── Itacr.Api.Tests/
+│   ├── Itacr.Api.Tests/
+│   ├── Itacr.Architecture.Tests/   # NetArchTest: layer and use case rules
+│   └── Itacr.Database.Migrator.Tests/
 ├── compose.yaml                # Local SQL Server
 ├── Directory.Build.props       # Shared build settings and the version (updated by release-please)
 ├── Directory.Packages.props    # Central NuGet package versions
@@ -161,7 +163,7 @@ They live only in App Service `app-itacr-backend-prod` > Settings > **Environmen
 | Variable                     | Value                                                                                       |
 | ---------------------------- | ------------------------------------------------------------------------------------------- |
 | `ASPNETCORE_ENVIRONMENT`     | `Production`                                                                                |
-| `ConnectionStrings__Default` | `Server=tcp:itacr-sql.database.windows.net,1433;Initial Catalog=itacr-sql;User ID=<user>;Password=<password>;Encrypt=True;TrustServerCertificate=False;Connection Timeout=60` |
+| `ConnectionStrings__Default` | `Server=tcp:itacr-sql.database.windows.net,1433;Initial Catalog=itacr-sql;User ID=itacr_app;Password=<password>;Encrypt=True;TrustServerCertificate=False;Connection Timeout=60` |
 | `Jwt__Secret`                | Random value of at least 64 characters, different from every development secret            |
 | `Cors__Origins__0`           | `https://app-itacr-frontend-prod-hchjfvaadffrhre3.westus-01.azurewebsites.net`              |
 
@@ -217,6 +219,7 @@ Instructor: Juan Carlos Benítez Reyes. The Scrum Master role rotates every spri
 ## Related documents
 
 - [CONTRIBUTING.md](CONTRIBUTING.md): daily workflow, sprints, reviews, database workflow, Definition of Done
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): layers, request flow, data access, security, and key decisions
 - [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md)
 - [database/README.md](database/README.md)
 - [CHANGELOG.md](CHANGELOG.md) (generated by release-please)

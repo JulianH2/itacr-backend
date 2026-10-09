@@ -38,28 +38,38 @@ git config user.email "you@example.com"   # use the email linked to your GitHub 
 cp .env.example .env                      # PowerShell: Copy-Item .env.example .env
 ```
 
-Edit `.env` and set a strong `MSSQL_SA_PASSWORD` (at least 8 characters with uppercase, lowercase, numbers, and symbols; SQL Server stops the container if it is weak). Then start the database and restore the local tools (`dotnet-ef`):
+Edit `.env` and set a strong `MSSQL_SA_PASSWORD` (at least 8 characters with uppercase, lowercase, numbers, and symbols; SQL Server stops the container if it is weak). Then start the database:
 
 ```bash
 docker compose up -d sqlserver
 docker compose ps                         # wait until itacr-sqlserver is "healthy"
-dotnet tool restore
 ```
 
-Store the API secrets with [user secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets). They live in your user profile, outside the repository, and are only loaded in Development:
+Store the API and migrator secrets with [user secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets). They live in your user profile, outside the repository, and are only loaded in Development:
 
 ```bash
 dotnet user-secrets set "ConnectionStrings:Default" "Server=localhost,1433;Database=Itacr;User Id=sa;Password=<MSSQL_SA_PASSWORD from .env>;TrustServerCertificate=True" --project src/Itacr.Api
+dotnet user-secrets set "ConnectionStrings:Migrator" "Server=localhost,1433;Database=Itacr;User Id=sa;Password=<MSSQL_SA_PASSWORD from .env>;TrustServerCertificate=True" --project database/Itacr.Database.Migrator
 dotnet user-secrets set "Jwt:Secret" "<random value, at least 64 characters>" --project src/Itacr.Api
-dotnet user-secrets list --project src/Itacr.Api
 ```
 
-Generate the JWT secret with `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` or, in Git Bash, `openssl rand -base64 48`. Generate the Web Push keys once for the team with `npx web-push generate-vapid-keys`: the private key goes to `dotnet user-secrets set "WebPush:PrivateKey" "<key>"`, and the public key goes to `appsettings.json` (`WebPush:PublicKey`) and to `itacr-frontend`.
+`Jwt:Secret` is required: without it the API stops at startup with `DataAnnotation validation failed for 'JwtOptions' members: 'Secret'`. Generate a random value of at least 64 characters with `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`, in Git Bash with `openssl rand -base64 48`, or in PowerShell without printing it:
 
-Finally, create the database and run the API:
+```powershell
+$bytes = New-Object byte[] 48
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+dotnet user-secrets set "Jwt:Secret" ([Convert]::ToBase64String($bytes)) --project src/Itacr.Api
+Remove-Variable bytes
+```
+
+To check which secrets are set without printing their values: `dotnet user-secrets list --project src/Itacr.Api | ForEach-Object { ($_ -split ' = ')[0] }` (plain `dotnet user-secrets list` prints the passwords).
+
+Generate the Web Push keys once for the team with `npx web-push generate-vapid-keys`: the private key goes to `dotnet user-secrets set "WebPush:PrivateKey" "<key>"`, and the public key goes to `appsettings.json` (`WebPush:PublicKey`) and to `itacr-frontend`.
+
+Finally, create the database with the migrator (schema, catalog, and the four test employees) and run the API:
 
 ```bash
-dotnet ef database update --project src/Itacr.Api
+dotnet run --project database/Itacr.Database.Migrator
 dotnet run --project src/Itacr.Api               # http://localhost:3000/api/v1
 ```
 
@@ -133,7 +143,7 @@ chore(deps): bump microsoft.entityframeworkcore to 10.0.4
 | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `feat` `fix` `docs` `style` `refactor` `perf` `test` `build` `ci` `chore` `revert` | `auth` `catalog` `orders` `kitchen` `tracking` `manager` `pwa` `db` `core` `deps` `repo` |
 
-- Use the `db` scope for the EF Core model, migrations, seed data, and SQL objects.
+- Use the `db` scope for migration scripts, procedures and other SQL objects, seed data, the migrator, and the repositories.
 - The `commit-msg` git hook (`.githooks/commit-msg`) rejects messages that do not follow the format, and CI runs the same check on every commit of a PR into `sprint-XX`. Only the `deps` scope may omit the Jira key. The rules are the same as commitlint in `itacr-frontend`.
 - The `pre-commit` hook runs `dotnet format` on the staged C# files and stages the result. Stage whole files, not parts of a file.
 - If the hooks do not run, check `git config core.hooksPath` prints `.githooks` (see [section 1](#1-one-time-setup)).
@@ -167,10 +177,10 @@ Move the Jira issue to **In Progress**.
 
 ```bash
 docker compose up -d sqlserver                       # make sure SQL Server is running
-dotnet ef database update --project src/Itacr.Api    # apply any migration your teammate merged
+dotnet run --project database/Itacr.Database.Migrator             # apply any database script your teammate merged
 dotnet watch --project src/Itacr.Api                 # http://localhost:3000/api/v1, reloads on save
 git status
-git add src/Itacr.Api/Features/Orders                # stage specific paths; avoid "git add ." with unknown files
+git add src/Itacr.Application/Orders src/Itacr.Api/Endpoints/Orders  # stage specific paths; avoid "git add ." with unknown files
 git commit -m "feat(orders): add idempotent order creation (ITACR-9)"
 ```
 
@@ -212,7 +222,7 @@ Do this when your teammate merged something you need, or when GitHub says your P
 git switch feature/ITACR-9-create-order
 git fetch origin
 git merge origin/sprint-01
-dotnet ef database update --project src/Itacr.Api    # apply migrations that came with the merge
+dotnet run --project database/Itacr.Database.Migrator             # apply database scripts that came with the merge
 ```
 
 If there are conflicts:
@@ -222,7 +232,7 @@ If there are conflicts:
 3. Finish the merge and push:
 
 ```bash
-git add src/Itacr.Api/Features/Orders/OrdersService.cs
+git add src/Itacr.Application/Orders/OrdersService.cs
 git commit                         # accept the default merge message
 dotnet build
 dotnet test
@@ -235,25 +245,14 @@ If `Directory.Packages.props` conflicts, keep every `<PackageVersion>` from both
 
 ### 5.2 Migration conflicts
 
-If you both added a migration, `ItacrDbContextModelSnapshot.cs` conflicts. Your migration is not merged anywhere yet, so regenerate it on top of your teammate's:
+If you and your teammate both added a script with the same number in `database/migrations/` (for example two `V002__...sql`), git does not report a conflict, but the migrator would run them in name order and the journal would mix them up. Whoever merges second renames their own script to the next free number before merging:
 
 ```bash
-git checkout --theirs src/Itacr.Api/Infrastructure/Persistence/Migrations/ItacrDbContextModelSnapshot.cs
+git mv database/migrations/V002__add_order_notes.sql database/migrations/V003__add_order_notes.sql
+git commit -m "fix(db): renumber order notes migration (ITACR-N)"
 ```
 
-During `git merge origin/sprint-01`, "theirs" is the sprint version. Then:
-
-1. Delete **your** migration files (`<timestamp>_<YourMigration>.cs` and `<timestamp>_<YourMigration>.Designer.cs`). Never delete or edit your teammate's.
-2. `git add src/Itacr.Api/Infrastructure/Persistence/Migrations` and `git commit` to finish the merge.
-3. Rebuild your local database and create your migration again, now on top of the merged model:
-
-```bash
-dotnet ef database drop --force --project src/Itacr.Api
-dotnet ef migrations add <YourMigration> --project src/Itacr.Api
-dotnet ef database update --project src/Itacr.Api
-git add src/Itacr.Api/Infrastructure/Persistence/Migrations
-git commit -m "feat(db): <description> (ITACR-N)"
-```
+Only rename a script that is not merged into `sprint-XX` yet. Then reset your local database ([section 13.3](#133-reset-your-local-database)) so both scripts run in the new order.
 
 ### 5.3 Rules
 
@@ -289,8 +288,7 @@ Any other combination is rejected by the `branch-name` CI check, which prints th
    git fetch origin
    git switch feature/ITACR-9-create-order
    docker compose up -d sqlserver
-   dotnet tool restore
-   dotnet ef database update --project src/Itacr.Api
+   dotnet run --project database/Itacr.Database.Migrator
    dotnet format --verify-no-changes
    dotnet build -c Release
    dotnet test
@@ -298,7 +296,7 @@ Any other combination is rejected by the `branch-name` CI check, which prints th
    ```
 
 3. Test the acceptance criteria with Scalar (`http://localhost:3000/scalar/v1`), the `.http` files, or curl, including invalid input (`400` with Problem Details in Spanish) and a user without the required role (`403`).
-4. For database changes, read the migration (`Up` and `Down`) and check that every SQL object has its file in `database/` (see [section 13](#13-database-workflow)).
+4. For database changes, read every new script in `database/migrations/` (additive, never an edit of a merged script) and every changed object file, and check that the migrator runs twice without errors (see [section 13](#13-database-workflow)).
 5. Review the code against the coding standards. Leave comments on **Files changed**. Prefix optional remarks with `nit:`.
 6. Submit **Approve** or **Request changes**. Do not approve with failing CI.
 
@@ -344,7 +342,7 @@ The Scrum Master runs the close; the other team member approves each PR. Replace
 
 - [ ] **2. PR `sprint-01` → `develop`.** Open `https://github.com/JulianH2/itacr-backend/compare/develop...sprint-01`, get approval and green checks, and merge with a merge commit.
 
-- [ ] **3. PR `develop` → `release`, then QA on `release`.** Open `https://github.com/JulianH2/itacr-backend/compare/release...develop` and merge it. Then test the increment against a clean database, applying every migration from scratch:
+- [ ] **3. PR `develop` → `release`, then QA on `release`.** Open `https://github.com/JulianH2/itacr-backend/compare/release...develop` and merge it. Then test the increment against a clean database, applying every script from scratch:
 
   ```bash
   git fetch origin
@@ -352,16 +350,13 @@ The Scrum Master runs the close; the other team member approves each PR. Replace
   git pull
   docker compose down -v
   docker compose up -d sqlserver
-  dotnet tool restore
-  dotnet ef database update --project src/Itacr.Api
+  dotnet run --project database/Itacr.Database.Migrator
   dotnet run --project src/Itacr.Api -c Release
   ```
 
   Smoke test: `GET http://localhost:3000/api/v1/health` returns `200`, Scalar loads, and the sprint's endpoints work with the frontend. If you find a blocking bug, fix it with a personal branch into `sprint-01` and repeat steps 2 and 3. Do not go on to step 4 until QA passes.
 
-- [ ] **4. PR `release` → `main`, then production deploy and migrations.** Open `https://github.com/JulianH2/itacr-backend/compare/main...release`, get approval, and merge. The push to `main` starts the **Deploy** workflow. When it finishes:
-  1. If the release has new migrations, apply them right away from the workflow's `ef-migrations` artifact ([section 15.3](#153-apply-migrations-to-azure-sql)). The new code is already running, so do not delay this step.
-  2. Check `GET https://app-itacr-backend-prod-b3hvcggncghafbgp.westus-01.azurewebsites.net/api/v1/health` returns `200 Healthy`.
+- [ ] **4. PR `release` → `main`, then production deploy.** Open `https://github.com/JulianH2/itacr-backend/compare/main...release`, get approval, and merge. The push to `main` starts the **Deploy** workflow, which applies the database scripts and then deploys the API ([section 15.2](#152-deploy-workflow)). When it finishes, check `GET https://app-itacr-backend-prod-b3hvcggncghafbgp.westus-01.azurewebsites.net/api/v1/health` returns `200 Healthy`. If the `migrate` job fails, the API is not deployed: read its log, fix the script with a personal branch, and release again.
 
 - [ ] **5. Merge the release-please PR.** A few seconds after step 4, release-please opens (or updates) the PR `chore(repo): release vX.Y.Z` on `main`. Review the version and the generated `CHANGELOG.md`, approve, and merge. release-please then creates the tag `vX.Y.Z` and the GitHub Release.
 
@@ -457,6 +452,7 @@ The Scrum Master role rotates every sprint. Regarding the repository, the Scrum 
 - Makes sure personal PRs are reviewed within one working day and that CI failures are fixed quickly.
 - Reviews and merges the weekly Dependabot PRs into `develop` (or assigns them).
 - Runs `dotnet list package --vulnerable --include-transitive` before the sprint close and opens an issue for anything it reports.
+- Keeps the SQL Server image on a fixed cumulative update (`mcr.microsoft.com/mssql/server:2025-CU<N>-ubuntu-24.04`), the same in `compose.yaml` and in the `SqlServerContainers.Image` constant of `tests/Itacr.Api.Tests` and `tests/Itacr.Database.Migrator.Tests`. To move to a new CU, change the three together in one PR and check that CI passes. Dependabot does not update it.
 - On Friday, runs the [sprint close checklist](#8-closing-a-sprint-friday) up to the release and the back-merge into `release`.
 - Makes sure every Jira issue in the sprint is in the correct column and that closed issues meet the Definition of Done.
 
@@ -469,58 +465,53 @@ An issue is **Done** only when all of the following are true:
 - [ ] CI is green (`branch-name`, `commit-messages`, and `ci`: format check, Release build with no warnings, tests, pending migrations check).
 - [ ] It follows [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md), with at least one test per acceptance criterion when feasible.
 - [ ] Every new endpoint validates its input and is documented in OpenAPI (status codes and response types).
-- [ ] Database changes are in migrations (and SQL objects in `database/`), and `dotnet ef database update` still runs twice without errors.
+- [ ] Database changes are scripts in `database/` (never an edit of a merged migration script), and the migrator still runs twice without errors.
 - [ ] Docs are updated (README, `.env.example`, `appsettings.json`) if applicable.
 - [ ] The Jira issue is moved to **Done**.
 
 ## 13. Database workflow
 
-The database is part of this repository and changes only through EF Core migrations. **Never change the database by hand** (SSMS, the VS Code SQL Server extension, sqlcmd) except for reading data.
+The database is part of this repository and changes only through the scripts in `database/`, applied by `Itacr.Database.Migrator` (DbUp) on every machine and in the deploy workflow. **Never change the database by hand** (SSMS, the VS Code SQL Server extension, sqlcmd) except for reading data. The full reference is [database/README.md](database/README.md).
 
-| What                                   | Where                                                    | How it reaches the database                                   |
-| -------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------- |
-| Tables, enums, relations, indexes      | Entities in `Domain/`, configurations in `Infrastructure/Persistence/Configurations/` | `dotnet ef migrations add <Name>`, then `dotnet ef database update` |
-| Procedures, functions, views, triggers | `database/<type>/<name>.sql`                             | `migrationBuilder.Sql(...)` in an empty migration             |
-| Seed data                              | `Infrastructure/Persistence/Seeding/`                    | Runs on `dotnet ef database update` (idempotent)              |
-| Reports and maintenance                | `database/scripts/`                                      | Run manually; never change schema or shared data              |
-
-Every `dotnet ef` command takes `--project src/Itacr.Api`. Migrations are created in `src/Itacr.Api/Infrastructure/Persistence/Migrations/`.
+| What                                   | Where                                         | How it reaches the database                                  |
+| -------------------------------------- | --------------------------------------------- | ------------------------------------------------------------ |
+| Tables, columns, indexes, reference data | `database/migrations/V<NNN>__<description>.sql` | The migrator runs each script once, in order                 |
+| Procedures, functions, views, triggers | `database/<type>/<Module>/<name>.sql`         | The migrator re-creates them on every run (`CREATE OR ALTER`) |
+| Employees (test users, initial manager) | `database/Itacr.Database.Migrator/Seeding/`  | The migrator seeds them after the scripts (idempotent)       |
+| Database users, reports, maintenance   | `database/scripts/`                           | Run by hand only                                             |
 
 ### 13.1 Change a table
 
 ```bash
-# edit the entity and its configuration
-dotnet ef migrations add AddNotesToOrders --project src/Itacr.Api
-# read the generated migration before applying it
-dotnet ef database update --project src/Itacr.Api
-git add src/Itacr.Api/Domain src/Itacr.Api/Infrastructure/Persistence
+# write database/migrations/V002__add_notes_to_orders.sql (header comment, additive change)
+dotnet run --project database/Itacr.Database.Migrator   # applies it
+dotnet run --project database/Itacr.Database.Migrator   # a second run must apply nothing
+git add database/migrations/V002__add_notes_to_orders.sql
 git commit -m "feat(db): add notes column to orders (ITACR-N)"
 ```
 
-If the migration is wrong and you have **not pushed it**, undo it with `dotnet ef database update <PreviousMigration> --project src/Itacr.Api` and then `dotnet ef migrations remove --project src/Itacr.Api`. Once it is pushed, fix it with a new migration.
+If the script is wrong and it is **not merged** into `sprint-XX` yet, fix the file and reset your local database ([13.3](#133-reset-your-local-database)). Once it is merged, never edit it: fix it with a new script.
 
 ### 13.2 Add or change a procedure, function, view, or trigger
 
 ```bash
-# 1. write or update database/functions/fn_GetOrdersByStatus.sql (header comment + one CREATE OR ALTER)
-dotnet ef migrations add AddFnGetOrdersByStatus --project src/Itacr.Api
-# 2. in the new migration, Up: migrationBuilder.Sql("""<full content of the file>""");
-#                          Down: migrationBuilder.Sql("DROP FUNCTION IF EXISTS dbo.fn_GetOrdersByStatus;");
-dotnet ef database update --project src/Itacr.Api
-git add database/functions/fn_GetOrdersByStatus.sql src/Itacr.Api/Infrastructure/Persistence/Migrations
+# write or update database/functions/Orders/fn_GetOrdersByStatus.sql (header comment + one CREATE OR ALTER)
+dotnet run --project database/Itacr.Database.Migrator
+git add database/functions/Orders/fn_GetOrdersByStatus.sql
 git commit -m "feat(db): add fn_GetOrdersByStatus function (ITACR-N)"
 ```
 
-Naming (`usp_`, `fn_`, `vw_`, `trg_`; never `sp_`), headers, `CREATE OR ALTER`, and the function-vs-procedure rule are in [section 3.2 of the coding standards](docs/CODING_STANDARDS.md#32-t-sql-objects-procedures-functions-views-and-triggers) and in [database/README.md](database/README.md). Use only T-SQL that also runs on Azure SQL Database.
+There is no migration to create: the file is applied on every run. Naming (`usp_`, `fn_`, `vw_`, `trg_`; never `sp_`), headers, `CREATE OR ALTER`, and the function-vs-procedure rule are in [section 3.2 of the coding standards](docs/CODING_STANDARDS.md#32-t-sql-objects-procedures-functions-views-and-triggers). Use only T-SQL that also runs on Azure SQL Database.
 
 ### 13.3 Reset your local database
 
 ```bash
-dotnet ef database drop --force --project src/Itacr.Api   # drops the local database
-dotnet ef database update --project src/Itacr.Api         # reapplies every migration and runs the seed
+docker compose down -v                                  # deletes the container's data
+docker compose up -d sqlserver
+dotnet run --project database/Itacr.Database.Migrator   # creates the database and applies every script and the seed
 ```
 
-Only ever run this against your local Docker database. To delete the container's data completely: `docker compose down -v`, then `docker compose up -d sqlserver`.
+Only ever do this with your local Docker database.
 
 ## 14. Bootstrapping the backend (ITACR-26, ITACR-27, ITACR-28)
 
@@ -665,57 +656,65 @@ The production settings (`ASPNETCORE_ENVIRONMENT`, `ConnectionStrings__Default`,
 
 ### 15.2 Deploy workflow
 
-`.github/workflows/deploy.yml` runs on every push to `main` (and by hand with **Run workflow**). It restores, builds, and tests the solution, publishes `src/Itacr.Api`, and deploys it to `app-itacr-backend-prod` with the `AZURE_WEBAPP_PUBLISH_PROFILE` secret. If the build or a test fails, nothing is deployed.
+`.github/workflows/deploy.yml` runs on every push to `main` (and by hand with **Run workflow**, from `main`). It has three jobs; each starts only if the previous one succeeded:
 
-It also uploads the `ef-migrations` artifact with every migration in two forms:
+| Job | What it does |
+| --- | ------------ |
+| `build` | Restores, builds, and tests the solution, and publishes the API and `Itacr.Database.Migrator` as artifacts (kept 3 days) |
+| `migrate` | Signs in to Azure with OIDC, opens a firewall rule on `itacr-sql` for the runner's IP, runs the migrator as `itacr_migrator`, and removes the rule even if the migrator failed |
+| `deploy` | Deploys the API to `app-itacr-backend-prod` with the `AZURE_WEBAPP_PUBLISH_PROFILE` secret |
 
-| File                      | What it is                                                                   |
-| ------------------------- | ---------------------------------------------------------------------------- |
-| `migrations.sql`          | Idempotent SQL script: applies only the migrations the database is missing    |
-| `efbundle.exe`            | Windows migration bundle (needs the .NET 10 runtime or SDK installed): applies the migrations **and runs the seeder** |
+The database is migrated **before** the new API starts, so the scripts must be additive: for a moment the previous API runs against the new schema. If the migrator fails, its script is rolled back, the job fails, and the API is not deployed. Rename or drop columns in a later release.
 
-The workflow never touches the database: the Azure SQL firewall only allows Azure services and the team's IPs. The artifact is kept for 14 days (GitHub Free has 500 MB of artifact storage for private repositories); download it the same day as the deploy.
+The seed runs in `Production`, so it only creates the initial manager while no manager exists, from `Seed__ManagerName`, `Seed__ManagerEmail`, and `Seed__ManagerPin`. Production already has its manager, so those variables are not set in the workflow.
 
 **One-time setup (repository owner):** App Service `app-itacr-backend-prod` > Overview > **Download publish profile**, then paste the whole file into the repository secret `AZURE_WEBAPP_PUBLISH_PROFILE` (Settings > Secrets and variables > Actions). Delete the downloaded file afterwards, and never commit it. Downloading it requires App Service > Configuration > **SCM Basic Auth Publishing Credentials** turned on. If the file is ever exposed, reset it (Overview > **Reset publish profile**) and update the secret.
 
-### 15.3 Apply migrations to Azure SQL
+### 15.3 Database access from the workflow
 
-Done by the Scrum Master right after a deploy that includes new migrations ([section 8, step 4](#8-closing-a-sprint-friday)), from Windows in PowerShell:
+The `migrate` job needs two things, both already set up:
 
-1. Allow your IP: Azure Portal > SQL server `itacr-sql` > Security > **Networking** > **Add your client IPv4 address** > Save.
-2. Download the artifact of the deploy run: GitHub > Actions > **Deploy** > the run > Artifacts > `ef-migrations`, and unzip it. Or: `gh run download <run-id> -R JulianH2/itacr-backend -n ef-migrations`.
-3. Apply the migrations with the bundle:
+1. **An Azure identity without stored passwords (OIDC).** App registration `github-itacr-backend-deploy` with a federated credential for the subject `repo:JulianH2/itacr-backend:ref:refs/heads/main`, so only runs on `main` can sign in. Its service principal has a single role: **SQL Server Contributor** on the server `itacr-sql`, which lets it add and remove firewall rules. The workflow uses no GitHub environment; adding `environment:` to the job would change the subject and need a new federated credential.
+2. **Its own database user.** `itacr_migrator`, created with [database/scripts/security/database-users.sql](database/scripts/security/database-users.sql).
+
+| Repository secret | Value |
+| ----------------- | ----- |
+| `AZURE_CLIENT_ID` | Application (client) ID of `github-itacr-backend-deploy` |
+| `AZURE_TENANT_ID` | Directory (tenant) ID |
+| `AZURE_SUBSCRIPTION_ID` | Subscription ID of Azure for Students |
+| `SQL_MIGRATOR_CONNECTION_STRING` | `Server=tcp:itacr-sql.database.windows.net,1433;Initial Catalog=itacr-sql;User ID=itacr_migrator;Password=<password>;Encrypt=True;TrustServerCertificate=False;Connection Timeout=60` |
+
+**Database users (repository owner, once).** No application uses the server admin login:
+
+1. In the Azure Portal, open the `itacr-sql` **database** > **Query editor**, sign in as the server admin, and run `database/scripts/security/database-users.sql` after replacing its two password placeholders with generated passwords. Keep them only in a password manager.
+2. Save the `itacr_migrator` connection string in the secret `SQL_MIGRATOR_CONNECTION_STRING`.
+3. Change `ConnectionStrings__Default` in App Service `app-itacr-backend-prod` to the same connection string with `User ID=itacr_app` and its password. Save, wait for the restart, and check `GET /api/v1/health` returns `200 Healthy`. The health check only opens a connection (it proves the login and the firewall, not the permissions), so also check that `itacr_app` can read and write, in this order:
+
+   | Check | Request | Expected | Proves |
+   | ----- | ------- | -------- | ------ |
+   | Read a table | `GET /api/v1/catalog/categories` | `200`, 5 categories | `SELECT` on `dbo.Categories` |
+   | Read through the function | `GET /api/v1/catalog/products?categoryId=10000000-0000-0000-0000-000000000004` | `200`, 4 drinks | `SELECT` on `dbo.fn_GetProductsByCategory` |
+   | Write | `POST /api/v1/auth/login/pin` with the manager's `employeeId` (from `GET /api/v1/auth/employees?role=Manager`) and a **wrong** PIN, **once** | `401`, not `500` | `UPDATE` of `FailedLoginAttempts` (a missing permission fails `SaveChanges` with `500`) |
+   | Write and clean up | The same request with the **correct** PIN | `200` with a token | `UPDATE` that resets `FailedLoginAttempts` to `0` |
+
+   Send the wrong PIN only once: after 5 failed attempts (`LoginSecurity:MaxFailedPinAttempts`) the account is locked for 15 minutes (`LoginSecurity:LockoutMinutes`). The correct PIN alone does not prove the write: when the counter is already `0`, EF Core sends no `UPDATE`.
+
+4. Only then reset the server admin password (SQL server `itacr-sql` > Overview > **Reset password**) and keep the new one only in the password manager, for emergencies.
+5. **After the release that includes ITACR-36 is deployed** (the API then reaches every table through stored procedures), run [database/scripts/security/app-execute-only.sql](database/scripts/security/app-execute-only.sql) the same way. It removes `db_datareader` and `db_datawriter` from `itacr_app`, and its two queries must show only `EXECUTE` on `dbo` and no role. Then repeat the checks of step 3: from this release on, `GET /api/v1/health` runs `dbo.usp_Health_Ping`, so a `200 Healthy` also proves the `EXECUTE` permission. Never run it before that release: the previous API reads the tables directly and would fail with `500`.
+
+### 15.4 Run the migrator against Azure SQL by hand
+
+Only if the workflow cannot run it. From your machine, in PowerShell:
+
+1. Allow your IP: SQL server `itacr-sql` > Security > **Networking** > **Add your client IPv4 address** > Save.
+2. Run the migrator with the `itacr_migrator` connection string:
 
    ```powershell
-   $env:ASPNETCORE_ENVIRONMENT = 'Production'
-   $env:ConnectionStrings__Default = '<the same connection string as in App Service>'
-   .\efbundle.exe
+   $env:DOTNET_ENVIRONMENT = 'Production'
+   $env:ConnectionStrings__Migrator = '<the SQL_MIGRATOR_CONNECTION_STRING value>'
+   dotnet run --project database/Itacr.Database.Migrator --no-launch-profile
+   Remove-Item Env:ConnectionStrings__Migrator, Env:DOTNET_ENVIRONMENT
    ```
 
-   The bundle prints each migration it applies, or that the database is already up to date, and then runs the seeder. It is safe to run it again.
-
-4. Remove the variables and your IP:
-
-   ```powershell
-   Remove-Item Env:ConnectionStrings__Default
-   ```
-
-   Then delete your IP rule in the SQL server **Networking** page.
-5. Check `GET https://app-itacr-backend-prod-b3hvcggncghafbgp.westus-01.azurewebsites.net/api/v1/health` returns `200 Healthy`.
-
-To review what will run before applying it, read `migrations.sql`. It can also be applied with the Azure Portal **Query editor** or `sqlcmd`, but the script does **not** run the seeder.
-
-**First deploy only:** the seeder creates the initial manager when no manager exists. Before step 3, also set:
-
-```powershell
-$env:Seed__ManagerName = '<full name>'
-$env:Seed__ManagerEmail = '<email>'
-$env:Seed__ManagerPin = '<4 digits>'
-```
-
-and remove them afterwards (`Remove-Item Env:Seed__*`). Without them the seeder only logs a warning, and no manager is created. The manager should change the PIN after the first login.
-
-**Rules:**
-
-- Between the deploy and step 3 the new code runs against the old schema, so the endpoints that need a new table or column fail. Apply the migrations as soon as the deploy finishes.
-- Keep migrations additive (new tables, nullable or defaulted columns) so the previous release still works against the new schema if a deploy has to be rolled back. Rename or drop columns in a later release.
+   `--no-launch-profile` keeps `launchSettings.json` from switching the environment to `Development`.
+3. Delete your IP rule in the **Networking** page.
