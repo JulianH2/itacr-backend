@@ -3,7 +3,6 @@ using System.Net.Sockets;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
-using Testcontainers.MsSql;
 
 namespace Itacr.Database.Migrator.Tests;
 
@@ -39,11 +38,6 @@ public sealed class ServerAvailabilityTests
         // Arrange: the migrator starts before SQL Server, like "docker compose up" followed right away by the migrator.
         var port = GetFreePort();
         var password = $"Aa1!{Guid.NewGuid():N}";
-        await using var container = new MsSqlBuilder(SqlServerFixture.Image)
-            .WithPassword(password)
-            .WithEnvironment(SqlServerFixture.MemoryLimitVariable, SqlServerFixture.MemoryLimitMegabytes)
-            .WithPortBinding(port, SqlServerPort)
-            .Build();
         var connectionString = $"Server=127.0.0.1,{port};Database=ItacrStartupTests;User Id=sa;Password={password};TrustServerCertificate=True;Connect Timeout=5";
         var migrator = DatabaseMigratorTests.CreateMigrator(
             connectionString,
@@ -52,7 +46,7 @@ public sealed class ServerAvailabilityTests
 
         // Act
         var migration = migrator.RunAsync(CancellationToken.None);
-        await container.StartAsync();
+        await using var container = await SqlServerContainers.StartAsync(builder => builder.WithPassword(password).WithPortBinding(port, SqlServerPort));
         var succeeded = await migration;
 
         // Assert
