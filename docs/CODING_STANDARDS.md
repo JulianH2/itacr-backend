@@ -60,18 +60,18 @@ public sealed record CreateOrderRequest(Guid ClientId, IReadOnlyList<CreateOrder
 | ----------------------------- | --------------------------------------------- | ----------------------------------------------- |
 | Local variables, parameters   | camelCase                                     | `totalAmount`, `cancellationToken`              |
 | Methods                       | PascalCase (`Async` suffix when async)        | `CalculateTotal()`, `CreateOrderAsync()`        |
-| Classes, records, enums       | PascalCase                                    | `OrdersService`, `CreateOrderRequest`           |
-| Interfaces                    | `I` + PascalCase                              | `IOrdersService`                                |
+| Classes, records, enums       | PascalCase                                    | `CreateOrderHandler`, `CreateOrderCommand`     |
+| Interfaces                    | `I` + PascalCase                              | `IOrderRepository`                              |
 | Properties                    | PascalCase                                    | `CreatedAt`, `IsPaid`                           |
 | Private fields                | `_camelCase`                                  | `_connection`, `_timeProvider`                  |
 | Constants, static readonly    | PascalCase                                    | `MaxItemsPerOrder`                              |
-| Files                         | PascalCase, one type per file, named like the type | `OrdersService.cs`                         |
+| Files                         | PascalCase, one type per file, named like the type | `CreateOrderHandler.cs`                    |
 | Tables and columns            | PascalCase, tables plural                     | `dbo.Orders`, `CreatedAt`                       |
 | T-SQL objects and their files | prefix + PascalCase                           | `usp_CloseCashRegister`, `fn_GetOrdersByStatus` |
 
 - Use descriptive English names. No abbreviations except widely known ones: `Id`, `Url`, `Dto`, `Api`, `Http`, `Uuid`, `Jwt`.
 - Booleans read as questions: `IsOffline`, `HasPendingOrders`, `CanCancel`.
-- Type names describe the role: `OrdersController`, `OrdersService`, `CreateOrderRequest`, `OrderResponse`, `OrderRepository` (Dapper), `KitchenHub` (SignalR), `JwtOptions` (settings), `OrdersServiceTests`.
+- Type names describe the role: `CreateOrderCommand`, `GetProductsQuery`, `CreateOrderHandler`, `CreateOrderValidator`, `CreateOrderEndpoint`, `OrderResponse`, `OrderRepository` (Dapper), `KitchenHub` (SignalR), `JwtOptions` (settings), `CreateOrderHandlerTests`.
 
 ### 1.4 Formatting
 
@@ -145,37 +145,62 @@ public void Validate_ShouldRejectPin_WhenItHasFewerThanFourDigits()
 
 ### 2.1 Structure
 
-The solution follows Clean Architecture: four projects, with references pointing inward only.
+The solution follows Clean Architecture: four projects, with references pointing inward only. Inside each project the code is organized by **module and use case, with the same names in every project**, so the PR of a story only touches folders with the same name (`Orders/CreateOrder`).
 
 ```
 src/
-├── Itacr.Domain/             # Entities and enums per module (Identity/, Catalog/, Orders/, Customers/, Notifications/). No dependencies
-├── Itacr.Application/        # Services, their interfaces, requests, and responses per module (Identity/, Catalog/)
-│   └── Common/Persistence/   # IDbSession; repository interfaces live in each module (IEmployeeRepository)
-├── Itacr.Infrastructure/     # Persistence/ (DbSession, <Module>/ repositories with Dapper, health check), Identity/ (JWT)
-└── Itacr.Api/                # Endpoints/<Module>/ (controllers), Common/ (pipeline, options, security headers), Program.cs
+├── Itacr.Domain/                     # Entities and enums per module (Identity/, Catalog/, Orders/, ...). No packages
+├── Itacr.Application/
+│   ├── Common/                       # Results/ (Result, Error), Validation/, Persistence/ (IDbSession)
+│   └── <Module>/                     # Shared by the module: repository interfaces, errors, responses used by several use cases
+│       └── <UseCase>/                # <UseCase>Command or Query, Handler, Validator, Response
+├── Itacr.Infrastructure/             # Persistence/<Module>/ (Dapper repositories), Identity/ (JWT, credential hasher)
+└── Itacr.Api/
+    ├── Common/                       # Pipeline, options, rate limiting, Http/ (Error -> Problem Details)
+    ├── Endpoints/<Module>/           # <UseCase>Endpoint: one controller with one action per use case
+    └── Program.cs                    # The composition root: the only API file that uses Itacr.Infrastructure
 ```
 
 | Project | References | Contains |
 | ------- | ---------- | -------- |
 | `Itacr.Domain` | nothing | Entities, enums, and rules that need no I/O |
-| `Itacr.Application` | `Domain` | Business logic and the interfaces it needs (`ITokenService`, `IDbSession`, `IEmployeeRepository`) |
-| `Itacr.Infrastructure` | `Application`, `Domain` | Implementations of those interfaces: Dapper repositories, JWT |
-| `Itacr.Api` | `Application`, `Infrastructure` | HTTP only: routing, validation, status codes, and DI composition |
+| `Itacr.Application` | `Domain` | Use cases and the interfaces they need (`IDbSession`, `IEmployeeRepository`, `ITokenService`, `ICredentialHasher`). Only `FluentValidation` and the `Microsoft.Extensions` abstractions; never ASP.NET Core, Dapper, or SQL |
+| `Itacr.Infrastructure` | `Application`, `Domain` | Implementations of those interfaces: Dapper repositories, JWT issuing and validation, the PBKDF2 hasher |
+| `Itacr.Api` | `Application`, `Infrastructure` (from `Program.cs` only) | HTTP only: routing, binding, authorization, status codes |
 
-- A module has the same name in every project (`Domain/Catalog`, `Application/Catalog`, `Api/Endpoints/Catalog`), so a change to one module touches folders with the same name.
-- `Domain` never uses Dapper, SQL Server, ASP.NET Core, or any other package. `Application` never references `Infrastructure` or `Api`, and never sees SQL, connections, or `SqlException`.
-- A module never calls another module's controller. Shared logic moves to `Domain/` or is exposed through a service interface.
-- **Controllers stay thin**: they receive a validated request, call one service method, and map the result to an HTTP response.
-- Business logic lives in `Application` services, registered in DI behind an interface (`ICatalogService`). Data access goes through the repository interfaces of the module, implemented in `Infrastructure/Persistence/<Module>/`. Do not add a generic repository.
+Example, the PIN sign-in:
+
+```
+Application/Identity/LoginWithPin/LoginWithPinCommand.cs     record LoginWithPinCommand(Guid EmployeeId, string Pin)
+Application/Identity/LoginWithPin/LoginWithPinValidator.cs   FluentValidation rules, Spanish messages
+Application/Identity/LoginWithPin/LoginWithPinHandler.cs     HandleAsync(command) -> Result<LoginResponse>
+Api/Endpoints/Identity/LoginWithPinEndpoint.cs               [HttpPost] -> handler -> 200 or Problem Details
+```
+
+- **A use case never calls another use case.** Code that two use cases share lives in the module root (`Identity/EmployeeSignIn.cs`, `Identity/IdentityErrors.cs`), never in one of the use case folders.
+- A handler is a `public sealed class <UseCase>Handler` with one `HandleAsync` that returns `Result` or `Result<T>`. Handlers and validators are registered automatically (`AddApplication` scans the assembly), so adding a use case never edits a shared file.
+- **Endpoints stay thin**: one `[ApiController]` class per use case, `<UseCase>Endpoint`, with one action that builds the command, calls the handler, and turns the result into a response with `this.ToActionResult(error)`. No business logic, no data access.
+- Data access goes through the repository interfaces of the module, implemented in `Infrastructure/Persistence/<Module>/`. Do not add a generic repository.
 - Keep `Program.cs` short: each project registers its services in one extension method (`AddInfrastructure`, `AddApplication`), and the API adds its own (`AddApiBase`, `AddAuthFeature`).
 - Inject dependencies through the constructor (primary constructors are fine). Never use `new` for services, and never resolve services manually from `IServiceProvider`.
+- `tests/Itacr.Architecture.Tests` (NetArchTest) enforces these rules: layer references, no handler depending on another handler, every handler with an endpoint of the same module and use case, sealed `<UseCase>Endpoint` controllers in `Itacr.Api.Endpoints.<Module>`, and `internal sealed` repositories in `Itacr.Infrastructure.Persistence`. A failing rule names the offending types.
 
-### 2.2 Validation and configuration
+### 2.2 Validation, results, and configuration
 
-- A request DTO (`record`) for every input (body, query, route). Validate it with **data annotations** (`[Required]`, `[Range]`, `[StringLength]`, `[RegularExpression]`), with Spanish `ErrorMessage` values.
-- `[ApiController]` on every controller: invalid input returns `400` with `ValidationProblemDetails` automatically.
-- Never bind entities directly from a request, and never return entities: map to response DTOs. This prevents over-posting and leaking columns.
+- Every input is a `record` in its use case folder (`LoginWithPinCommand`, `GetProductsQuery`), bound by the endpoint. Never bind entities from a request, and never return entities: map to response records.
+- **Business validation** is a FluentValidation validator per use case (`<UseCase>Validator`), with Spanish messages. The handler runs it first with `validator.ValidateToErrorAsync(...)`, which returns a validation `Error` keyed by **camelCase** field names (`pin`, `email`, `categoryId`).
+- **Binding errors** (malformed JSON, a GUID that is not a GUID, a missing required parameter) never reach the handler: `InvalidRequestResponse` answers `400` with `ValidationProblemDetails`, the Spanish `detail` "La solicitud no tiene un formato válido.", and the camelCase field when it is known. Serializer messages are never returned.
+- A handler returns `Result<T>` (or `Result`). A failure is an `Error(Kind, Title, Detail, Type)`: `Kind` decides the status code, `Type` is the stable URI clients switch on (`https://itacr.app/problems/invalid-credentials`), and `Detail` is the Spanish message. Expected failures are results, not exceptions.
+
+| `ErrorKind` | Status |
+| ----------- | ------ |
+| `Validation` | `400` (`ValidationProblemDetails`) |
+| `Unauthorized` | `401` |
+| `Forbidden` | `403` |
+| `NotFound` | `404` |
+| `Conflict` | `409` |
+| `Locked` | `423` |
+
 - Every settings section has an **options class** bound and validated at startup, so the API fails fast when a value is missing:
 
 ```csharp
@@ -188,10 +213,10 @@ builder.Services
 
 ### 2.3 REST conventions
 
-- Every route starts with `/api/v1`: `[Route("api/v1/orders")]` on the controller. Lowercase URLs (`options.LowercaseUrls = true`).
+- Every route starts with `/api/v1`: `[Route("api/v1/orders")]` on the endpoint. Lowercase URLs (`options.LowercaseUrls = true`).
 - Plural nouns: `/orders`, `/products`, `/orders/{id}/items`. Actions that are not CRUD use a sub-resource: `PATCH /orders/{id}/status`.
 - Correct methods and status codes: `200` OK, `201` Created (with `CreatedAtAction`), `204` No Content, `400` validation, `401` unauthenticated, `403` forbidden, `404` not found, `409` conflict, `422` business rule violation, `429` rate limited.
-- Errors use **RFC 9457 Problem Details** (`application/problem+json`), produced by `AddProblemDetails()`, `UseExceptionHandler()`, and `UseStatusCodePages()`. Business errors return `Problem(...)` with a Spanish `detail`:
+- Errors use **RFC 9457 Problem Details** (`application/problem+json`), produced by `AddProblemDetails()`, `UseExceptionHandler()`, and `UseStatusCodePages()`. Use case errors are `Error` results turned into Problem Details by the endpoint (section 2.2), always with a Spanish `detail`:
 
 ```json
 {

@@ -100,17 +100,19 @@ itacr-backend/
 │   └── database.md
 ├── src/                        # Clean Architecture: references point inward only (see docs/CODING_STANDARDS.md, section 2.1)
 │   ├── Itacr.Domain/           # Entities and enums per module: Identity/, Catalog/, Orders/, Customers/, Notifications/
-│   ├── Itacr.Application/      # Services, interfaces, requests, and responses per module: Identity/, Catalog/
+│   ├── Itacr.Application/      # Use cases per module: <Module>/<UseCase>/ (command, handler, validator), Common/ (Result, validation)
 │   ├── Itacr.Infrastructure/
 │   │   ├── Persistence/        # DbSession, <Module>/ repositories with Dapper, database health check
-│   │   └── Identity/           # JWT token service
+│   │   └── Identity/           # JWT tokens and validation, credential hasher
 │   └── Itacr.Api/
-│       ├── Endpoints/          # One folder per module with its controllers: Identity/, Catalog/
+│       ├── Endpoints/          # <Module>/<UseCase>Endpoint.cs: one controller per use case
 │       ├── Common/             # Pipeline, options, rate limiting, security headers
 │       ├── Program.cs
 │       └── appsettings.json
 ├── tests/
-│   └── Itacr.Api.Tests/
+│   ├── Itacr.Api.Tests/
+│   ├── Itacr.Architecture.Tests/   # NetArchTest: layer and use case rules
+│   └── Itacr.Database.Migrator.Tests/
 ├── compose.yaml                # Local SQL Server
 ├── Directory.Build.props       # Shared build settings and the version (updated by release-please)
 ├── Directory.Packages.props    # Central NuGet package versions
