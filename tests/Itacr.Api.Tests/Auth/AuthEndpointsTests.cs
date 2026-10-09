@@ -1,16 +1,16 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Itacr.Api.Features.Auth;
-using Itacr.Api.Features.Auth.Responses;
-using Itacr.Api.Features.Employees;
-using Itacr.Api.Features.Notifications;
-using Microsoft.EntityFrameworkCore;
+using Itacr.Application.Identity;
+using Itacr.Domain.Identity;
+using Itacr.Domain.Notifications;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace Itacr.Api.Tests.Auth;
 
-public sealed class AuthEndpointsTests
+public sealed class AuthEndpointsTests(DatabaseFixture database) : DatabaseTest(database)
 {
     private const string PinLoginRoute = "/api/v1/auth/login/pin";
     private const string ProblemJsonMediaType = "application/problem+json";
@@ -22,7 +22,7 @@ public sealed class AuthEndpointsTests
     public async Task GetEmployees_ShouldReturnOnlyActiveEmployeesOfTheRoleWithoutPrivateData_WhenARoleIsSelected()
     {
         // Arrange
-        await using var factory = new AuthApiFactory();
+        await using var factory = new AuthApiFactory(Database);
         var waiter = await factory.AddEmployeeAsync("Ana María Martínez", EmployeeRole.Waiter, "1111");
         await factory.AddEmployeeAsync("Pedro Sánchez", EmployeeRole.Waiter, "2222", EmployeeStatus.PendingApproval);
         await factory.AddEmployeeAsync("Carla Gómez", EmployeeRole.Kitchen, "3333");
@@ -44,7 +44,7 @@ public sealed class AuthEndpointsTests
     public async Task GetEmployees_ShouldReturnValidationProblem_WhenTheRoleIsMissing()
     {
         // Arrange
-        await using var factory = new AuthApiFactory();
+        await using var factory = new AuthApiFactory(Database);
         using var client = factory.CreateClient();
 
         // Act
@@ -58,7 +58,7 @@ public sealed class AuthEndpointsTests
     public async Task LoginWithPin_ShouldReturnAShiftTokenWithRoleAndEmployeeId_WhenAnActiveWaiterEntersTheRightPin()
     {
         // Arrange (CA1)
-        await using var factory = new AuthApiFactory();
+        await using var factory = new AuthApiFactory(Database);
         var waiter = await factory.AddEmployeeAsync("Mesero de Prueba", EmployeeRole.Waiter, "1111");
         using var client = factory.CreateClient();
 
@@ -77,7 +77,7 @@ public sealed class AuthEndpointsTests
     public async Task LoginWithPin_ShouldAskForTheFourDigits_WhenThePinHasThreeDigits()
     {
         // Arrange (CA2)
-        await using var factory = new AuthApiFactory();
+        await using var factory = new AuthApiFactory(Database);
         var waiter = await factory.AddEmployeeAsync("Mesero de Prueba", EmployeeRole.Waiter, "1111");
         using var client = factory.CreateClient();
 
@@ -87,14 +87,14 @@ public sealed class AuthEndpointsTests
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains(AuthProblems.PinIncomplete, await response.Content.ReadAsStringAsync());
-        Assert.Equal(0, await factory.QueryAsync(db => db.Employees.Where(e => e.Id == waiter.Id).Select(e => e.FailedLoginAttempts).SingleAsync()));
+        Assert.Equal(0, await factory.GetFailedLoginAttemptsAsync(waiter.Id));
     }
 
     [Fact]
     public async Task LoginWithPin_ShouldRejectWithTheInvalidPinMessage_WhenThePinIsWrong()
     {
         // Arrange (CA3)
-        await using var factory = new AuthApiFactory();
+        await using var factory = new AuthApiFactory(Database);
         var waiter = await factory.AddEmployeeAsync("Mesero de Prueba", EmployeeRole.Waiter, "1111");
         using var client = factory.CreateClient();
 
@@ -103,14 +103,14 @@ public sealed class AuthEndpointsTests
 
         // Assert
         await AssertProblemAsync(response, HttpStatusCode.Unauthorized, AuthProblems.InvalidCredentialsType, AuthProblems.InvalidPin);
-        Assert.Equal(1, await factory.QueryAsync(db => db.Employees.Where(e => e.Id == waiter.Id).Select(e => e.FailedLoginAttempts).SingleAsync()));
+        Assert.Equal(1, await factory.GetFailedLoginAttemptsAsync(waiter.Id));
     }
 
     [Fact]
     public async Task LoginWithPin_ShouldDenyAccessWithThePendingMessage_WhenTheAccountIsPendingApproval()
     {
         // Arrange (CA4)
-        await using var factory = new AuthApiFactory();
+        await using var factory = new AuthApiFactory(Database);
         var pending = await factory.AddEmployeeAsync("Mesero Pendiente", EmployeeRole.Waiter, "4444", EmployeeStatus.PendingApproval);
         using var client = factory.CreateClient();
 
@@ -125,7 +125,7 @@ public sealed class AuthEndpointsTests
     public async Task LoginWithPassword_ShouldDenyAccessWithThePendingMessage_WhenTheAccountIsPendingApproval()
     {
         // Arrange (CA4)
-        await using var factory = new AuthApiFactory();
+        await using var factory = new AuthApiFactory(Database);
         var pending = await factory.AddEmployeeAsync("Mesero Pendiente", EmployeeRole.Waiter, "4444", EmployeeStatus.PendingApproval);
         using var client = factory.CreateClient();
 
@@ -140,7 +140,7 @@ public sealed class AuthEndpointsTests
     public async Task RequestPinReset_ShouldNotifyTheManagerAboutTheEmployee_WhenTheEmployeeForgotThePin()
     {
         // Arrange (CA5)
-        await using var factory = new AuthApiFactory();
+        await using var factory = new AuthApiFactory(Database);
         var waiter = await factory.AddEmployeeAsync("Mesero de Prueba", EmployeeRole.Waiter, "1111");
         var manager = await factory.AddEmployeeAsync("Gerente de Prueba", EmployeeRole.Manager, "3333");
         using var client = factory.CreateClient();
@@ -150,7 +150,7 @@ public sealed class AuthEndpointsTests
 
         // Assert
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
-        var notification = Assert.Single(await factory.QueryAsync(db => db.Notifications.ToListAsync()));
+        var notification = Assert.Single(await factory.GetNotificationsAsync());
         Assert.Equal(NotificationType.PinReset, notification.Type);
         Assert.Equal(waiter.Id, notification.SubjectEmployeeId);
         Assert.Equal(manager.Id, notification.RecipientEmployeeId);
@@ -160,7 +160,7 @@ public sealed class AuthEndpointsTests
     public async Task LoginWithPin_ShouldLockThePinFor15Minutes_WhenTheEmployeeFailsFiveTimes()
     {
         // Arrange
-        await using var factory = new AuthApiFactory();
+        await using var factory = new AuthApiFactory(Database);
         var waiter = await factory.AddEmployeeAsync("Mesero de Prueba", EmployeeRole.Waiter, "1111");
         using var client = factory.CreateClient();
         for (var attempt = 1; attempt < MaxFailedPinAttempts; attempt++)
@@ -182,10 +182,87 @@ public sealed class AuthEndpointsTests
     }
 
     [Fact]
+    public async Task LoginWithPin_ShouldStoreANewHashInTheCurrentFormat_WhenTheStoredHashIsOld()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        var oldFormat = new PasswordHasher<Employee>(Options.Create(new PasswordHasherOptions { CompatibilityMode = PasswordHasherCompatibilityMode.IdentityV2 }));
+        var waiter = await factory.AddEmployeeAsync("Mesero de Prueba", EmployeeRole.Waiter, "1111", pinHasher: oldFormat);
+        using var client = factory.CreateClient();
+
+        // Act
+        await factory.LoginAsync(client, waiter.Id, "1111");
+
+        // Assert
+        var storedHash = await factory.GetPinHashAsync(waiter.Id);
+        Assert.NotEqual(waiter.PinHash, storedHash);
+        Assert.Equal(PasswordVerificationResult.Success, new PasswordHasher<Employee>().VerifyHashedPassword(null!, storedHash, "1111"));
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync(PinLoginRoute, new { employeeId = waiter.Id, pin = "1111" })).StatusCode);
+    }
+
+    [Theory]
+    [InlineData("waiter")]
+    [InlineData("WAITER")]
+    public async Task GetEmployees_ShouldAcceptTheRoleInAnyLetterCase_WhenTheRoleExists(string role)
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        var waiter = await factory.AddEmployeeAsync("Ana María Martínez", EmployeeRole.Waiter, "1111");
+        using var client = factory.CreateClient();
+
+        // Act
+        var employees = await client.GetFromJsonAsync<JsonElement>($"/api/v1/auth/employees?role={role}");
+
+        // Assert
+        Assert.Equal(waiter.Id, Assert.Single(employees.EnumerateArray()).GetProperty("id").GetGuid());
+    }
+
+    [Fact]
+    public async Task LoginWithPin_ShouldCountEveryWrongPin_WhenTwoArriveAtTheSameTime()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        var waiter = await factory.AddEmployeeAsync("Mesero de Prueba", EmployeeRole.Waiter, "1111");
+        using var firstClient = factory.CreateClient();
+        using var secondClient = factory.CreateClient();
+
+        // Act
+        var responses = await Task.WhenAll(
+            firstClient.PostAsJsonAsync(PinLoginRoute, new { employeeId = waiter.Id, pin = "9999" }),
+            secondClient.PostAsJsonAsync(PinLoginRoute, new { employeeId = waiter.Id, pin = "8888" }));
+
+        // Assert
+        Assert.All(responses, response => Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode));
+        Assert.Equal(2, await factory.GetFailedLoginAttemptsAsync(waiter.Id));
+        foreach (var response in responses)
+        {
+            response.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task LoginWithPin_ShouldResetTheFailedCount_WhenTheRightPinFollowsAWrongOne()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        var waiter = await factory.AddEmployeeAsync("Mesero de Prueba", EmployeeRole.Waiter, "1111");
+        using var client = factory.CreateClient();
+        using var wrongPin = await client.PostAsJsonAsync(PinLoginRoute, new { employeeId = waiter.Id, pin = "9999" });
+
+        // Act
+        using var rightPin = await client.PostAsJsonAsync(PinLoginRoute, new { employeeId = waiter.Id, pin = "1111" });
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Unauthorized, wrongPin.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, rightPin.StatusCode);
+        Assert.Equal(0, await factory.GetFailedLoginAttemptsAsync(waiter.Id));
+    }
+
+    [Fact]
     public async Task LoginWithPassword_ShouldReturnAToken_WhenAnActiveEmployeeUsesTheRightEmailAndPassword()
     {
         // Arrange
-        await using var factory = new AuthApiFactory();
+        await using var factory = new AuthApiFactory(Database);
         var manager = await factory.AddEmployeeAsync("Gerente de Prueba", EmployeeRole.Manager, "3333");
         using var client = factory.CreateClient();
 
@@ -202,7 +279,7 @@ public sealed class AuthEndpointsTests
     public async Task LoginWithPassword_ShouldRejectWithTheInvalidPasswordMessage_WhenThePasswordIsWrong()
     {
         // Arrange
-        await using var factory = new AuthApiFactory();
+        await using var factory = new AuthApiFactory(Database);
         var manager = await factory.AddEmployeeAsync("Gerente de Prueba", EmployeeRole.Manager, "3333");
         using var client = factory.CreateClient();
 
@@ -217,7 +294,7 @@ public sealed class AuthEndpointsTests
     public async Task GetCurrentEmployee_ShouldReturnTheEmployeeOfTheToken_WhenTheRequestHasAValidToken()
     {
         // Arrange
-        await using var factory = new AuthApiFactory();
+        await using var factory = new AuthApiFactory(Database);
         var kitchen = await factory.AddEmployeeAsync("Cocina de Prueba", EmployeeRole.Kitchen, "2222");
         using var client = factory.CreateClient();
         var login = await factory.LoginAsync(client, kitchen.Id, "2222");
@@ -234,7 +311,7 @@ public sealed class AuthEndpointsTests
     public async Task GetCurrentEmployee_ShouldReturnUnauthorized_WhenTheRequestHasNoToken()
     {
         // Arrange
-        await using var factory = new AuthApiFactory();
+        await using var factory = new AuthApiFactory(Database);
         using var client = factory.CreateClient();
 
         // Act

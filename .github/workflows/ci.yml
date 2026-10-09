@@ -95,8 +95,6 @@ jobs:
     env:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
-      # Placeholder so design-time tools (dotnet ef) can create the DbContext. No database is used.
-      ConnectionStrings__Default: Server=localhost,1433;Database=Ci;User Id=ci;Password=ci;TrustServerCertificate=True
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -106,8 +104,7 @@ jobs:
         with:
           global-json-file: global.json
 
-      # The .NET solution (ITACR-26) and the EF Core migrations (ITACR-27) do not exist yet.
-      # Until they do, the steps below are skipped with a notice instead of failing.
+      # Skips the .NET steps with a notice in a branch that has no solution file.
       - name: Detect scaffolded project
         id: project
         run: |
@@ -116,11 +113,6 @@ jobs:
             echo "solution=$solution" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::No solution file found: restore, format, build, and tests are skipped until the .NET API exists (ITACR-26)."
-          fi
-          if [ -f .config/dotnet-tools.json ] && find src -path '*/Migrations/*.cs' -print -quit 2>/dev/null | grep -q .; then
-            echo "migrations=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::No EF Core migrations found: the pending model changes check is skipped until ITACR-27."
           fi
 
       - name: Restore
@@ -141,14 +133,10 @@ jobs:
           SOLUTION: ${{ steps.project.outputs.solution }}
         run: dotnet build "$SOLUTION" --configuration Release --no-restore
 
+      # The database tests start SQL Server containers with Testcontainers (Docker is preinstalled on the runner).
+      # One test project at a time (-m:1), so at most two SQL Server containers share the 8 GB of the runner.
       - name: Run tests
         if: steps.project.outputs.solution != ''
         env:
           SOLUTION: ${{ steps.project.outputs.solution }}
-        run: dotnet test "$SOLUTION" --configuration Release --no-build
-
-      - name: Check that the EF Core model has no pending migration
-        if: steps.project.outputs.solution != '' && steps.project.outputs.migrations == 'true'
-        run: |
-          dotnet tool restore
-          dotnet ef migrations has-pending-model-changes --project src/Itacr.Api --configuration Release --no-build
+        run: dotnet test "$SOLUTION" --configuration Release --no-build -m:1

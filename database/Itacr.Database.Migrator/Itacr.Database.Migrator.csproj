@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <UserSecretsId>7d3f5f0e-5b1c-4a8e-9c61-2f4f0b9d6a13</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Itacr.Domain\Itacr.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\migrations\**\*.sql" Link="Scripts\migrations\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\functions\**\*.sql" Link="Scripts\functions\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\views\**\*.sql" Link="Scripts\views\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\procedures\**\*.sql" Link="Scripts\procedures\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\triggers\**\*.sql" Link="Scripts\triggers\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="dbup-sqlserver" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" />
+  </ItemGroup>
+
+</Project>
