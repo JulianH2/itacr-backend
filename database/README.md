@@ -10,7 +10,7 @@ database/
 ├── procedures/<Module>/        # usp_*.sql  Stored procedures                   │ on every run, in this order
 ├── triggers/<Module>/          # trg_*.sql  Triggers                            ┘
 ├── scripts/                    # Run by hand only; never applied by the migrator
-│   └── security/database-users.sql
+│   └── security/               # database-users.sql, app-execute-only.sql
 └── Itacr.Database.Migrator/    # DbUp console app, plus the employee seed
 ```
 
@@ -80,7 +80,7 @@ The migrator and the API use different contained users, created once by hand wit
 | User | Permissions | Used by |
 | ---- | ----------- | ------- |
 | `itacr_migrator` | `db_ddladmin`, `db_datareader`, `db_datawriter` | The migrator in the deploy workflow |
-| `itacr_app` | `EXECUTE` on `dbo` (plus, temporarily, `db_datareader` and `db_datawriter` until ITACR-36 removes EF Core) | The API (`ConnectionStrings__Default`) |
+| `itacr_app` | `EXECUTE` on `dbo` only. Until the release with ITACR-36 is deployed it also has `db_datareader` and `db_datawriter`, removed afterwards with [scripts/security/app-execute-only.sql](scripts/security/app-execute-only.sql) | The API (`ConnectionStrings__Default`) |
 
 The server admin login is not used by any application.
 

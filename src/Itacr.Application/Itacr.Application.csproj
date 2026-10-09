@@ -5,8 +5,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Temporary: the services still query through IItacrDbContext until Dapper replaces EF Core (ITACR-36). -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="Microsoft.Extensions.Identity.Core" />
   </ItemGroup>
 

@@ -6,7 +6,7 @@ namespace Itacr.Database.Migrator.Tests;
 /// <summary>One SQL Server 2025 container (same image as compose.yaml) shared by the tests; each test uses its own database.</summary>
 public sealed class SqlServerFixture : IAsyncLifetime
 {
-    private const string Image = "mcr.microsoft.com/mssql/server:2025-latest";
+    internal const string Image = "mcr.microsoft.com/mssql/server:2025-latest";
 
     private readonly MsSqlContainer _container = new MsSqlBuilder(Image).Build();
 

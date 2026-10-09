@@ -38,12 +38,11 @@ git config user.email "you@example.com"   # use the email linked to your GitHub 
 cp .env.example .env                      # PowerShell: Copy-Item .env.example .env
 ```
 
-Edit `.env` and set a strong `MSSQL_SA_PASSWORD` (at least 8 characters with uppercase, lowercase, numbers, and symbols; SQL Server stops the container if it is weak). Then start the database and restore the local tools (`dotnet-ef`):
+Edit `.env` and set a strong `MSSQL_SA_PASSWORD` (at least 8 characters with uppercase, lowercase, numbers, and symbols; SQL Server stops the container if it is weak). Then start the database:
 
 ```bash
 docker compose up -d sqlserver
 docker compose ps                         # wait until itacr-sqlserver is "healthy"
-dotnet tool restore
 ```
 
 Store the API and migrator secrets with [user secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets). They live in your user profile, outside the repository, and are only loaded in Development:
@@ -52,10 +51,20 @@ Store the API and migrator secrets with [user secrets](https://learn.microsoft.c
 dotnet user-secrets set "ConnectionStrings:Default" "Server=localhost,1433;Database=Itacr;User Id=sa;Password=<MSSQL_SA_PASSWORD from .env>;TrustServerCertificate=True" --project src/Itacr.Api
 dotnet user-secrets set "ConnectionStrings:Migrator" "Server=localhost,1433;Database=Itacr;User Id=sa;Password=<MSSQL_SA_PASSWORD from .env>;TrustServerCertificate=True" --project database/Itacr.Database.Migrator
 dotnet user-secrets set "Jwt:Secret" "<random value, at least 64 characters>" --project src/Itacr.Api
-dotnet user-secrets list --project src/Itacr.Api
 ```
 
-Generate the JWT secret with `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` or, in Git Bash, `openssl rand -base64 48`. Generate the Web Push keys once for the team with `npx web-push generate-vapid-keys`: the private key goes to `dotnet user-secrets set "WebPush:PrivateKey" "<key>"`, and the public key goes to `appsettings.json` (`WebPush:PublicKey`) and to `itacr-frontend`.
+`Jwt:Secret` is required: without it the API stops at startup with `DataAnnotation validation failed for 'JwtOptions' members: 'Secret'`. Generate a random value of at least 64 characters with `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`, in Git Bash with `openssl rand -base64 48`, or in PowerShell without printing it:
+
+```powershell
+$bytes = New-Object byte[] 48
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+dotnet user-secrets set "Jwt:Secret" ([Convert]::ToBase64String($bytes)) --project src/Itacr.Api
+Remove-Variable bytes
+```
+
+To check which secrets are set without printing their values: `dotnet user-secrets list --project src/Itacr.Api | ForEach-Object { ($_ -split ' = ')[0] }` (plain `dotnet user-secrets list` prints the passwords).
+
+Generate the Web Push keys once for the team with `npx web-push generate-vapid-keys`: the private key goes to `dotnet user-secrets set "WebPush:PrivateKey" "<key>"`, and the public key goes to `appsettings.json` (`WebPush:PublicKey`) and to `itacr-frontend`.
 
 Finally, create the database with the migrator (schema, catalog, and the four test employees) and run the API:
 
@@ -134,7 +143,7 @@ chore(deps): bump microsoft.entityframeworkcore to 10.0.4
 | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `feat` `fix` `docs` `style` `refactor` `perf` `test` `build` `ci` `chore` `revert` | `auth` `catalog` `orders` `kitchen` `tracking` `manager` `pwa` `db` `core` `deps` `repo` |
 
-- Use the `db` scope for the EF Core model, migrations, seed data, and SQL objects.
+- Use the `db` scope for migration scripts, procedures and other SQL objects, seed data, the migrator, and the repositories.
 - The `commit-msg` git hook (`.githooks/commit-msg`) rejects messages that do not follow the format, and CI runs the same check on every commit of a PR into `sprint-XX`. Only the `deps` scope may omit the Jira key. The rules are the same as commitlint in `itacr-frontend`.
 - The `pre-commit` hook runs `dotnet format` on the staged C# files and stages the result. Stage whole files, not parts of a file.
 - If the hooks do not run, check `git config core.hooksPath` prints `.githooks` (see [section 1](#1-one-time-setup)).
@@ -470,8 +479,6 @@ The database is part of this repository and changes only through the scripts in 
 | Employees (test users, initial manager) | `database/Itacr.Database.Migrator/Seeding/`  | The migrator seeds them after the scripts (idempotent)       |
 | Database users, reports, maintenance   | `database/scripts/`                           | Run by hand only                                             |
 
-**Until ITACR-36 is merged, the schema is frozen:** the API still maps the tables with EF Core, so a table change would also need an EF Core migration for the CI check. ITACR-36 removes EF Core.
-
 ### 13.1 Change a table
 
 ```bash
@@ -692,6 +699,7 @@ The `migrate` job needs two things, both already set up:
    Send the wrong PIN only once: after 5 failed attempts (`LoginSecurity:MaxFailedPinAttempts`) the account is locked for 15 minutes (`LoginSecurity:LockoutMinutes`). The correct PIN alone does not prove the write: when the counter is already `0`, EF Core sends no `UPDATE`.
 
 4. Only then reset the server admin password (SQL server `itacr-sql` > Overview > **Reset password**) and keep the new one only in the password manager, for emergencies.
+5. **After the release that includes ITACR-36 is deployed** (the API then reaches every table through stored procedures), run [database/scripts/security/app-execute-only.sql](database/scripts/security/app-execute-only.sql) the same way. It removes `db_datareader` and `db_datawriter` from `itacr_app`, and its two queries must show only `EXECUTE` on `dbo` and no role. Then repeat the checks of step 3: from this release on, `GET /api/v1/health` runs `dbo.usp_Health_Ping`, so a `200 Healthy` also proves the `EXECUTE` permission. Never run it before that release: the previous API reads the tables directly and would fail with `500`.
 
 ### 15.4 Run the migrator against Azure SQL by hand
 

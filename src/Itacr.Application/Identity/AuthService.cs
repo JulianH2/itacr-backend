@@ -1,17 +1,19 @@
 using Itacr.Application.Common.Persistence;
 using Itacr.Application.Identity.Requests;
 using Itacr.Application.Identity.Responses;
+using Itacr.Application.Notifications;
 using Itacr.Domain.Identity;
 using Itacr.Domain.Notifications;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Itacr.Application.Identity;
 
 public sealed class AuthService(
-    IItacrDbContext dbContext,
+    IEmployeeRepository employeeRepository,
+    INotificationRepository notificationRepository,
+    IDbSession dbSession,
     IPasswordHasher<Employee> passwordHasher,
     ITokenService tokenService,
     TimeProvider timeProvider,
@@ -20,21 +22,13 @@ public sealed class AuthService(
 {
     public async Task<IReadOnlyList<EmployeeOptionResponse>> GetActiveEmployeesAsync(EmployeeRole role, CancellationToken cancellationToken)
     {
-        var employees = await dbContext.Employees
-            .AsNoTracking()
-            .Where(employee => employee.Role == role && employee.Status == EmployeeStatus.Active)
-            .OrderBy(employee => employee.FullName)
-            .Select(employee => new { employee.Id, employee.FullName })
-            .ToListAsync(cancellationToken);
-
-        return employees
-            .Select(employee => new EmployeeOptionResponse(employee.Id, EmployeeDisplayName.From(employee.FullName)))
-            .ToList();
+        var employees = await employeeRepository.GetActiveByRoleAsync(role, cancellationToken);
+        return [.. employees.Select(employee => new EmployeeOptionResponse(employee.Id, EmployeeDisplayName.From(employee.FullName)))];
     }
 
     public async Task<LoginResult> LoginWithPinAsync(PinLoginRequest request, CancellationToken cancellationToken)
     {
-        var employee = await dbContext.Employees.SingleOrDefaultAsync(candidate => candidate.Id == request.EmployeeId, cancellationToken);
+        var employee = await employeeRepository.GetByIdAsync(request.EmployeeId, cancellationToken);
         if (employee is null)
         {
             return LoginResult.Failed(LoginFailure.InvalidCredentials);
@@ -52,23 +46,16 @@ public sealed class AuthService(
             return await RegisterFailedPinAsync(employee, now, cancellationToken);
         }
 
-        if (verification == PasswordVerificationResult.SuccessRehashNeeded)
-        {
-            employee.PinHash = passwordHasher.HashPassword(employee, request.Pin);
-        }
-
-        employee.FailedLoginAttempts = 0;
-        employee.LockoutEndAt = null;
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var newPinHash = verification == PasswordVerificationResult.SuccessRehashNeeded
+            ? passwordHasher.HashPassword(employee, request.Pin)
+            : null;
+        await employeeRepository.RegisterSuccessfulPinLoginAsync(employee.Id, newPinHash, now, cancellationToken);
         return ToLoginResult(employee);
     }
 
     public async Task<LoginResult> LoginWithPasswordAsync(PasswordLoginRequest request, CancellationToken cancellationToken)
     {
-        var email = request.Email.Trim();
-        var employee = await dbContext.Employees
-            .AsNoTracking()
-            .SingleOrDefaultAsync(candidate => candidate.Email == email, cancellationToken);
+        var employee = await employeeRepository.GetByEmailAsync(request.Email.Trim(), cancellationToken);
 
         if (employee?.PasswordHash is null
             || passwordHasher.VerifyHashedPassword(employee, employee.PasswordHash, request.Password) == PasswordVerificationResult.Failed)
@@ -81,48 +68,54 @@ public sealed class AuthService(
 
     public async Task<bool> RequestPinResetAsync(Guid employeeId, CancellationToken cancellationToken)
     {
-        var isActiveEmployee = await dbContext.Employees
-            .AnyAsync(employee => employee.Id == employeeId && employee.Status == EmployeeStatus.Active, cancellationToken);
-        if (!isActiveEmployee)
+        var employee = await employeeRepository.GetByIdAsync(employeeId, cancellationToken);
+        if (employee?.Status != EmployeeStatus.Active)
         {
             return false;
         }
 
-        var managerIds = await dbContext.Employees
-            .Where(employee => employee.Role == EmployeeRole.Manager
-                && employee.Status == EmployeeStatus.Active
-                && employee.Id != employeeId)
-            .Select(employee => (Guid?)employee.Id)
-            .ToListAsync(cancellationToken);
-        IReadOnlyList<Guid?> recipients = managerIds.Count == 0 ? [null] : managerIds;
+        var managerIds = await employeeRepository.GetActiveManagerIdsAsync(employeeId, cancellationToken);
+        IReadOnlyList<Guid?> recipients = managerIds.Count == 0 ? [null] : [.. managerIds.Select(id => (Guid?)id)];
 
         var sentAt = timeProvider.GetUtcNow().UtcDateTime;
-        dbContext.Notifications.AddRange(recipients.Select(recipientId => new Notification
-        {
-            Type = NotificationType.PinReset,
-            SubjectEmployeeId = employeeId,
-            RecipientEmployeeId = recipientId,
-            SentAt = sentAt,
-        }));
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await dbSession.ExecuteInTransactionAsync(
+            async token =>
+            {
+                foreach (var recipientId in recipients)
+                {
+                    await notificationRepository.CreateAsync(
+                        new Notification
+                        {
+                            Type = NotificationType.PinReset,
+                            SubjectEmployeeId = employeeId,
+                            RecipientEmployeeId = recipientId,
+                            SentAt = sentAt,
+                            CreatedAt = sentAt,
+                            UpdatedAt = sentAt,
+                        },
+                        token);
+                }
+            },
+            cancellationToken);
         return true;
     }
 
     private async Task<LoginResult> RegisterFailedPinAsync(Employee employee, DateTime now, CancellationToken cancellationToken)
     {
         var settings = loginSecurity.Value;
-        employee.FailedLoginAttempts++;
+        var failure = await employeeRepository.RegisterFailedPinLoginAsync(
+            employee.Id,
+            settings.MaxFailedPinAttempts,
+            now.AddMinutes(settings.LockoutMinutes),
+            now,
+            cancellationToken);
 
-        if (employee.FailedLoginAttempts < settings.MaxFailedPinAttempts)
+        if (!failure.IsLocked)
         {
-            await dbContext.SaveChangesAsync(cancellationToken);
             return LoginResult.Failed(LoginFailure.InvalidCredentials);
         }
 
-        employee.FailedLoginAttempts = 0;
-        employee.LockoutEndAt = now.AddMinutes(settings.LockoutMinutes);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        logger.LogWarning("PIN login locked for employee {EmployeeId} until {LockoutEndAt}", employee.Id, employee.LockoutEndAt);
+        logger.LogWarning("PIN login locked for employee {EmployeeId} until {LockoutEndAt}", employee.Id, failure.LockoutEndAt);
         return LoginResult.Failed(LoginFailure.Locked);
     }
 

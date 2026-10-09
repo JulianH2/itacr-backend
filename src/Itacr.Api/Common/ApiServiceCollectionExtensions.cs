@@ -1,7 +1,6 @@
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Itacr.Api.Common.Options;
-using Itacr.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
@@ -22,7 +21,7 @@ public static class ApiServiceCollectionExtensions
         services.AddProblemDetails();
         services.AddOpenApi();
         services.AddSingleton(TimeProvider.System);
-        services.AddHealthChecks().AddDbContextCheck<ItacrDbContext>();
+        services.AddHealthChecks();
 
         services.AddValidatedOptions<CorsOptions>(CorsOptions.SectionName);
         services.AddValidatedOptions<RateLimitingOptions>(RateLimitingOptions.SectionName);

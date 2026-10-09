@@ -124,6 +124,30 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
     }
 
     [Fact]
+    public async Task RunAsync_ShouldSeedTheReferenceCatalog_WhenDatabaseDoesNotExist()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+
+        // Act
+        Assert.True(await CreateMigrator(connectionString, Environments.Development).RunAsync(CancellationToken.None));
+
+        // Assert
+        await using var connection = new SqlConnection(connectionString);
+        Assert.Equal(Enumerable.Range(1, 10), await connection.QueryAsync<int>("SELECT Number FROM dbo.DiningTables ORDER BY Number;"));
+        var options = (await connection.QueryAsync<(string Type, string Name, decimal PriceAdjustment)>(
+            "SELECT Type, Name, PriceAdjustment FROM dbo.ComboOptions;")).ToList();
+        Assert.Equal(3, options.Count(option => option.Type == "Size"));
+        Assert.Equal(3, options.Count(option => option.Type == "Drink"));
+        Assert.Equal(3, options.Count(option => option.Type == "Extra"));
+        Assert.Equal(25m, options.Single(option => option.Name == "Grande").PriceAdjustment);
+        var productsPerCategory = await connection.QueryAsync<int>("SELECT COUNT(*) FROM dbo.Products GROUP BY CategoryId;");
+        Assert.Equal(5, productsPerCategory.Count());
+        Assert.All(productsPerCategory, count => Assert.InRange(count, 3, 4));
+        Assert.Equal(0, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Products WHERE Price <= 0;"));
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldFail_WhenConnectionStringIsMissing()
     {
         // Arrange
@@ -136,7 +160,11 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         Assert.False(succeeded);
     }
 
-    private static DatabaseMigrator CreateMigrator(string? connectionString, string environmentName, SeedOptions? seed = null)
+    internal static DatabaseMigrator CreateMigrator(
+        string? connectionString,
+        string environmentName,
+        SeedOptions? seed = null,
+        ConnectionRetryPolicy? retryPolicy = null)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { [$"ConnectionStrings:{DatabaseMigrator.ConnectionStringName}"] = connectionString })
@@ -144,7 +172,7 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         var environment = new HostingEnvironment { EnvironmentName = environmentName };
         var plan = new EmployeeSeedPlan(Options.Create(seed ?? new SeedOptions()), NullLogger<EmployeeSeedPlan>.Instance);
         var seeder = new EmployeeSeeder(plan, PasswordHasher, TimeProvider.System, NullLogger<EmployeeSeeder>.Instance);
-        return new DatabaseMigrator(configuration, environment, seeder, NullLogger<DatabaseMigrator>.Instance);
+        return new DatabaseMigrator(configuration, environment, seeder, NullLogger<DatabaseMigrator>.Instance, retryPolicy);
     }
 
     /// <summary>Builds the state of a database migrated by EF Core in sprint 1: the V001 schema plus the EF migrations history.</summary>

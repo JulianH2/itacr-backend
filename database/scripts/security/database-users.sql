@@ -19,7 +19,7 @@ ALTER ROLE db_datawriter ADD MEMBER itacr_migrator;
 CREATE USER itacr_app WITH PASSWORD = N'<itacr_app password>';
 GRANT EXECUTE ON SCHEMA::dbo TO itacr_app;
 
--- Temporary: the API still reads and writes the tables through EF Core. ITACR-36 moves every query to a
--- stored procedure and revokes both roles, leaving itacr_app with EXECUTE only.
+-- Temporary: the API released before ITACR-36 reads and writes the tables through EF Core. After the release
+-- that includes ITACR-36 is deployed, run app-execute-only.sql to remove both roles.
 ALTER ROLE db_datareader ADD MEMBER itacr_app;
 ALTER ROLE db_datawriter ADD MEMBER itacr_app;
