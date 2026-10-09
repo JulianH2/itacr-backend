@@ -7,7 +7,7 @@
 -- Jira:        ITACR-40
 -- =============================================================================
 
-CREATE TABLE [OrderStatusHistory] (
+CREATE TABLE [dbo].[OrderStatusHistory] (
     [Id] uniqueidentifier NOT NULL,
     [OrderId] uniqueidentifier NOT NULL,
     [FromStatus] nvarchar(20) NULL,
@@ -16,10 +16,10 @@ CREATE TABLE [OrderStatusHistory] (
     [CreatedAt] datetime2 NOT NULL,
     [UpdatedAt] datetime2 NOT NULL,
     CONSTRAINT [PK_OrderStatusHistory] PRIMARY KEY ([Id]),
-    CONSTRAINT [FK_OrderStatusHistory_Orders_OrderId] FOREIGN KEY ([OrderId]) REFERENCES [Orders] ([Id]) ON DELETE CASCADE,
-    CONSTRAINT [FK_OrderStatusHistory_Employees_ChangedById] FOREIGN KEY ([ChangedById]) REFERENCES [Employees] ([Id]) ON DELETE NO ACTION
+    CONSTRAINT [FK_OrderStatusHistory_Orders_OrderId] FOREIGN KEY ([OrderId]) REFERENCES [dbo].[Orders] ([Id]) ON DELETE CASCADE,
+    CONSTRAINT [FK_OrderStatusHistory_Employees_ChangedById] FOREIGN KEY ([ChangedById]) REFERENCES [dbo].[Employees] ([Id]) ON DELETE NO ACTION
 );
 
-CREATE INDEX [IX_OrderStatusHistory_OrderId_CreatedAt] ON [OrderStatusHistory] ([OrderId], [CreatedAt]);
+CREATE INDEX [IX_OrderStatusHistory_OrderId_CreatedAt] ON [dbo].[OrderStatusHistory] ([OrderId], [CreatedAt]);
 
-CREATE INDEX [IX_OrderStatusHistory_ChangedById] ON [OrderStatusHistory] ([ChangedById]);
+CREATE INDEX [IX_OrderStatusHistory_ChangedById] ON [dbo].[OrderStatusHistory] ([ChangedById]);
