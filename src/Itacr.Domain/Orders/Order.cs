@@ -33,11 +33,23 @@ public sealed class Order : AuditableEntity
     public ICollection<OrderStatusHistory> StatusHistory { get; } = [];
 
     /// <summary>
-    /// A new order: status <see cref="OrderStatus.New"/>, no items yet, and its first history row. The repositories set the
-    /// keys; the database sets <see cref="OrderNumber"/>.
+    /// A new order: status <see cref="OrderStatus.New"/>, no items yet, and its first history row. A dine-in order needs a
+    /// table and a take-away order has none. The repositories set the keys, including the <c>OrderId</c> of the items and
+    /// history rows (the domain never sets it); the database sets <see cref="OrderNumber"/>.
     /// </summary>
+    /// <exception cref="ArgumentException">The table does not match the channel.</exception>
     public static Order Create(Guid clientOrderId, OrderChannel channel, Guid? tableId, Guid? waiterId, Guid? customerId, DateTime now)
     {
+        if (channel == OrderChannel.DineIn && tableId is null)
+        {
+            throw new ArgumentException("A dine-in order needs a table.", nameof(tableId));
+        }
+
+        if (channel == OrderChannel.TakeAway && tableId is not null)
+        {
+            throw new ArgumentException("A take-away order has no table.", nameof(tableId));
+        }
+
         var order = new Order
         {
             ClientOrderId = clientOrderId,
@@ -62,7 +74,6 @@ public sealed class Order : AuditableEntity
 
         var item = new OrderItem
         {
-            OrderId = Id,
             ProductId = productId,
             Quantity = quantity,
             UnitPrice = unitPrice,
@@ -91,7 +102,7 @@ public sealed class Order : AuditableEntity
             return false;
         }
 
-        StatusHistory.Add(new OrderStatusHistory { OrderId = Id, FromStatus = Status, ToStatus = next, ChangedById = changedById, CreatedAt = now, UpdatedAt = now });
+        StatusHistory.Add(new OrderStatusHistory { FromStatus = Status, ToStatus = next, ChangedById = changedById, CreatedAt = now, UpdatedAt = now });
         Status = next;
         LastStatusChangeAt = now;
         UpdatedAt = now;
