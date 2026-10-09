@@ -19,15 +19,12 @@ namespace Itacr.Api.Tests;
 /// </summary>
 public sealed class DatabaseFixture : IAsyncLifetime
 {
-    private const string Image = "mcr.microsoft.com/mssql/server:2025-latest";
     private const string DatabaseName = "ItacrApiTests";
     private const string ApiLogin = "itacr_app_tests";
 
-    // CI runners have 8 GB and the migrator tests run their own SQL Server too; each one would otherwise take most of it.
-    private const string MemoryLimitVariable = "MSSQL_MEMORY_LIMIT_MB";
-    private const string MemoryLimitMegabytes = "1536";
+    private MsSqlContainer? _container;
 
-    private readonly MsSqlContainer _container = new MsSqlBuilder(Image).WithEnvironment(MemoryLimitVariable, MemoryLimitMegabytes).Build();
+    private MsSqlContainer Container => _container ?? throw new InvalidOperationException("The SQL Server container has not started.");
 
     /// <summary>Administrator connection, for the tests to arrange and inspect data.</summary>
     public string ConnectionString { get; private set; } = string.Empty;
@@ -37,10 +34,10 @@ public sealed class DatabaseFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        await _container.StartAsync();
-        ConnectionString = new SqlConnectionStringBuilder(_container.GetConnectionString()) { InitialCatalog = DatabaseName }.ConnectionString;
+        _container = await SqlServerContainers.StartAsync();
+        ConnectionString = new SqlConnectionStringBuilder(Container.GetConnectionString()) { InitialCatalog = DatabaseName }.ConnectionString;
 
-        await using (var master = new SqlConnection(_container.GetConnectionString()))
+        await using (var master = new SqlConnection(Container.GetConnectionString()))
         {
             await master.ExecuteAsync($"CREATE DATABASE [{DatabaseName}];");
         }
@@ -73,7 +70,7 @@ public sealed class DatabaseFixture : IAsyncLifetime
     {
         var password = $"Tests-{Guid.NewGuid():N}-Aa1!";
 
-        await using (var master = new SqlConnection(_container.GetConnectionString()))
+        await using (var master = new SqlConnection(Container.GetConnectionString()))
         {
             await master.ExecuteAsync($"CREATE LOGIN [{ApiLogin}] WITH PASSWORD = N'{password}';");
         }
@@ -101,7 +98,13 @@ public sealed class DatabaseFixture : IAsyncLifetime
             """);
     }
 
-    public Task DisposeAsync() => _container.DisposeAsync().AsTask();
+    public async Task DisposeAsync()
+    {
+        if (_container is not null)
+        {
+            await _container.DisposeAsync();
+        }
+    }
 }
 
 [CollectionDefinition(Name)]
