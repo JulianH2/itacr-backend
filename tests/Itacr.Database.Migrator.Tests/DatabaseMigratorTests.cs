@@ -160,7 +160,11 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         Assert.False(succeeded);
     }
 
-    internal static DatabaseMigrator CreateMigrator(string? connectionString, string environmentName, SeedOptions? seed = null)
+    internal static DatabaseMigrator CreateMigrator(
+        string? connectionString,
+        string environmentName,
+        SeedOptions? seed = null,
+        ConnectionRetryPolicy? retryPolicy = null)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { [$"ConnectionStrings:{DatabaseMigrator.ConnectionStringName}"] = connectionString })
@@ -168,7 +172,7 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         var environment = new HostingEnvironment { EnvironmentName = environmentName };
         var plan = new EmployeeSeedPlan(Options.Create(seed ?? new SeedOptions()), NullLogger<EmployeeSeedPlan>.Instance);
         var seeder = new EmployeeSeeder(plan, PasswordHasher, TimeProvider.System, NullLogger<EmployeeSeeder>.Instance);
-        return new DatabaseMigrator(configuration, environment, seeder, NullLogger<DatabaseMigrator>.Instance);
+        return new DatabaseMigrator(configuration, environment, seeder, NullLogger<DatabaseMigrator>.Instance, retryPolicy);
     }
 
     /// <summary>Builds the state of a database migrated by EF Core in sprint 1: the V001 schema plus the EF migrations history.</summary>

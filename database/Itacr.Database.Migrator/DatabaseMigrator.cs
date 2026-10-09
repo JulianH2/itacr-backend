@@ -11,16 +11,24 @@ using Microsoft.Extensions.Logging;
 
 namespace Itacr.Database.Migrator;
 
+/// <summary>How long the migrator waits for SQL Server: a container that is still starting, or a paused serverless database.</summary>
+public sealed record ConnectionRetryPolicy(int MaxAttempts, TimeSpan Delay)
+{
+    public static readonly ConnectionRetryPolicy Default = new(6, TimeSpan.FromSeconds(10));
+}
+
 /// <summary>
 /// Brings a database to the current version: versioned scripts in <c>migrations/</c> run once, in order;
 /// the T-SQL objects in <c>functions/</c>, <c>views/</c>, <c>procedures/</c>, and <c>triggers/</c> are
-/// re-created on every run; then the employees are seeded.
+/// re-created on every run; then the employees are seeded. It never throws: any failure is logged as one
+/// clear message and <see cref="RunAsync"/> returns false, so the process exits with code 1.
 /// </summary>
 public sealed class DatabaseMigrator(
     IConfiguration configuration,
     IHostEnvironment environment,
     EmployeeSeeder employeeSeeder,
-    ILogger<DatabaseMigrator> logger)
+    ILogger<DatabaseMigrator> logger,
+    ConnectionRetryPolicy? retryPolicy = null)
 {
     public const string ConnectionStringName = "Migrator";
 
@@ -29,10 +37,9 @@ public sealed class DatabaseMigrator(
     // The last EF Core migration applied before ITACR-37; databases created by EF Core are baselined at V001.
     private const string LastEfCoreMigration = "20261002130000_AddFnGetProductsByCategory";
 
-    private const int MaxConnectionAttempts = 6;
-    private static readonly TimeSpan ConnectionRetryDelay = TimeSpan.FromSeconds(10);
-
     private static readonly string ScriptsRoot = Path.Combine(AppContext.BaseDirectory, "Scripts");
+
+    private readonly ConnectionRetryPolicy _retryPolicy = retryPolicy ?? ConnectionRetryPolicy.Default;
 
     private static readonly (string Folder, ScriptType Type)[] ScriptGroups =
     [
@@ -44,6 +51,25 @@ public sealed class DatabaseMigrator(
     ];
 
     public async Task<bool> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await MigrateAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError("The migration was cancelled; the database was left at the last successful script");
+            return false;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError("The migration stopped: {ExceptionType}: {Message}", exception.GetType().Name, exception.Message);
+            logger.LogDebug(exception, "Migration failure details");
+            return false;
+        }
+    }
+
+    private async Task<bool> MigrateAsync(CancellationToken cancellationToken)
     {
         var connectionString = configuration.GetConnectionString(ConnectionStringName);
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -57,10 +83,25 @@ public sealed class DatabaseMigrator(
 
         if (environment.IsDevelopment())
         {
-            EnsureDatabase.For.SqlDatabase(connectionString);
+            // Creating the database connects to master, so it is retried like any other connection.
+            await RetryWhileUnreachableAsync(
+                "SQL Server",
+                () =>
+                {
+                    EnsureDatabase.For.SqlDatabase(connectionString);
+                    return Task.CompletedTask;
+                },
+                cancellationToken);
         }
 
-        await WaitForDatabaseAsync(connectionString, cancellationToken);
+        await RetryWhileUnreachableAsync(
+            "Database",
+            async () =>
+            {
+                await using var connection = new SqlConnection(connectionString);
+                await connection.OpenAsync(cancellationToken);
+            },
+            cancellationToken);
 
         var upgrader = BuildUpgrader(connectionString);
         var efCoreState = await GetEfCoreStateAsync(connectionString, upgrader, cancellationToken);
@@ -122,26 +163,28 @@ public sealed class DatabaseMigrator(
         return builder.Build();
     }
 
-    private async Task WaitForDatabaseAsync(string connectionString, CancellationToken cancellationToken)
+    private async Task RetryWhileUnreachableAsync(string target, Func<Task> connect, CancellationToken cancellationToken)
     {
         for (var attempt = 1; ; attempt++)
         {
             try
             {
-                await using var connection = new SqlConnection(connectionString);
-                await connection.OpenAsync(cancellationToken);
+                await connect();
                 return;
             }
-            catch (SqlException exception) when (attempt < MaxConnectionAttempts)
+            catch (SqlException exception) when (attempt < _retryPolicy.MaxAttempts)
             {
-                // Azure SQL serverless takes up to a minute to resume after an auto-pause.
+                // A SQL Server container still starting resets connections (10054) or rejects logins; Azure SQL
+                // serverless takes up to a minute to resume after an auto-pause.
                 logger.LogWarning(
-                    "Database not reachable (attempt {Attempt} of {MaxAttempts}, SQL error {Number}); retrying in {Delay}",
+                    "{Target} not reachable (attempt {Attempt} of {MaxAttempts}, SQL error {Number}: {Message}); retrying in {Delay}",
+                    target,
                     attempt,
-                    MaxConnectionAttempts,
+                    _retryPolicy.MaxAttempts,
                     exception.Number,
-                    ConnectionRetryDelay);
-                await Task.Delay(ConnectionRetryDelay, cancellationToken);
+                    exception.Message,
+                    _retryPolicy.Delay);
+                await Task.Delay(_retryPolicy.Delay, cancellationToken);
             }
         }
     }
