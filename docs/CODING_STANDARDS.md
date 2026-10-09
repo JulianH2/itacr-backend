@@ -51,7 +51,7 @@ public enum OrderStatus
     Cancelled,
 }
 
-public sealed record CreateOrderRequest(Guid ClientId, IReadOnlyList<CreateOrderItemRequest> Items);
+public sealed record CreateOrderCommand(Guid ClientOrderId, Guid? TableId, bool TakeAway, IReadOnlyList<CreateOrderItem> Items);
 ```
 
 ### 1.3 Naming
@@ -232,7 +232,7 @@ builder.Services
 - Paginate every list: `?page=1&limit=20`, and return `{ data, meta: { page, limit, total } }`.
 - JSON uses camelCase property names (the ASP.NET Core default) and enums as strings (`JsonStringEnumConverter`).
 - Dates in **ISO 8601 UTC** (`2026-09-28T18:30:00.000Z`): store and return `DateTime` values with `DateTimeKind.Utc`, taken from the injected `TimeProvider`. The frontend converts to local time.
-- Order creation accepts the client UUID as an **idempotency key**. Repeating the request with the same key returns the original order (`200`) instead of creating a duplicate. The unique index on `ClientId` guarantees it even when two requests race.
+- Order creation accepts the client UUID (`clientOrderId`) as an **idempotency key**. The first request returns `201` with the new order; repeating it returns the original order with `200` instead of creating a duplicate, and `409` when the key belongs to another waiter's order. The unique index on `ClientOrderId` guarantees it even when two requests race (`POST /api/v1/orders`, ITACR-9).
 - Every endpoint accepts a `CancellationToken` and passes it down to the repositories and Dapper.
 
 ### 2.4 Security and operations
@@ -320,7 +320,7 @@ CREATE INDEX IX_OrderStatusHistory_OrderId ON dbo.OrderStatusHistory (OrderId);
 -- Type:        inline table-valued function
 -- Purpose:     Returns the orders in a given status for the KDS.
 -- Parameters:  @Status nvarchar(20) - order status to filter by (e.g. 'Pending')
--- Returns:     TABLE (Id uniqueidentifier, ClientId uniqueidentifier, Status nvarchar(20), CreatedAt datetime2)
+-- Returns:     TABLE (Id uniqueidentifier, ClientOrderId uniqueidentifier, Status nvarchar(20), CreatedAt datetime2)
 -- Author:      GuillermoRH19
 -- Jira:        ITACR-27
 -- =============================================================================
@@ -328,7 +328,7 @@ CREATE OR ALTER FUNCTION dbo.fn_GetOrdersByStatus (@Status nvarchar(20))
 RETURNS TABLE
 AS
 RETURN
-    SELECT o.Id, o.ClientId, o.Status, o.CreatedAt
+    SELECT o.Id, o.ClientOrderId, o.Status, o.CreatedAt
     FROM dbo.Orders AS o
     WHERE o.Status = @Status;
 ```

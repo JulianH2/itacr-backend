@@ -15,17 +15,19 @@ internal sealed class FakeCatalogRepository(
             [.. categories.Select(category => new Category { Id = category.Id, Name = category.Name, SortOrder = category.SortOrder })]);
 
     public Task<IReadOnlyList<Product>> GetProductsByCategoryAsync(Guid categoryId, CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<Product>>(
-            [.. products
-                .Where(product => product.CategoryId == categoryId)
-                .Select(product => new Product
-                {
-                    Id = product.Id,
-                    CategoryId = product.CategoryId,
-                    Name = product.Name,
-                    Description = product.Description,
-                    Price = product.Price,
-                    ImageUrl = product.ImageUrl,
-                    IsCombo = product.IsCombo,
-                })]);
+        Task.FromResult<IReadOnlyList<Product>>([.. products.Where(product => product.CategoryId == categoryId).Select(ToProduct)]);
+
+    public Task<IReadOnlyList<Product>> GetProductsByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Product>>([.. products.Where(product => ids.Contains(product.Id)).Select(ToProduct)]);
+
+    private static Product ToProduct(ProductResponse product) => new()
+    {
+        Id = product.Id,
+        CategoryId = product.CategoryId,
+        Name = product.Name,
+        Description = product.Description,
+        Price = product.Price,
+        ImageUrl = product.ImageUrl,
+        IsCombo = product.IsCombo,
+    };
 }
