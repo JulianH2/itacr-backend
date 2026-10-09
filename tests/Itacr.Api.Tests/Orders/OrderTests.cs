@@ -54,6 +54,52 @@ public sealed class OrderTests
         Assert.Equal(waiterId, first.ChangedById);
     }
 
+    [Theory]
+    [InlineData(OrderChannel.DineIn, false)]
+    [InlineData(OrderChannel.TakeAway, true)]
+    public void Create_ShouldReject_WhenTheTableDoesNotMatchTheChannel(OrderChannel channel, bool withTable)
+    {
+        // Arrange
+        Guid? tableId = withTable ? Guid.NewGuid() : null;
+
+        // Act
+        var create = () => Order.Create(Guid.NewGuid(), channel, tableId, null, null, Now);
+
+        // Assert
+        Assert.Equal("tableId", Assert.Throws<ArgumentException>(create).ParamName);
+    }
+
+    [Theory]
+    [InlineData(OrderChannel.DineIn, true)]
+    [InlineData(OrderChannel.TakeAway, false)]
+    [InlineData(OrderChannel.MobileApp, false)]
+    public void Create_ShouldAccept_WhenTheTableMatchesTheChannel(OrderChannel channel, bool withTable)
+    {
+        // Arrange
+        Guid? tableId = withTable ? Guid.NewGuid() : null;
+
+        // Act
+        var order = Order.Create(Guid.NewGuid(), channel, tableId, null, null, Now);
+
+        // Assert
+        Assert.Equal(tableId, order.TableId);
+    }
+
+    [Fact]
+    public void Children_ShouldLeaveTheOrderIdToTheRepository_WhenItemsAndHistoryAreCreated()
+    {
+        // Arrange
+        var order = Order.Create(Guid.NewGuid(), OrderChannel.TakeAway, null, null, null, Now);
+
+        // Act
+        var item = order.AddItem(Guid.NewGuid(), 1, 10m, null, null, [], [], Now);
+        order.TryChangeStatus(OrderStatus.InPreparation, null, Now);
+
+        // Assert
+        Assert.Equal(Guid.Empty, item.OrderId);
+        Assert.All(order.StatusHistory, entry => Assert.Equal(Guid.Empty, entry.OrderId));
+    }
+
     [Fact]
     public void AddItem_ShouldCopyThePriceAndRecalculateTheTotal_WhenItemsAreAdded()
     {
@@ -119,7 +165,7 @@ public sealed class OrderTests
     public void TryChangeStatus_ShouldChangeNothing_WhenTheStepIsNotAllowed(OrderStatus current, OrderStatus requested)
     {
         // Arrange
-        var order = Order.Create(Guid.NewGuid(), OrderChannel.DineIn, null, null, null, Now);
+        var order = Order.Create(Guid.NewGuid(), OrderChannel.DineIn, Guid.NewGuid(), null, null, Now);
         order.Status = current;
         var historyCount = order.StatusHistory.Count;
 
@@ -138,7 +184,7 @@ public sealed class OrderTests
     public void TryChangeStatus_ShouldRejectEveryChange_WhenTheOrderIsDelivered()
     {
         // Arrange
-        var order = Order.Create(Guid.NewGuid(), OrderChannel.DineIn, null, null, null, Now);
+        var order = Order.Create(Guid.NewGuid(), OrderChannel.DineIn, Guid.NewGuid(), null, null, Now);
         order.Status = OrderStatus.Delivered;
 
         // Act
