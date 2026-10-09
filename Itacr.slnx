@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/database/">
+    <Project Path="database/Itacr.Database.Migrator/Itacr.Database.Migrator.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Itacr.Api/Itacr.Api.csproj" />
     <Project Path="src/Itacr.Application/Itacr.Application.csproj" />
@@ -7,5 +10,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Itacr.Api.Tests/Itacr.Api.Tests.csproj" />
+    <Project Path="tests/Itacr.Database.Migrator.Tests/Itacr.Database.Migrator.Tests.csproj" />
   </Folder>
 </Solution>
