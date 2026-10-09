@@ -212,16 +212,21 @@ public sealed class KitchenQueueTests(DatabaseFixture database) : DatabaseTest(d
             """,
             new { Id = orderId, Channel = channel, Status = status, TableId = tableId, CreatedAt = createdAt });
 
-        foreach (var item in items)
+        for (var index = 0; index < items.Length; index++)
         {
+            var item = items[index];
             await connection.ExecuteAsync(
                 """
                 INSERT INTO dbo.OrderItems (Id, OrderId, ProductId, Quantity, UnitPrice, Subtotal, Size, Drink, Extras, Exclusions, CreatedAt, UpdatedAt)
-                VALUES (NEWID(), @OrderId, @ProductId, @Quantity, 0, 0, @Size, @Drink, @Extras, @Exclusions, @CreatedAt, @CreatedAt);
+                VALUES (@Id, @OrderId, @ProductId, @Quantity, 0, 0, @Size, @Drink, @Extras, @Exclusions, @CreatedAt, @CreatedAt);
                 """,
-                new { OrderId = orderId, item.ProductId, item.Quantity, item.Size, item.Drink, item.Extras, item.Exclusions, CreatedAt = createdAt });
+                new { Id = ItemId(index), OrderId = orderId, item.ProductId, item.Quantity, item.Size, item.Drink, item.Extras, item.Exclusions, CreatedAt = createdAt });
         }
     }
+
+    // SQL Server sorts uniqueidentifier values by their last group first, so the items keep the order they were added in,
+    // like the SequentialGuid ids the API creates.
+    private static Guid ItemId(int index) => Guid.Parse($"{Guid.NewGuid().ToString()[..24]}{index:x12}");
 
     private sealed record OrderLine(Guid ProductId, int Quantity, string? Size = null, string? Drink = null, string Extras = "[]", string Exclusions = "[]");
 }
