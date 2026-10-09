@@ -14,7 +14,7 @@ This repository contains the backend: the ASP.NET Core REST API, real-time kitch
 | API            | ASP.NET Core Web API (controllers), Problem Details (RFC 9457), built-in rate limiting  |
 | API docs       | OpenAPI (`Microsoft.AspNetCore.OpenApi`) + Scalar UI                                     |
 | Database       | Azure SQL Database (production), SQL Server 2025 in Docker (local development)          |
-| Data access    | Entity Framework Core 10 (SQL Server provider), until ITACR-36 replaces it with Dapper   |
+| Data access    | Dapper over stored procedures (`Microsoft.Data.SqlClient`), one repository per module   |
 | Schema         | SQL scripts applied by `Itacr.Database.Migrator` (DbUp)                                  |
 | Real time      | ASP.NET Core SignalR (KDS and order tracking)                                           |
 | Notifications  | Web Push with VAPID keys                                                                |
@@ -39,7 +39,6 @@ cd itacr-backend
 git config core.hooksPath .githooks
 cp .env.example .env                 # PowerShell: Copy-Item .env.example .env
 docker compose up -d sqlserver
-dotnet tool restore
 dotnet user-secrets set "ConnectionStrings:Default" "Server=localhost,1433;Database=Itacr;User Id=sa;Password=<MSSQL_SA_PASSWORD from .env>;TrustServerCertificate=True" --project src/Itacr.Api
 dotnet user-secrets set "ConnectionStrings:Migrator" "Server=localhost,1433;Database=Itacr;User Id=sa;Password=<MSSQL_SA_PASSWORD from .env>;TrustServerCertificate=True" --project database/Itacr.Database.Migrator
 dotnet run --project database/Itacr.Database.Migrator
@@ -102,7 +101,7 @@ itacr-backend/
 │   ├── Itacr.Domain/           # Entities and enums per module: Identity/, Catalog/, Orders/, Customers/, Notifications/
 │   ├── Itacr.Application/      # Services, interfaces, requests, and responses per module: Identity/, Catalog/
 │   ├── Itacr.Infrastructure/
-│   │   ├── Persistence/        # ItacrDbContext, entity configurations, Migrations/, Seeding/
+│   │   ├── Persistence/        # DbSession, <Module>/ repositories with Dapper, database health check
 │   │   └── Identity/           # JWT token service
 │   └── Itacr.Api/
 │       ├── Endpoints/          # One folder per module with its controllers: Identity/, Catalog/

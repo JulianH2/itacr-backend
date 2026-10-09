@@ -63,15 +63,15 @@ public sealed record CreateOrderRequest(Guid ClientId, IReadOnlyList<CreateOrder
 | Classes, records, enums       | PascalCase                                    | `OrdersService`, `CreateOrderRequest`           |
 | Interfaces                    | `I` + PascalCase                              | `IOrdersService`                                |
 | Properties                    | PascalCase                                    | `CreatedAt`, `IsPaid`                           |
-| Private fields                | `_camelCase`                                  | `_dbContext`, `_timeProvider`                   |
+| Private fields                | `_camelCase`                                  | `_connection`, `_timeProvider`                  |
 | Constants, static readonly    | PascalCase                                    | `MaxItemsPerOrder`                              |
 | Files                         | PascalCase, one type per file, named like the type | `OrdersService.cs`                         |
-| Tables and columns            | PascalCase (EF Core default), tables plural   | `dbo.Orders`, `CreatedAt`                       |
+| Tables and columns            | PascalCase, tables plural                     | `dbo.Orders`, `CreatedAt`                       |
 | T-SQL objects and their files | prefix + PascalCase                           | `usp_CloseCashRegister`, `fn_GetOrdersByStatus` |
 
 - Use descriptive English names. No abbreviations except widely known ones: `Id`, `Url`, `Dto`, `Api`, `Http`, `Uuid`, `Jwt`.
 - Booleans read as questions: `IsOffline`, `HasPendingOrders`, `CanCancel`.
-- Type names describe the role: `OrdersController`, `OrdersService`, `CreateOrderRequest`, `OrderResponse`, `OrderConfiguration` (EF Core), `KitchenHub` (SignalR), `JwtOptions` (settings), `OrdersServiceTests`.
+- Type names describe the role: `OrdersController`, `OrdersService`, `CreateOrderRequest`, `OrderResponse`, `OrderRepository` (Dapper), `KitchenHub` (SignalR), `JwtOptions` (settings), `OrdersServiceTests`.
 
 ### 1.4 Formatting
 
@@ -95,17 +95,18 @@ public sealed record CreateOrderRequest(Guid ClientId, IReadOnlyList<CreateOrder
 ```csharp
 try
 {
-    await _dbContext.SaveChangesAsync(cancellationToken);
+    var connection = await session.GetOpenConnectionAsync(cancellationToken);
+    await connection.ExecuteAsync(session.Procedure("dbo.usp_Order_Create", parameters, cancellationToken));
 }
-catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: UniqueKeyViolation or UniqueIndexViolation })
+catch (SqlException exception) when (exception.Number is UniqueKeyViolation or UniqueIndexViolation)
 {
-    // The same client UUID was synced twice: return the order that already exists.
-    _logger.LogInformation("Order {ClientId} already exists; returning the existing one", request.ClientId);
-    return await GetByClientIdAsync(request.ClientId, cancellationToken);
+    // The same client UUID was synced twice: the repository reports it, and the use case returns the existing order.
+    _logger.LogInformation("Order {ClientOrderId} already exists", order.ClientOrderId);
+    return CreateOrderOutcome.AlreadyExists;
 }
 ```
 
-`UniqueKeyViolation` (`2627`) and `UniqueIndexViolation` (`2601`) are named constants for the SQL Server error numbers.
+`UniqueKeyViolation` (`2627`) and `UniqueIndexViolation` (`2601`) are named constants for the SQL Server error numbers. `SqlException` is only caught in `Infrastructure`; `Application` never sees it.
 
 ### 1.7 Security (OWASP Top 10 basics)
 
@@ -150,23 +151,23 @@ The solution follows Clean Architecture: four projects, with references pointing
 src/
 ├── Itacr.Domain/             # Entities and enums per module (Identity/, Catalog/, Orders/, Customers/, Notifications/). No dependencies
 ├── Itacr.Application/        # Services, their interfaces, requests, and responses per module (Identity/, Catalog/)
-│   └── Common/Persistence/   # IItacrDbContext, implemented by Infrastructure
-├── Itacr.Infrastructure/     # Persistence/ (ItacrDbContext, Configurations/, Migrations/, Seeding/), Identity/ (JWT)
+│   └── Common/Persistence/   # IDbSession; repository interfaces live in each module (IEmployeeRepository)
+├── Itacr.Infrastructure/     # Persistence/ (DbSession, <Module>/ repositories with Dapper, health check), Identity/ (JWT)
 └── Itacr.Api/                # Endpoints/<Module>/ (controllers), Common/ (pipeline, options, security headers), Program.cs
 ```
 
 | Project | References | Contains |
 | ------- | ---------- | -------- |
 | `Itacr.Domain` | nothing | Entities, enums, and rules that need no I/O |
-| `Itacr.Application` | `Domain` | Business logic and the interfaces it needs (`ITokenService`, `IItacrDbContext`) |
-| `Itacr.Infrastructure` | `Application`, `Domain` | Implementations of those interfaces: database, JWT |
+| `Itacr.Application` | `Domain` | Business logic and the interfaces it needs (`ITokenService`, `IDbSession`, `IEmployeeRepository`) |
+| `Itacr.Infrastructure` | `Application`, `Domain` | Implementations of those interfaces: Dapper repositories, JWT |
 | `Itacr.Api` | `Application`, `Infrastructure` | HTTP only: routing, validation, status codes, and DI composition |
 
 - A module has the same name in every project (`Domain/Catalog`, `Application/Catalog`, `Api/Endpoints/Catalog`), so a change to one module touches folders with the same name.
-- `Domain` never uses EF Core, ASP.NET Core, or any other package. `Application` never references `Infrastructure` or `Api`.
+- `Domain` never uses Dapper, SQL Server, ASP.NET Core, or any other package. `Application` never references `Infrastructure` or `Api`, and never sees SQL, connections, or `SqlException`.
 - A module never calls another module's controller. Shared logic moves to `Domain/` or is exposed through a service interface.
 - **Controllers stay thin**: they receive a validated request, call one service method, and map the result to an HTTP response.
-- Business logic lives in `Application` services, registered in DI behind an interface (`ICatalogService`). Until ITACR-36 replaces EF Core, data access goes through `IItacrDbContext`. Do not add a generic repository.
+- Business logic lives in `Application` services, registered in DI behind an interface (`ICatalogService`). Data access goes through the repository interfaces of the module, implemented in `Infrastructure/Persistence/<Module>/`. Do not add a generic repository.
 - Keep `Program.cs` short: each project registers its services in one extension method (`AddInfrastructure`, `AddApplication`), and the API adds its own (`AddApiBase`, `AddAuthFeature`).
 - Inject dependencies through the constructor (primary constructors are fine). Never use `new` for services, and never resolve services manually from `IServiceProvider`.
 
@@ -207,7 +208,7 @@ builder.Services
 - JSON uses camelCase property names (the ASP.NET Core default) and enums as strings (`JsonStringEnumConverter`).
 - Dates in **ISO 8601 UTC** (`2026-09-28T18:30:00.000Z`): store and return `DateTime` values with `DateTimeKind.Utc`, taken from the injected `TimeProvider`. The frontend converts to local time.
 - Order creation accepts the client UUID as an **idempotency key**. Repeating the request with the same key returns the original order (`200`) instead of creating a duplicate. The unique index on `ClientId` guarantees it even when two requests race.
-- Every endpoint accepts a `CancellationToken` and passes it down to EF Core.
+- Every endpoint accepts a `CancellationToken` and passes it down to the repositories and Dapper.
 
 ### 2.4 Security and operations
 
@@ -217,7 +218,7 @@ builder.Services
 - JWT bearer authentication with role-based authorization: `[Authorize(Roles = nameof(EmployeeRole.Manager))]`. The token lasts one shift (`Jwt:TokenLifetimeHours`, 12) and carries the `sub` (employee id), `name`, and `role` claims; there is no refresh token. Controllers are closed by default through a global `AuthorizeFilter`; public endpoints use `[AllowAnonymous]` explicitly, and SignalR hubs need `[Authorize]` on the hub class.
 - PIN login is locked per employee after `LoginSecurity:MaxFailedPinAttempts` (5) wrong PINs for `LoginSecurity:LockoutMinutes` (15), and the login endpoints have their own stricter rate limit (`LoginSecurity:PermitLimit` per minute and IP) on top of the global one.
 - Structured logging with message templates (`_logger.LogInformation("Order {OrderId} created", order.Id)`), never string interpolation in log calls. JSON console logs outside Development. Every log and Problem Details response includes the trace id.
-- `GET /api/v1/health` checks the API and the database (`AddHealthChecks().AddDbContextCheck<ItacrDbContext>()`). It is anonymous and returns no internal details.
+- `GET /api/v1/health` checks the API and the database by running `dbo.usp_Health_Ping` (`DatabaseHealthCheck`), so it also proves the `EXECUTE` permission. It is anonymous and returns no internal details.
 - Document every endpoint in OpenAPI: `[ProducesResponseType]` for each status code, XML comments on actions and DTOs. The Scalar UI (`/scalar/v1`) is enabled in Development only.
 - Real time with **SignalR**: one hub per use case (`KitchenHub` at `/hubs/kitchen`), authenticated with the same JWT, and clients grouped by role or order. Hubs only push events; changes still go through the REST API. Azure App Service must have WebSockets enabled.
 
@@ -237,57 +238,40 @@ database/
 ├── scripts/                 # Run by hand only (database users, reports); never applied automatically
 └── Itacr.Database.Migrator/ # DbUp console app and the employee seed
 src/Itacr.Infrastructure/Persistence/
-├── ItacrDbContext.cs        # EF Core mapping used by the API until ITACR-36 replaces it with Dapper
-└── Configurations/          # Must keep matching the tables created by the scripts
+├── DbSession.cs             # One connection per request, opened on first use; transactions on demand
+├── <Module>/                # Repositories with Dapper: EmployeeRepository, CatalogRepository, ...
+└── DatabaseHealthCheck.cs
 ```
 
 **No manual changes in the database.** Every change to tables or T-SQL objects is a script in `database/` applied by the migrator, so it is versioned and applied in the same order on every machine and environment.
 
-**Until ITACR-36 is merged, the schema is frozen:** the API still maps the tables with EF Core, and CI still checks that the EF Core model has no pending changes. ITACR-36 removes EF Core; after that, a schema change is only a new script in `migrations/`.
-
 ### 3.1 Tables
 
-- Register the context with `UseAzureSql(connectionString, sql => sql.EnableRetryOnFailure())` in every environment. The retry policy matters on Azure SQL: the free serverless database pauses when idle and the first connection after a pause can fail or be slow. With retries on, wrap explicit transactions in `_dbContext.Database.CreateExecutionStrategy().ExecuteAsync(...)`.
-- Entities in **PascalCase singular** (`Order`), `DbSet` properties in **PascalCase plural** (`Orders`). EF Core maps them to tables in the `dbo` schema named like the `DbSet` (`dbo.Orders`) with PascalCase columns, so no `ToTable` or `HasColumnName` is needed.
-- Configure every entity in its own `IEntityTypeConfiguration<T>` class in `Configurations/`, never with attributes on the entity.
-
-```csharp
-public sealed class Order
-{
-    public Guid Id { get; set; }
-    public Guid ClientId { get; set; }
-    public OrderStatus Status { get; set; }
-    public Guid? WaiterId { get; set; }
-    public decimal Total { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
-}
-
-internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
-{
-    private const int StatusMaxLength = 20;
-
-    public void Configure(EntityTypeBuilder<Order> builder)
-    {
-        builder.HasIndex(order => order.ClientId).IsUnique();
-        builder.HasIndex(order => order.Status);
-        builder.HasIndex(order => order.CreatedAt);
-        builder.HasIndex(order => order.WaiterId);
-        builder.Property(order => order.Status).HasConversion<string>().HasMaxLength(StatusMaxLength);
-        builder.Property(order => order.Total).HasPrecision(10, 2);
-    }
-}
-```
-
+- Tables are **PascalCase plural** in `dbo` (`dbo.Orders`), columns **PascalCase** (`CreatedAt`). The entity in `Domain/<Module>/` is PascalCase singular (`Order`) and its properties have the column names, so Dapper maps rows to it by name.
 - Every schema change is a new script in `database/migrations/`, named `V<NNN>__<snake_case_description>.sql` (`V002__add_order_status_history.sql`). **Never edit or rename a script that was already merged** into `sprint-XX`, `develop`, `release`, or `main`: the journal (`dbo.SchemaVersions`) stores its name, so it would not run again. Create a new one.
 - Keep schema changes additive (new tables, nullable or defaulted columns): the previous API runs for a moment against the new schema during a deploy. Rename or drop columns in a later release.
 - Seeds are **idempotent**: reference data with fixed IDs goes in a migration; employees are seeded by the migrator, which checks existing emails first, so running it twice does not duplicate data.
-- Every table has `CreatedAt` and `UpdatedAt` (`datetime2`, UTC), set by a `SaveChanges` interceptor that uses `TimeProvider`.
-- Use foreign keys, and add indexes on frequently filtered columns (`Status`, `CreatedAt`, `WaiterId`). Set a maximum length on every string (`HasMaxLength`); never leave `nvarchar(max)` by accident.
-- Enums are stored as text (`HasConversion<string>()`), so T-SQL objects can compare them as strings.
-- Combo customizations are a JSON column (`ToJson()` on the complex or owned property), stored in the native `json` type of Azure SQL and SQL Server 2025.
-- Money is `decimal` with `HasPrecision(10, 2)` (`decimal(10,2)`), never `float` or `double`.
-- Primary keys are `Guid` (`uniqueidentifier`) generated by EF Core, which uses sequential values for SQL Server to avoid index fragmentation. Do not assign `Guid.NewGuid()` to keys yourself.
+
+```sql
+CREATE TABLE dbo.OrderStatusHistory (
+    Id uniqueidentifier NOT NULL CONSTRAINT PK_OrderStatusHistory PRIMARY KEY,
+    OrderId uniqueidentifier NOT NULL CONSTRAINT FK_OrderStatusHistory_Orders_OrderId REFERENCES dbo.Orders (Id) ON DELETE CASCADE,
+    Status nvarchar(20) NOT NULL,
+    ChangedAt datetime2 NOT NULL,
+    CreatedAt datetime2 NOT NULL,
+    UpdatedAt datetime2 NOT NULL
+);
+
+CREATE INDEX IX_OrderStatusHistory_OrderId ON dbo.OrderStatusHistory (OrderId);
+```
+
+- Name constraints and indexes like the existing ones: `PK_<Table>`, `FK_<Table>_<Referenced>_<Column>`, `IX_<Table>_<Columns>`.
+- Every table has `CreatedAt` and `UpdatedAt` (`datetime2`, UTC). The code that writes the row takes the time from `TimeProvider` and passes it as `@Now`; procedures never call `SYSUTCDATETIME()`, so tests can control the clock.
+- Use foreign keys, and add indexes on frequently filtered columns (`Status`, `CreatedAt`, `WaiterId`). Set a maximum length on every string; never leave `nvarchar(max)` by accident.
+- Enums are stored as text (`nvarchar`), so T-SQL objects can compare them as strings. C# passes `role.ToString()`, and Dapper parses the text back into the enum.
+- Combo customizations are a JSON column, stored in the native `json` type of Azure SQL and SQL Server 2025.
+- Money is `decimal(10,2)` in SQL and `decimal` in C#, never `float` or `double`.
+- Primary keys are `uniqueidentifier`, generated in the repository with `SequentialGuid.Create()`, whose values SQL Server sorts in creation order (no index fragmentation). Do not use `Guid.NewGuid()` for keys. Keys that come from the client (the order's `ClientOrderId`) are a separate column with a unique index.
 
 ### 3.2 T-SQL objects: procedures, functions, views, and triggers
 
@@ -325,26 +309,35 @@ RETURN
 ```
 
 - **Re-runnable scripts**: `CREATE OR ALTER` works for procedures, functions, views, and triggers, and the migrator applies every object file on every run. It cannot change the kind of object (for example a scalar function into a table-valued one); in that case drop the old object with `DROP ... IF EXISTS` in a migration script.
-- **Functions vs. procedures**:
-  - Queries that return data are **inline table-valued functions** (`fn_`): EF Core can compose them (`WHERE`, `ORDER BY`, paging) and they are parameterized. An inline function cannot have `ORDER BY`; the caller orders the result.
-  - Operations that change data or need a transaction are **procedures** (`usp_`). Start every procedure with `SET NOCOUNT ON;` and `SET XACT_ABORT ON;`, and wrap multi-statement changes in `BEGIN TRANSACTION` / `COMMIT TRANSACTION`.
-- **Triggers** are the last resort; prefer EF Core interceptors or service logic. When needed, they must be set-based (handle several rows in `inserted`/`deleted`).
+- **The API only calls stored procedures** (`usp_`): its database user `itacr_app` has `EXECUTE` on `dbo` and nothing else. Name them `usp_<Entity>_<Action>` (`usp_Employee_GetById`, `usp_Order_Create`).
+  - Start every procedure with `SET NOCOUNT ON;`; procedures that change data also start with `SET XACT_ABORT ON;`.
+  - Return **one result set**. Dapper reads only the first one, so collect alternatives in a table variable and select it once.
+  - Do read-modify-write in **one statement**, never as a read in C# followed by a write: `UPDATE ... SET Count = Count + 1 ... OUTPUT inserted.Count` cannot lose a concurrent update (see `usp_Employee_RegisterFailedPinLogin`).
+  - **Inline table-valued functions** (`fn_`) and views hold query logic that several procedures reuse. Procedures read them through ownership chaining, so the API needs no `SELECT` permission. An inline function cannot have `ORDER BY`; the procedure orders the result.
+- **Triggers** are the last resort; prefer service logic. When needed, they must be set-based (handle several rows in `inserted`/`deleted`).
 - **Azure SQL compatibility**: no `USE`, no cross-database queries, no SQL Server Agent jobs, no CLR, and no server-level settings.
 - **Deployment only through the migrator**: write or update the file in `database/<type>/<Module>/`, run `dotnet run --project database/Itacr.Database.Migrator` locally, and commit the file. There is no migration to create for an object: the file always holds its current version, and git holds the history. To delete an object, remove its file and add a migration script with `DROP ... IF EXISTS`.
-- **Calling T-SQL objects from C#**: only with parameterized EF Core queries built from an interpolated string: `FromSql($"...")`, `SqlQuery<T>($"...")`, or `ExecuteSqlAsync($"...")`. EF Core turns each interpolated value into a parameter. Never build SQL by concatenating strings, and never pass user input to `FromSqlRaw`, `SqlQueryRaw`, or `ExecuteSqlRawAsync`.
+- **`database/scripts/`** is for scripts run by hand: database users (`security/`), read-only reports, and local maintenance. They are never applied automatically. Anything that changes the schema or shared data must be a migration script.
+
+### 3.3 Data access from C# (Dapper)
+
+- Only repositories in `Infrastructure/Persistence/<Module>/` touch the database. They implement the interfaces that `Application` defines per module (`IEmployeeRepository`) and are `internal sealed`.
+- Every call is a stored procedure through `DbSession.Procedure(...)`, which sets `CommandType.StoredProcedure`, the current transaction, and the `CancellationToken`. Parameters are always an object (`new { Id = id }`); never build SQL by concatenating strings.
+- One `DbSession` per request (scoped): the connection opens on first use. Opening it is retried for transient errors and the serverless resume; **commands are never retried**, so nothing runs twice inside a transaction.
+- Transactions are on demand: a use case that writes several rows wraps them in `IDbSession.ExecuteInTransactionAsync(...)`, which commits at the end and rolls back on any exception. Single-statement writes need no transaction.
+- `DateTime` parameters are sent as `datetime2` (mapped once in `AddPersistence`).
 
 ```csharp
-var orders = await _dbContext.Database
-    .SqlQuery<KitchenOrderRow>($"SELECT * FROM dbo.fn_GetOrdersByStatus({status})")
-    .OrderBy(row => row.CreatedAt)
-    .ToListAsync(cancellationToken);
-
-await _dbContext.Database.ExecuteSqlAsync(
-    $"EXEC dbo.usp_CloseCashRegister @CashRegisterId = {cashRegisterId}, @ClosedBy = {userId}",
-    cancellationToken);
+internal sealed class EmployeeRepository(DbSession session) : IEmployeeRepository
+{
+    public async Task<Employee?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var connection = await session.GetOpenConnectionAsync(cancellationToken);
+        return await connection.QuerySingleOrDefaultAsync<Employee>(
+            session.Procedure("dbo.usp_Employee_GetById", new { Id = id }, cancellationToken));
+    }
+}
 ```
-
-- **`database/scripts/`** is for scripts run by hand: database users (`security/`), read-only reports, and local maintenance. They are never applied automatically. Anything that changes the schema or shared data must be a migration script.
 
 ---
 
