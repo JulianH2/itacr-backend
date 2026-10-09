@@ -1,13 +1,9 @@
 using Itacr.Application.Common.Persistence;
 using Itacr.Domain.Identity;
-using Itacr.Infrastructure.Persistence.Seeding;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Itacr.Infrastructure.Persistence;
 
@@ -25,22 +21,10 @@ public static class PersistenceServiceCollectionExtensions
         }
 
         services.AddSingleton<AuditTimestampsInterceptor>();
-        services.AddOptions<SeedOptions>().BindConfiguration(SeedOptions.SectionName);
         services.AddSingleton<IPasswordHasher<Employee>, PasswordHasher<Employee>>();
-        services.AddSingleton(serviceProvider => new EmployeeSeeder(
-            serviceProvider.GetRequiredService<IHostEnvironment>().IsDevelopment(),
-            serviceProvider.GetRequiredService<IOptions<SeedOptions>>().Value,
-            serviceProvider.GetRequiredService<IPasswordHasher<Employee>>(),
-            serviceProvider.GetRequiredService<ILogger<EmployeeSeeder>>()));
-        services.AddDbContext<ItacrDbContext>((serviceProvider, options) =>
-        {
-            var seeder = serviceProvider.GetRequiredService<EmployeeSeeder>();
-            options
-                .UseAzureSql(connectionString, sql => sql.EnableRetryOnFailure())
-                .AddInterceptors(serviceProvider.GetRequiredService<AuditTimestampsInterceptor>())
-                .UseSeeding((context, _) => seeder.Seed((ItacrDbContext)context))
-                .UseAsyncSeeding((context, _, cancellationToken) => seeder.SeedAsync((ItacrDbContext)context, cancellationToken));
-        });
+        services.AddDbContext<ItacrDbContext>((serviceProvider, options) => options
+            .UseAzureSql(connectionString, sql => sql.EnableRetryOnFailure())
+            .AddInterceptors(serviceProvider.GetRequiredService<AuditTimestampsInterceptor>()));
         services.AddScoped<IItacrDbContext>(serviceProvider => serviceProvider.GetRequiredService<ItacrDbContext>());
 
         return services;

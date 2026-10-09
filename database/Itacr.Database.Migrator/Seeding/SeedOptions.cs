@@ -1,4 +1,4 @@
-namespace Itacr.Infrastructure.Persistence.Seeding;
+namespace Itacr.Database.Migrator.Seeding;
 
 /// <summary>Initial manager for production, read from the "Seed" section (environment variables Seed__ManagerName, Seed__ManagerEmail, Seed__ManagerPin).</summary>
 public sealed class SeedOptions

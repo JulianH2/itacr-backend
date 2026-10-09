@@ -16,17 +16,16 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   AZURE_WEBAPP_NAME: app-itacr-backend-prod
+  AZURE_RESOURCE_GROUP: rg-itacr-prod-westus
+  AZURE_SQL_SERVER: itacr-sql
   SOLUTION: Itacr.slnx
   API_PROJECT: src/Itacr.Api/Itacr.Api.csproj
-  INFRASTRUCTURE_PROJECT: src/Itacr.Infrastructure/Itacr.Infrastructure.csproj
+  MIGRATOR_PROJECT: database/Itacr.Database.Migrator/Itacr.Database.Migrator.csproj
 
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      # Placeholder so design-time tools (dotnet ef) can create the DbContext. No database is used.
-      ConnectionStrings__Default: Server=localhost,1433;Database=Ci;User Id=ci;Password=ci;TrustServerCertificate=True
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -48,11 +47,8 @@ jobs:
       - name: Publish API
         run: dotnet publish "$API_PROJECT" --configuration Release --no-build --output artifacts/api
 
-      - name: Create EF Core migration artifacts
-        run: |
-          dotnet tool restore
-          dotnet ef migrations script --idempotent --project "$INFRASTRUCTURE_PROJECT" --startup-project "$API_PROJECT" --configuration Release --no-build --output artifacts/ef-migrations/migrations.sql
-          dotnet ef migrations bundle --project "$INFRASTRUCTURE_PROJECT" --startup-project "$API_PROJECT" --configuration Release --target-runtime win-x64 --force --output artifacts/ef-migrations/efbundle.exe
+      - name: Publish database migrator
+        run: dotnet publish "$MIGRATOR_PROJECT" --configuration Release --no-build --output artifacts/migrator
 
       - name: Upload API package
         uses: actions/upload-artifact@v4
@@ -62,16 +58,86 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-      - name: Upload migration artifacts
+      - name: Upload database migrator
         uses: actions/upload-artifact@v4
         with:
-          name: ef-migrations
-          path: artifacts/ef-migrations
+          name: migrator
+          path: artifacts/migrator
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 3
+
+  # The schema changes are additive, so they are applied before the new API starts.
+  migrate:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          sparse-checkout: global.json
+          sparse-checkout-cone-mode: false
+
+      - name: Set up .NET from global.json
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Download database migrator
+        uses: actions/download-artifact@v4
+        with:
+          name: migrator
+          path: migrator
+
+      # OIDC: the service principal only has SQL Server Contributor on itacr-sql, to open a firewall rule.
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          allow-no-subscriptions: true
+
+      - name: Allow the runner through the Azure SQL firewall
+        id: firewall
+        run: |
+          runner_ip=$(curl --fail --silent --show-error --retry 3 https://api.ipify.org)
+          rule_name="github-runner-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "rule=$rule_name" >> "$GITHUB_OUTPUT"
+          az sql server firewall-rule create \
+            --subscription "$AZURE_SUBSCRIPTION_ID" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --server "$AZURE_SQL_SERVER" \
+            --name "$rule_name" \
+            --start-ip-address "$runner_ip" \
+            --end-ip-address "$runner_ip" \
+            --output none
+
+      - name: Run database migrator
+        env:
+          DOTNET_ENVIRONMENT: Production
+          ConnectionStrings__Migrator: ${{ secrets.SQL_MIGRATOR_CONNECTION_STRING }}
+        run: dotnet migrator/Itacr.Database.Migrator.dll
+
+      - name: Remove the runner firewall rule
+        if: always() && steps.firewall.outputs.rule != ''
+        env:
+          FIREWALL_RULE: ${{ steps.firewall.outputs.rule }}
+        run: |
+          az sql server firewall-rule delete \
+            --subscription "$AZURE_SUBSCRIPTION_ID" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --server "$AZURE_SQL_SERVER" \
+            --name "$FIREWALL_RULE" \
+            --output none
 
   deploy:
-    needs: build
+    needs: [build, migrate]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
