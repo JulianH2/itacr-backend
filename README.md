@@ -40,12 +40,13 @@ git config core.hooksPath .githooks
 cp .env.example .env                 # PowerShell: Copy-Item .env.example .env
 docker compose up -d sqlserver
 dotnet user-secrets set "ConnectionStrings:Default" "Server=localhost,1433;Database=Itacr;User Id=sa;Password=<MSSQL_SA_PASSWORD from .env>;TrustServerCertificate=True" --project src/Itacr.Api
+dotnet user-secrets set "Jwt:Secret" "<random value, at least 64 characters>" --project src/Itacr.Api
 dotnet user-secrets set "ConnectionStrings:Migrator" "Server=localhost,1433;Database=Itacr;User Id=sa;Password=<MSSQL_SA_PASSWORD from .env>;TrustServerCertificate=True" --project database/Itacr.Database.Migrator
 dotnet run --project database/Itacr.Database.Migrator
 dotnet run --project src/Itacr.Api
 ```
 
-Edit `.env` before starting the database and set a strong `MSSQL_SA_PASSWORD`. The full one-time setup, including the JWT secret, is in [CONTRIBUTING.md, section 1](CONTRIBUTING.md#1-one-time-setup).
+Edit `.env` before starting the database and set a strong `MSSQL_SA_PASSWORD`. The API does not start without `Jwt:Secret` (at least 64 characters); [CONTRIBUTING.md, section 1](CONTRIBUTING.md#1-one-time-setup) shows how to generate it and has the full one-time setup.
 
 The API listens on `http://localhost:3000`:
 

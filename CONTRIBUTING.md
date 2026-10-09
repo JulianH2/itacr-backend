@@ -51,10 +51,20 @@ Store the API and migrator secrets with [user secrets](https://learn.microsoft.c
 dotnet user-secrets set "ConnectionStrings:Default" "Server=localhost,1433;Database=Itacr;User Id=sa;Password=<MSSQL_SA_PASSWORD from .env>;TrustServerCertificate=True" --project src/Itacr.Api
 dotnet user-secrets set "ConnectionStrings:Migrator" "Server=localhost,1433;Database=Itacr;User Id=sa;Password=<MSSQL_SA_PASSWORD from .env>;TrustServerCertificate=True" --project database/Itacr.Database.Migrator
 dotnet user-secrets set "Jwt:Secret" "<random value, at least 64 characters>" --project src/Itacr.Api
-dotnet user-secrets list --project src/Itacr.Api
 ```
 
-Generate the JWT secret with `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` or, in Git Bash, `openssl rand -base64 48`. Generate the Web Push keys once for the team with `npx web-push generate-vapid-keys`: the private key goes to `dotnet user-secrets set "WebPush:PrivateKey" "<key>"`, and the public key goes to `appsettings.json` (`WebPush:PublicKey`) and to `itacr-frontend`.
+`Jwt:Secret` is required: without it the API stops at startup with `DataAnnotation validation failed for 'JwtOptions' members: 'Secret'`. Generate a random value of at least 64 characters with `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`, in Git Bash with `openssl rand -base64 48`, or in PowerShell without printing it:
+
+```powershell
+$bytes = New-Object byte[] 48
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+dotnet user-secrets set "Jwt:Secret" ([Convert]::ToBase64String($bytes)) --project src/Itacr.Api
+Remove-Variable bytes
+```
+
+To check which secrets are set without printing their values: `dotnet user-secrets list --project src/Itacr.Api | ForEach-Object { ($_ -split ' = ')[0] }` (plain `dotnet user-secrets list` prints the passwords).
+
+Generate the Web Push keys once for the team with `npx web-push generate-vapid-keys`: the private key goes to `dotnet user-secrets set "WebPush:PrivateKey" "<key>"`, and the public key goes to `appsettings.json` (`WebPush:PublicKey`) and to `itacr-frontend`.
 
 Finally, create the database with the migrator (schema, catalog, and the four test employees) and run the API:
 
