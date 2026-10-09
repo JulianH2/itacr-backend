@@ -1,6 +1,6 @@
 # Database model
 
-The database is Azure SQL (production) and SQL Server 2025 in Docker (local). The model lives in the EF Core code (entities in `src/Itacr.Domain/<Module>/` and their configurations in `src/Itacr.Infrastructure/Persistence/Configurations/`), and every change reaches the database through a migration. This file explains the decisions that are not obvious from the code.
+The database is Azure SQL (production) and SQL Server 2025 in Docker (local). The schema lives in the SQL scripts of `database/` and reaches every environment through `Itacr.Database.Migrator` ([database/README.md](../database/README.md)). Until ITACR-36, the API still maps the same tables with EF Core (entities in `src/Itacr.Domain/<Module>/`, configurations in `src/Itacr.Infrastructure/Persistence/Configurations/`). This file explains the decisions that are not obvious from the code.
 
 ## Conventions
 
@@ -143,9 +143,9 @@ Seed data is split in two because the two kinds of data have different needs.
 
 | Data | Where | Environments |
 | ---- | ----- | ------------ |
-| 5 categories (Combos, Hamburguesas, Complementos, Bebidas, Postres), 18 products, 9 combo options (sizes, drinks, extras), and dining tables 1 to 10 | `Infrastructure/Persistence/Seeding/CatalogSeedData.cs`, loaded with `HasData` in the entity configurations, migration `SeedCatalogData` | All, including production |
-| 4 test employees: active waiter, kitchen, and manager, plus a waiter pending approval | `EmployeeSeeder`, registered with `UseSeeding` and `UseAsyncSeeding` | Development only |
-| 1 initial manager | `EmployeeSeeder`, from the `Seed` settings | Any environment other than Development |
+| 5 categories (Combos, Hamburguesas, Complementos, Bebidas, Postres), 18 products, 9 combo options (sizes, drinks, extras), and dining tables 1 to 10 | `database/migrations/V001__initial_schema.sql` (generated in ITACR-37 from the EF Core `HasData` in `CatalogSeedData.cs`) | All, including production |
+| 4 test employees: active waiter, kitchen, and manager, plus a waiter pending approval | `database/Itacr.Database.Migrator/Seeding/` | Development only |
+| 1 initial manager | `database/Itacr.Database.Migrator/Seeding/`, from the `Seed` settings | Any environment other than Development |
 
 User-facing names (categories, products, options) are stored in Spanish because the UI shows them as they are. Prices are in MXN.
 
@@ -162,17 +162,17 @@ Every test employee also has the password `Itacr2026!` for the email and passwor
 
 The pending waiter is not listed in the login picker (only active employees are), so HU_01 CA4 is checked with the email and password login.
 
-### Why the catalog uses `HasData`
+### Why the catalog is in a migration script
 
-The catalog is the same everywhere, has no secrets, and the app cannot work without it. `HasData` puts it in a migration, so it is versioned, reviewed in the PR, and applied in the same order on every machine and in Azure. The ids and timestamps are fixed constants, so the migration is deterministic and a rerun never duplicates a row. Changing a price later is a new migration, never an edit of an applied one.
+The catalog is the same everywhere, has no secrets, and the app cannot work without it. Being in a migration script, it is versioned, reviewed in the PR, and applied in the same order on every machine and in Azure. The ids and timestamps are fixed constants (the same ones production has had since sprint 1), so the script is deterministic and runs only once. Changing a price later is a new migration script, never an edit of a merged one.
 
-### Why employees use a runtime seeder
+### Why employees are seeded in C#
 
-- Their PINs must be hashed with `PasswordHasher<Employee>` (PBKDF2 with a random salt), which gives a different hash on every run. `HasData` needs fixed values, so it would generate a new migration each time.
+- Their PINs must be hashed with `PasswordHasher<Employee>` (PBKDF2 with a random salt), the same hasher the API verifies with. A SQL script cannot produce those hashes.
 - Production credentials must never be in code or in a migration, and they differ per environment. The seeder reads them from configuration and the test employees only exist in Development.
 - The seeder checks what exists before it inserts (employees by email, and "a manager exists" for production), so it can run any number of times.
 
-EF Core runs the seeder at the end of `dotnet ef database update` and `Database.MigrateAsync()`. It runs in the environment where the migration is applied, so that process needs the environment name and the `Seed` settings.
+The migrator runs the seed after the scripts, in the environment it runs in: `Development` with `dotnet run` locally, `Production` in the deploy workflow. That process needs the `Seed` settings only for the first deploy to a new environment.
 
 ### Initial manager in production
 

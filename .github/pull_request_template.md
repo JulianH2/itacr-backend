@@ -38,9 +38,9 @@ Check that the base branch is correct. CI rejects any other combination.
 
 <!-- Delete this section if there are none. -->
 
-- [ ] New EF Core migration(s) included, and no applied migration was edited
-- [ ] SQL objects (procedures, functions, views, triggers) have their file in `database/` and are applied through a migration with `migrationBuilder.Sql`
-- [ ] Seeding is still idempotent (`dotnet ef database update` twice works)
+- [ ] New script(s) in `database/migrations/` with the next free number, additive, and no merged script was edited or renamed
+- [ ] Procedures, functions, views, and triggers have one `CREATE OR ALTER` file each in `database/<type>/<Module>/`
+- [ ] The migrator runs twice without errors (`dotnet run --project database/Itacr.Database.Migrator`), and the second run applies nothing
 
 ## Checklist
 
