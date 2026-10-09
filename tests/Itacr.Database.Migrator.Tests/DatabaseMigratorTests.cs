@@ -160,7 +160,7 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         Assert.False(succeeded);
     }
 
-    private static DatabaseMigrator CreateMigrator(string? connectionString, string environmentName, SeedOptions? seed = null)
+    internal static DatabaseMigrator CreateMigrator(string? connectionString, string environmentName, SeedOptions? seed = null)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { [$"ConnectionStrings:{DatabaseMigrator.ConnectionStringName}"] = connectionString })
