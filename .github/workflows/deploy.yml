@@ -41,8 +41,9 @@ jobs:
       - name: Build
         run: dotnet build "$SOLUTION" --configuration Release --no-restore
 
+      # One test project at a time (-m:1), so at most two SQL Server containers share the 8 GB of the runner.
       - name: Run tests
-        run: dotnet test "$SOLUTION" --configuration Release --no-build
+        run: dotnet test "$SOLUTION" --configuration Release --no-build -m:1
 
       - name: Publish API
         run: dotnet publish "$API_PROJECT" --configuration Release --no-build --output artifacts/api
