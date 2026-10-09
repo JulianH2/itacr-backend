@@ -1,7 +1,7 @@
 <Project>
   <!--
     Central Package Management: every NuGet version lives here, once.
-    Projects reference packages without a version: <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    Projects reference packages without a version: <PackageReference Include="Dapper" />
     "dotnet add package" adds the <PackageVersion> entry here automatically.
   -->
   <PropertyGroup>
@@ -14,14 +14,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageVersion>
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.4" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Identity.Core" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.10.0" />

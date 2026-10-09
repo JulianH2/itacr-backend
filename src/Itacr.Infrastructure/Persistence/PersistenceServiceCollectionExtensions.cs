@@ -1,7 +1,14 @@
+using System.Data;
+using Dapper;
+using Itacr.Application.Catalog;
 using Itacr.Application.Common.Persistence;
+using Itacr.Application.Identity;
+using Itacr.Application.Notifications;
 using Itacr.Domain.Identity;
+using Itacr.Infrastructure.Persistence.Catalog;
+using Itacr.Infrastructure.Persistence.Identity;
+using Itacr.Infrastructure.Persistence.Notifications;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,6 +17,7 @@ namespace Itacr.Infrastructure.Persistence;
 public static class PersistenceServiceCollectionExtensions
 {
     private const string ConnectionStringName = "Default";
+    private const string HealthCheckName = "database";
 
     public static IServiceCollection AddPersistence(this IServiceCollection services, IConfiguration configuration)
     {
@@ -20,12 +28,20 @@ public static class PersistenceServiceCollectionExtensions
                 $"The connection string 'ConnectionStrings:{ConnectionStringName}' is missing. Set it with dotnet user-secrets (see CONTRIBUTING.md, section 1).");
         }
 
-        services.AddSingleton<AuditTimestampsInterceptor>();
+        // Every DateTime column is datetime2; Dapper's default (datetime) would drop precision and reject dates before 1753.
+        SqlMapper.AddTypeMap(typeof(DateTime), DbType.DateTime2);
+        SqlMapper.AddTypeMap(typeof(DateTime?), DbType.DateTime2);
+
+        services.AddSingleton(new DatabaseConnection(connectionString));
+        services.AddScoped<DbSession>();
+        services.AddScoped<IDbSession>(serviceProvider => serviceProvider.GetRequiredService<DbSession>());
+
+        services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<ICatalogRepository, CatalogRepository>();
         services.AddSingleton<IPasswordHasher<Employee>, PasswordHasher<Employee>>();
-        services.AddDbContext<ItacrDbContext>((serviceProvider, options) => options
-            .UseAzureSql(connectionString, sql => sql.EnableRetryOnFailure())
-            .AddInterceptors(serviceProvider.GetRequiredService<AuditTimestampsInterceptor>()));
-        services.AddScoped<IItacrDbContext>(serviceProvider => serviceProvider.GetRequiredService<ItacrDbContext>());
+
+        services.AddHealthChecks().AddCheck<DatabaseHealthCheck>(HealthCheckName);
 
         return services;
     }
