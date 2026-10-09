@@ -37,6 +37,8 @@ public sealed class SchemaConventionsTests(SqlServerFixture sqlServer)
     [Theory]
     [InlineData("Orders", "Status")]
     [InlineData("Orders", "Channel")]
+    [InlineData("OrderStatusHistory", "FromStatus")]
+    [InlineData("OrderStatusHistory", "ToStatus")]
     [InlineData("Employees", "Role")]
     [InlineData("Employees", "Status")]
     [InlineData("Notifications", "Type")]
@@ -92,7 +94,32 @@ public sealed class SchemaConventionsTests(SqlServerFixture sqlServer)
             """);
 
         // Assert
-        Assert.Equal([("OrderItems", "Orders"), ("OrderNotes", "Orders")], cascades);
+        Assert.Equal([("OrderItems", "Orders"), ("OrderNotes", "Orders"), ("OrderStatusHistory", "Orders")], cascades);
+    }
+
+    [Fact]
+    public async Task Schema_ShouldKeepTheStatusHistoryOfAnOrderInTimeOrder_WhenOrderStatusHistoryIsCreated()
+    {
+        // Arrange
+        await using var connection = await MigrateNewDatabaseAsync();
+
+        // Act
+        var columns = await connection.QueryAsync<(string Name, bool IsNullable)>(
+            "SELECT c.name, c.is_nullable FROM sys.columns AS c WHERE c.object_id = OBJECT_ID(N'dbo.OrderStatusHistory') ORDER BY c.column_id;");
+        var timeOrderIndex = await connection.QuerySingleAsync<string>(
+            """
+            SELECT STRING_AGG(c.name, ',') WITHIN GROUP (ORDER BY ic.key_ordinal)
+            FROM sys.indexes AS i
+            JOIN sys.index_columns AS ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+            JOIN sys.columns AS c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+            WHERE i.name = N'IX_OrderStatusHistory_OrderId_CreatedAt';
+            """);
+
+        // Assert
+        Assert.Equal(
+            [("Id", false), ("OrderId", false), ("FromStatus", true), ("ToStatus", false), ("ChangedById", true), ("CreatedAt", false), ("UpdatedAt", false)],
+            columns);
+        Assert.Equal("OrderId,CreatedAt", timeOrderIndex);
     }
 
     private async Task<SqlConnection> MigrateNewDatabaseAsync()

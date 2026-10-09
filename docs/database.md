@@ -9,7 +9,7 @@ The database is Azure SQL (production) and SQL Server 2025 in Docker (local). Th
 - **Timestamps**: every table has `CreatedAt` and `UpdatedAt` (`datetime2`, UTC). The code that writes a row passes them from `TimeProvider` (`@Now` in the procedures); procedures never read the server clock. An order taken offline keeps the `CreatedAt` of the device.
 - **Enums** are stored as text (`nvarchar`): the repositories pass `ToString()` and Dapper parses the text back. Every string has a maximum length.
 - **Money** is `decimal(10,2)`.
-- **Deletes**: nothing cascades except `Order` to `OrderItem` and `OrderNote`. Products, employees, customers, and tables can never be deleted while an order refers to them.
+- **Deletes**: nothing cascades except `Order` to `OrderItem`, `OrderNote`, and `OrderStatusHistory`. Products, employees, customers, and tables can never be deleted while an order refers to them.
 
 ## Entity diagram
 
@@ -22,6 +22,8 @@ erDiagram
     Category ||--o{ Product : contains
     Order ||--|{ OrderItem : has
     Order ||--o{ OrderNote : has
+    Order ||--|{ OrderStatusHistory : "changes of status"
+    Employee ||--o{ OrderStatusHistory : "changes (ChangedById)"
     Product ||--o{ OrderItem : "sold as"
     Order ||--o{ Notification : "about (OrderId)"
     Employee ||--o{ Notification : "receives (RecipientEmployeeId)"
@@ -105,6 +107,14 @@ erDiagram
         string Text
         datetime2 CreatedAt
     }
+    OrderStatusHistory {
+        guid Id PK
+        guid OrderId FK
+        string FromStatus "nullable, null on creation"
+        string ToStatus
+        guid ChangedById FK "nullable"
+        datetime2 CreatedAt
+    }
     Notification {
         guid Id PK
         string Type "PinReset, OrderReady, AccessRequest"
@@ -126,6 +136,16 @@ erDiagram
 ```
 
 `ComboOption` is a catalog of the options a combo offers (sizes, drinks, extras) and their price adjustment. It has no foreign key to `OrderItem`: the item stores the chosen names, not references, so the history does not change if the catalog does.
+
+## Order lifecycle
+
+An order moves **one step at a time**: `New` → `InPreparation` → `Ready` → `Delivered`. `Delivered` is final and nothing goes back or skips a step. The rules live in `Itacr.Domain/Orders/OrderStatusRules.cs`, and `Order.TryChangeStatus(...)` applies them: it returns `false` and changes nothing when the step is not allowed, so a use case turns that into a `409` `Conflict` error.
+
+Every status change, including the creation of the order, adds a row to `OrderStatusHistory` (`FromStatus` is null on the first row). `Order.TryChangeStatus` also sets `LastStatusChangeAt`, `ReadyAt` (when it becomes `Ready`), and `DeliveredAt` (when it becomes `Delivered`). `ChangedById` is the employee who made the change, or null when the system did.
+
+`Order.Create(...)` builds a new order in `New` with its first history row (a `DineIn` order needs a table and a `TakeAway` order has none, otherwise it throws `ArgumentException`; the use case validator gives the user the Spanish message), and `Order.AddItem(...)` copies the unit price, computes the `Subtotal`, and recalculates `Total`. The domain never sets `OrderId` on items or history rows: the repository generates the keys (`SequentialGuid.Create()`), links each child to its order when it inserts, and the database assigns `OrderNumber`.
+
+The table was added in `database/migrations/V002__add_order_status_history.sql` (ITACR-40).
 
 ## Why `ClientOrderId` is unique
 
