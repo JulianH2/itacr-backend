@@ -1,6 +1,6 @@
 ﻿services:
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:2025-latest
+    image: mcr.microsoft.com/mssql/server:2025-CU9-ubuntu-24.04
     container_name: itacr-sqlserver
     restart: unless-stopped
     environment:

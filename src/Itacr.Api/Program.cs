@@ -1,7 +1,6 @@
 using Itacr.Api.Common;
-using Itacr.Api.Features.Auth;
-using Itacr.Api.Features.Catalog;
-using Itacr.Api.Infrastructure.Persistence;
+using Itacr.Application;
+using Itacr.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,10 +9,10 @@ if (!builder.Environment.IsDevelopment())
     builder.Logging.AddJsonConsole();
 }
 
-builder.Services.AddPersistence(builder.Configuration);
+builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddApplication();
 builder.Services.AddApiBase();
 builder.Services.AddAuthFeature();
-builder.Services.AddCatalogFeature();
 
 var app = builder.Build();
 

@@ -11,3 +11,9 @@ GET {{baseUrl}}/api/v1/catalog/products?categoryId=10000000-0000-0000-0000-00000
 
 ### Catalog products without categoryId: 400 problem details
 GET {{baseUrl}}/api/v1/catalog/products
+
+### Kitchen queue: 200 with the active orders oldest first for Kitchen or Manager, 401 without a token, 403 for a Waiter
+# Sign in first (POST /api/v1/auth/login/pin) and paste the accessToken in the variable below
+@accessToken = paste-the-access-token-here
+GET {{baseUrl}}/api/v1/kitchen/queue
+Authorization: Bearer {{accessToken}}

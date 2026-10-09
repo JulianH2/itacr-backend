@@ -1,8 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Itacr.Api.Features.Catalog;
-using Itacr.Api.Features.Catalog.Responses;
+using Itacr.Application.Catalog;
+using Itacr.Application.Catalog.GetCategories;
+using Itacr.Application.Catalog.GetProducts;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -24,9 +25,9 @@ public sealed class CatalogApiTests(ApiFactory factory) : IClassFixture<ApiFacto
 
     private HttpClient CreateClient()
     {
-        var fake = new FakeCatalogService([Combos, Drinks, Empty], [ClassicCombo, Soda]);
+        var fake = new FakeCatalogRepository([Combos, Drinks, Empty], [ClassicCombo, Soda]);
         return factory
-            .WithWebHostBuilder(builder => builder.ConfigureTestServices(services => services.AddScoped<ICatalogService>(_ => fake)))
+            .WithWebHostBuilder(builder => builder.ConfigureTestServices(services => services.AddScoped<ICatalogRepository>(_ => fake)))
             .CreateClient();
     }
 
