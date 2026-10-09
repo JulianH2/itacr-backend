@@ -680,7 +680,17 @@ The `migrate` job needs two things, both already set up:
 
 1. In the Azure Portal, open the `itacr-sql` **database** > **Query editor**, sign in as the server admin, and run `database/scripts/security/database-users.sql` after replacing its two password placeholders with generated passwords. Keep them only in a password manager.
 2. Save the `itacr_migrator` connection string in the secret `SQL_MIGRATOR_CONNECTION_STRING`.
-3. Change `ConnectionStrings__Default` in App Service `app-itacr-backend-prod` to the same connection string with `User ID=itacr_app` and its password. Save, wait for the restart, and check `GET /api/v1/health` returns `200 Healthy`.
+3. Change `ConnectionStrings__Default` in App Service `app-itacr-backend-prod` to the same connection string with `User ID=itacr_app` and its password. Save, wait for the restart, and check `GET /api/v1/health` returns `200 Healthy`. The health check only opens a connection (it proves the login and the firewall, not the permissions), so also check that `itacr_app` can read and write, in this order:
+
+   | Check | Request | Expected | Proves |
+   | ----- | ------- | -------- | ------ |
+   | Read a table | `GET /api/v1/catalog/categories` | `200`, 5 categories | `SELECT` on `dbo.Categories` |
+   | Read through the function | `GET /api/v1/catalog/products?categoryId=10000000-0000-0000-0000-000000000004` | `200`, 4 drinks | `SELECT` on `dbo.fn_GetProductsByCategory` |
+   | Write | `POST /api/v1/auth/login/pin` with the manager's `employeeId` (from `GET /api/v1/auth/employees?role=Manager`) and a **wrong** PIN, **once** | `401`, not `500` | `UPDATE` of `FailedLoginAttempts` (a missing permission fails `SaveChanges` with `500`) |
+   | Write and clean up | The same request with the **correct** PIN | `200` with a token | `UPDATE` that resets `FailedLoginAttempts` to `0` |
+
+   Send the wrong PIN only once: after 5 failed attempts (`LoginSecurity:MaxFailedPinAttempts`) the account is locked for 15 minutes (`LoginSecurity:LockoutMinutes`). The correct PIN alone does not prove the write: when the counter is already `0`, EF Core sends no `UPDATE`.
+
 4. Only then reset the server admin password (SQL server `itacr-sql` > Overview > **Reset password**) and keep the new one only in the password manager, for emergencies.
 
 ### 15.4 Run the migrator against Azure SQL by hand
