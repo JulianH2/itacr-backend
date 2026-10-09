@@ -45,5 +45,8 @@ public sealed class CatalogHandlersTests
 
         public Task<IReadOnlyList<Product>> GetProductsByCategoryAsync(Guid categoryId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<Product>>([.. products.Where(product => product.CategoryId == categoryId)]);
+
+        public Task<IReadOnlyList<Product>> GetProductsByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Product>>([.. products.Where(product => ids.Contains(product.Id))]);
     }
 }
