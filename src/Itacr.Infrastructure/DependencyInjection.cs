@@ -11,9 +11,8 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddPersistence(configuration);
-
-        services.AddOptions<JwtOptions>().BindConfiguration(JwtOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
-        services.AddSingleton<ITokenService, JwtTokenService>();
+        services.AddJwtAuthentication();
+        services.AddSingleton<ICredentialHasher, CredentialHasher>();
 
         return services;
     }

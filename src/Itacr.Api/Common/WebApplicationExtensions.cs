@@ -27,12 +27,14 @@ public static class WebApplicationExtensions
         app.UseAuthorization();
 
         app.MapControllers();
-        app.MapHealthChecks(HealthRoute);
+
+        // Explicitly public: the App Service health probe and the API docs never send a token.
+        app.MapHealthChecks(HealthRoute).AllowAnonymous();
 
         if (app.Environment.IsDevelopment())
         {
-            app.MapOpenApi();
-            app.MapScalarApiReference();
+            app.MapOpenApi().AllowAnonymous();
+            app.MapScalarApiReference().AllowAnonymous();
         }
 
         return app;

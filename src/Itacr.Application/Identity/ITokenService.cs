@@ -1,4 +1,3 @@
-using Itacr.Application.Identity.Responses;
 using Itacr.Domain.Identity;
 
 namespace Itacr.Application.Identity;

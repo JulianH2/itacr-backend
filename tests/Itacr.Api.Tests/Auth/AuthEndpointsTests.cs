@@ -2,10 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Itacr.Application.Identity;
-using Itacr.Application.Identity.Responses;
 using Itacr.Domain.Identity;
 using Itacr.Domain.Notifications;
-using Itacr.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace Itacr.Api.Tests.Auth;
@@ -179,6 +179,42 @@ public sealed class AuthEndpointsTests(DatabaseFixture database) : DatabaseTest(
         await AssertProblemAsync(fifthFailure, HttpStatusCode.Locked, AuthProblems.LockedType, AuthProblems.Locked);
         await AssertProblemAsync(rightPinWhileLocked, HttpStatusCode.Locked, AuthProblems.LockedType, AuthProblems.Locked);
         Assert.Equal(HttpStatusCode.OK, rightPinAfterLockout.StatusCode);
+    }
+
+    [Fact]
+    public async Task LoginWithPin_ShouldStoreANewHashInTheCurrentFormat_WhenTheStoredHashIsOld()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        var oldFormat = new PasswordHasher<Employee>(Options.Create(new PasswordHasherOptions { CompatibilityMode = PasswordHasherCompatibilityMode.IdentityV2 }));
+        var waiter = await factory.AddEmployeeAsync("Mesero de Prueba", EmployeeRole.Waiter, "1111", pinHasher: oldFormat);
+        using var client = factory.CreateClient();
+
+        // Act
+        await factory.LoginAsync(client, waiter.Id, "1111");
+
+        // Assert
+        var storedHash = await factory.GetPinHashAsync(waiter.Id);
+        Assert.NotEqual(waiter.PinHash, storedHash);
+        Assert.Equal(PasswordVerificationResult.Success, new PasswordHasher<Employee>().VerifyHashedPassword(null!, storedHash, "1111"));
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync(PinLoginRoute, new { employeeId = waiter.Id, pin = "1111" })).StatusCode);
+    }
+
+    [Theory]
+    [InlineData("waiter")]
+    [InlineData("WAITER")]
+    public async Task GetEmployees_ShouldAcceptTheRoleInAnyLetterCase_WhenTheRoleExists(string role)
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        var waiter = await factory.AddEmployeeAsync("Ana María Martínez", EmployeeRole.Waiter, "1111");
+        using var client = factory.CreateClient();
+
+        // Act
+        var employees = await client.GetFromJsonAsync<JsonElement>($"/api/v1/auth/employees?role={role}");
+
+        // Assert
+        Assert.Equal(waiter.Id, Assert.Single(employees.EnumerateArray()).GetProperty("id").GetGuid());
     }
 
     [Fact]

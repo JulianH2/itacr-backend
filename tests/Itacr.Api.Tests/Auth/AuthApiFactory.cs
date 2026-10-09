@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Dapper;
-using Itacr.Application.Identity.Responses;
+using Itacr.Application.Identity;
 using Itacr.Domain.Identity;
 using Itacr.Domain.Notifications;
 using Microsoft.AspNetCore.Hosting;
@@ -37,7 +37,8 @@ public sealed class AuthApiFactory(DatabaseFixture database) : WebApplicationFac
         string fullName,
         EmployeeRole role,
         string pin,
-        EmployeeStatus status = EmployeeStatus.Active)
+        EmployeeStatus status = EmployeeStatus.Active,
+        IPasswordHasher<Employee>? pinHasher = null)
     {
         var now = Time.GetUtcNow().UtcDateTime;
         var employee = new Employee
@@ -52,7 +53,7 @@ public sealed class AuthApiFactory(DatabaseFixture database) : WebApplicationFac
             CreatedAt = now,
             UpdatedAt = now,
         };
-        employee.PinHash = PasswordHasher.HashPassword(employee, pin);
+        employee.PinHash = (pinHasher ?? PasswordHasher).HashPassword(employee, pin);
         employee.PasswordHash = PasswordHasher.HashPassword(employee, Password);
 
         await using var connection = new SqlConnection(database.ConnectionString);
@@ -83,6 +84,14 @@ public sealed class AuthApiFactory(DatabaseFixture database) : WebApplicationFac
         return await connection.ExecuteScalarAsync<int>(
             "SELECT FailedLoginAttempts FROM dbo.Employees WHERE Id = @EmployeeId;",
             new { EmployeeId = employeeId });
+    }
+
+    public async Task<string> GetPinHashAsync(Guid employeeId)
+    {
+        await using var connection = new SqlConnection(database.ConnectionString);
+        return await connection.ExecuteScalarAsync<string>(
+            "SELECT PinHash FROM dbo.Employees WHERE Id = @EmployeeId;",
+            new { EmployeeId = employeeId }) ?? string.Empty;
     }
 
     public async Task<IReadOnlyList<Notification>> GetNotificationsAsync()
