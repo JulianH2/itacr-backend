@@ -143,7 +143,7 @@ An order moves **one step at a time**: `New` → `InPreparation` → `Ready` →
 
 Every status change, including the creation of the order, adds a row to `OrderStatusHistory` (`FromStatus` is null on the first row). `Order.TryChangeStatus` also sets `LastStatusChangeAt`, `ReadyAt` (when it becomes `Ready`), and `DeliveredAt` (when it becomes `Delivered`). `ChangedById` is the employee who made the change, or null when the system did.
 
-`Order.Create(...)` builds a new order in `New` with its first history row, and `Order.AddItem(...)` copies the unit price, computes the `Subtotal`, and recalculates `Total`. The repositories generate the keys (`SequentialGuid.Create()`) and the database assigns `OrderNumber`.
+`Order.Create(...)` builds a new order in `New` with its first history row (a `DineIn` order needs a table and a `TakeAway` order has none, otherwise it throws `ArgumentException`; the use case validator gives the user the Spanish message), and `Order.AddItem(...)` copies the unit price, computes the `Subtotal`, and recalculates `Total`. The domain never sets `OrderId` on items or history rows: the repository generates the keys (`SequentialGuid.Create()`), links each child to its order when it inserts, and the database assigns `OrderNumber`.
 
 The table was added in `database/migrations/V002__add_order_status_history.sql` (ITACR-40).
 
