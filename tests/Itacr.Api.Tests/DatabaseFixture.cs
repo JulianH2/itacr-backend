@@ -23,7 +23,11 @@ public sealed class DatabaseFixture : IAsyncLifetime
     private const string DatabaseName = "ItacrApiTests";
     private const string ApiLogin = "itacr_app_tests";
 
-    private readonly MsSqlContainer _container = new MsSqlBuilder(Image).Build();
+    // CI runners have 8 GB and the migrator tests run their own SQL Server too; each one would otherwise take most of it.
+    private const string MemoryLimitVariable = "MSSQL_MEMORY_LIMIT_MB";
+    private const string MemoryLimitMegabytes = "1536";
+
+    private readonly MsSqlContainer _container = new MsSqlBuilder(Image).WithEnvironment(MemoryLimitVariable, MemoryLimitMegabytes).Build();
 
     /// <summary>Administrator connection, for the tests to arrange and inspect data.</summary>
     public string ConnectionString { get; private set; } = string.Empty;

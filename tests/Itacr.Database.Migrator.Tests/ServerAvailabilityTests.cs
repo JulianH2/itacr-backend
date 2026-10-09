@@ -8,6 +8,8 @@ using Testcontainers.MsSql;
 namespace Itacr.Database.Migrator.Tests;
 
 /// <summary>The migrator when SQL Server is not ready: it waits while it starts, and fails cleanly when it never answers.</summary>
+/// <remarks>In the SQL Server collection so its extra container never starts while the shared one is busy.</remarks>
+[Collection(SqlServerCollection.Name)]
 public sealed class ServerAvailabilityTests
 {
     private const int SqlServerPort = 1433;
@@ -39,6 +41,7 @@ public sealed class ServerAvailabilityTests
         var password = $"Aa1!{Guid.NewGuid():N}";
         await using var container = new MsSqlBuilder(SqlServerFixture.Image)
             .WithPassword(password)
+            .WithEnvironment(SqlServerFixture.MemoryLimitVariable, SqlServerFixture.MemoryLimitMegabytes)
             .WithPortBinding(port, SqlServerPort)
             .Build();
         var connectionString = $"Server=127.0.0.1,{port};Database=ItacrStartupTests;User Id=sa;Password={password};TrustServerCertificate=True;Connect Timeout=5";

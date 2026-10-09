@@ -134,8 +134,9 @@ jobs:
         run: dotnet build "$SOLUTION" --configuration Release --no-restore
 
       # The database tests start SQL Server containers with Testcontainers (Docker is preinstalled on the runner).
+      # One test project at a time (-m:1), so at most two SQL Server containers share the 8 GB of the runner.
       - name: Run tests
         if: steps.project.outputs.solution != ''
         env:
           SOLUTION: ${{ steps.project.outputs.solution }}
-        run: dotnet test "$SOLUTION" --configuration Release --no-build
+        run: dotnet test "$SOLUTION" --configuration Release --no-build -m:1

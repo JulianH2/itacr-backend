@@ -1,7 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using Itacr.Api.Tests.Auth;
-using Itacr.Application.Catalog.Responses;
+using Itacr.Application.Catalog.GetCategories;
+using Itacr.Application.Catalog.GetProducts;
 
 namespace Itacr.Api.Tests.Catalog;
 

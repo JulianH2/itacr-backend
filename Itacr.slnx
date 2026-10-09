@@ -10,6 +10,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Itacr.Api.Tests/Itacr.Api.Tests.csproj" />
+    <Project Path="tests/Itacr.Architecture.Tests/Itacr.Architecture.Tests.csproj" />
     <Project Path="tests/Itacr.Database.Migrator.Tests/Itacr.Database.Migrator.Tests.csproj" />
   </Folder>
 </Solution>

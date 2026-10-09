@@ -8,7 +8,11 @@ public sealed class SqlServerFixture : IAsyncLifetime
 {
     internal const string Image = "mcr.microsoft.com/mssql/server:2025-latest";
 
-    private readonly MsSqlContainer _container = new MsSqlBuilder(Image).Build();
+    // CI runners have 8 GB and several SQL Server containers can run at once; each one would otherwise take most of it.
+    internal const string MemoryLimitVariable = "MSSQL_MEMORY_LIMIT_MB";
+    internal const string MemoryLimitMegabytes = "1536";
+
+    private readonly MsSqlContainer _container = new MsSqlBuilder(Image).WithEnvironment(MemoryLimitVariable, MemoryLimitMegabytes).Build();
 
     public string ConnectionStringFor(string databaseName) =>
         new SqlConnectionStringBuilder(_container.GetConnectionString()) { InitialCatalog = databaseName }.ConnectionString;

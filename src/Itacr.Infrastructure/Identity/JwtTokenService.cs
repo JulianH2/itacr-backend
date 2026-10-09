@@ -1,6 +1,5 @@
 using System.Text;
 using Itacr.Application.Identity;
-using Itacr.Application.Identity.Responses;
 using Itacr.Domain.Identity;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
