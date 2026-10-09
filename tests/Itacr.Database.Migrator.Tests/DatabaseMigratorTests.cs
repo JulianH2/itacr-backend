@@ -15,9 +15,11 @@ namespace Itacr.Database.Migrator.Tests;
 public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
 {
     private const string InitialSchemaScript = "V001__initial_schema.sql";
+    private const string OrderStatusHistoryScript = "V002__add_order_status_history.sql";
     private const string LastEfCoreMigration = "20261002130000_AddFnGetProductsByCategory";
 
     private static readonly PasswordHasher<Employee> PasswordHasher = new();
+    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript];
 
     [Fact]
     public async Task RunAsync_ShouldCreateTheSchemaAndSeedTheTestEmployees_WhenDatabaseDoesNotExist()
@@ -34,7 +36,7 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         Assert.Equal(5, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Categories;"));
         Assert.Equal(18, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Products;"));
         Assert.Equal(4, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.fn_GetProductsByCategory('10000000-0000-0000-0000-000000000004');"));
-        Assert.Equal([InitialSchemaScript], await ExecutedScriptsAsync(connection));
+        Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
         Assert.Equal("Brownie con Helado", await connection.ExecuteScalarAsync<string>(
             "SELECT Name FROM dbo.Products WHERE Id = '20000000-0000-0000-0000-000000000018' AND CategoryId = '10000000-0000-0000-0000-000000000005';"));
         Assert.Equal(0, await connection.ExecuteScalarAsync<int>(
@@ -64,7 +66,7 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         await using var connection = new SqlConnection(connectionString);
         Assert.Equal(4, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Employees;"));
         Assert.Equal(18, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Products;"));
-        Assert.Equal([InitialSchemaScript], await ExecutedScriptsAsync(connection));
+        Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
     }
 
     [Fact]
@@ -80,7 +82,7 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         // Assert
         Assert.True(succeeded);
         await using var connection = new SqlConnection(connectionString);
-        Assert.Equal([InitialSchemaScript], await ExecutedScriptsAsync(connection));
+        Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
         Assert.Equal(18, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Products;"));
         Assert.Equal(0, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Employees;"));
     }
