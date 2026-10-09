@@ -147,6 +147,14 @@ Every status change, including the creation of the order, adds a row to `OrderSt
 
 The table was added in `database/migrations/V002__add_order_status_history.sql` (ITACR-40).
 
+## Kitchen queue
+
+`GET /api/v1/kitchen/queue` (roles Kitchen and Manager) feeds the kitchen board of HU_04. It runs `dbo.usp_Order_GetActive`, which returns the orders in `New`, `InPreparation`, and `Ready` as **one result set** ordered by `CreatedAt` (then `OrderNumber`), whatever the channel, so a waiter order and a customer pickup order share one queue. The items of each order come in the same row as JSON (`ItemsJson`), so an order and its items are always read together and an item can never show up without its order. Delivered orders are not part of the queue.
+
+An order synced late after being taken offline keeps its original `CreatedAt`, so it sits where that time puts it. `CreatedAt` is stored in UTC and the API writes it with a `Z`; the response also carries `serverTime`, so the board measures elapsed time with the server clock instead of the clock of the device.
+
+The board polls this endpoint every 5 seconds. Real-time updates (SignalR) come with HU_05 and HU_09.
+
 ## Why `ClientOrderId` is unique
 
 The waiter app works offline. A device generates a `Guid` for each order before sending it, and sends it again until the server confirms. Network failures, retries, and Background Sync can deliver the same order several times, even at the same moment from two requests.

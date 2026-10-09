@@ -3,11 +3,13 @@ using Dapper;
 using Itacr.Application.Catalog;
 using Itacr.Application.Common.Persistence;
 using Itacr.Application.Identity;
+using Itacr.Application.Kitchen;
 using Itacr.Application.Notifications;
 using Itacr.Application.Orders;
 using Itacr.Domain.Identity;
 using Itacr.Infrastructure.Persistence.Catalog;
 using Itacr.Infrastructure.Persistence.Identity;
+using Itacr.Infrastructure.Persistence.Kitchen;
 using Itacr.Infrastructure.Persistence.Notifications;
 using Itacr.Infrastructure.Persistence.Orders;
 using Microsoft.AspNetCore.Identity;
@@ -43,6 +45,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<ICatalogRepository, CatalogRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IDiningTableRepository, DiningTableRepository>();
+        services.AddScoped<IKitchenRepository, KitchenRepository>();
         services.AddSingleton<IPasswordHasher<Employee>, PasswordHasher<Employee>>();
 
         services.AddHealthChecks().AddCheck<DatabaseHealthCheck>(HealthCheckName);
