@@ -52,7 +52,7 @@ jobs:
         run: dotnet publish "$MIGRATOR_PROJECT" --configuration Release --no-build --output artifacts/migrator
 
       - name: Upload API package
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: api
           path: artifacts/api
@@ -60,7 +60,7 @@ jobs:
           retention-days: 3
 
       - name: Upload database migrator
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: migrator
           path: artifacts/migrator
