@@ -32,6 +32,7 @@ It exits with code `0` on success and `1` on any error, so the deploy stops befo
 | Environment | Connection string | Environment name |
 | ----------- | ----------------- | ---------------- |
 | Local | `dotnet user-secrets` of the migrator: `ConnectionStrings:Migrator` | `Development` (from `Properties/launchSettings.json`) |
+| QA (database `itacr-qa`, deployed from `release`) | `ConnectionStrings__Migrator` from the GitHub secret `SQL_MIGRATOR_QA_CONNECTION_STRING` (user `itacr_migrator` of `itacr-qa`) | `Production`, with `Seed__TestEmployees=true` |
 | Production | `ConnectionStrings__Migrator` from the GitHub secret `SQL_MIGRATOR_CONNECTION_STRING` (user `itacr_migrator`) | `Production` |
 
 ## Run it locally
@@ -68,7 +69,7 @@ Objects are applied in folder order (functions, views, procedures, triggers), an
 | What | Where | Environments |
 | ---- | ----- | ------------ |
 | Catalog: 5 categories, 18 products, 9 combo options, dining tables 1 to 10, with fixed IDs | `migrations/V001__initial_schema.sql` | All |
-| 4 test employees (password `Itacr2026!`) | `Itacr.Database.Migrator/Seeding/` | Development only |
+| 4 test employees (password `Itacr2026!`) | `Itacr.Database.Migrator/Seeding/` | Development, and QA through `Seed__TestEmployees=true`. Never production: their credentials are in this repository |
 | Initial manager from `Seed__ManagerName`, `Seed__ManagerEmail`, `Seed__ManagerPin` | `Itacr.Database.Migrator/Seeding/` | Any other environment, only while no manager exists |
 
 Employees are seeded in C# because their PINs and passwords are hashed with the same `PasswordHasher` the API verifies with. The seed checks existing emails first, so it never creates duplicates.
