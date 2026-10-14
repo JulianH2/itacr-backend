@@ -656,13 +656,23 @@ The production settings (`ASPNETCORE_ENVIRONMENT`, `ConnectionStrings__Default`,
 
 ### 15.2 Deploy workflow
 
-`.github/workflows/deploy.yml` runs on every push to `main` (and by hand with **Run workflow**, from `main`). It has three jobs; each starts only if the previous one succeeded:
+`.github/workflows/deploy.yml` runs on every push to `main` (production) and to `release` (QA), and by hand with **Run workflow** from either branch; from any other branch it does nothing. Both use the same jobs with their own resources, and each branch has its own concurrency group, so a QA deploy never waits for a production one:
+
+| | `main` (production) | `release` (QA) |
+| --- | --- | --- |
+| App Service | `app-itacr-backend-prod` | `app-itacr-backend-qa` |
+| Database | `itacr-sql` | `itacr-qa` (same server, Azure SQL free offer) |
+| Migrator secret | `SQL_MIGRATOR_CONNECTION_STRING` | `SQL_MIGRATOR_QA_CONNECTION_STRING` |
+| Publish profile secret | `AZURE_WEBAPP_PUBLISH_PROFILE` | `AZURE_WEBAPP_QA_PUBLISH_PROFILE` |
+| Seed | Initial manager only | The 4 test employees (`Seed__TestEmployees=true`) |
+
+It has three jobs; each starts only if the previous one succeeded:
 
 | Job | What it does |
 | --- | ------------ |
 | `build` | Restores, builds, and tests the solution, and publishes the API and `Itacr.Database.Migrator` as artifacts (kept 3 days) |
 | `migrate` | Signs in to Azure with OIDC, opens a firewall rule on `itacr-sql` for the runner's IP, runs the migrator as `itacr_migrator`, and removes the rule even if the migrator failed |
-| `deploy` | Deploys the API to `app-itacr-backend-prod` with the `AZURE_WEBAPP_PUBLISH_PROFILE` secret |
+| `deploy` | Deploys the API to the App Service of the branch with its publish profile secret |
 
 The database is migrated **before** the new API starts, so the scripts must be additive: for a moment the previous API runs against the new schema. If the migrator fails, its script is rolled back, the job fails, and the API is not deployed. Rename or drop columns in a later release.
 
@@ -674,7 +684,7 @@ The seed runs in `Production`, so it only creates the initial manager while no m
 
 The `migrate` job needs two things, both already set up:
 
-1. **An Azure identity without stored passwords (OIDC).** App registration `github-itacr-backend-deploy` with a federated credential for the subject `repo:JulianH2/itacr-backend:ref:refs/heads/main`, so only runs on `main` can sign in. Its service principal has a single role: **SQL Server Contributor** on the server `itacr-sql`, which lets it add and remove firewall rules. The workflow uses no GitHub environment; adding `environment:` to the job would change the subject and need a new federated credential.
+1. **An Azure identity without stored passwords (OIDC).** App registration `github-itacr-backend-deploy` with one federated credential per branch that deploys, so only runs on `main` and `release` can sign in. GitHub sends the subject with the owner and repository ids, `repo:JulianH2@132315504/itacr-backend@1394612450:ref:refs/heads/<branch>` (credentials `itacr-backend-main-ids` and `itacr-backend-release-ids`); the older credential `itacr-backend-main`, with the subject `repo:JulianH2/itacr-backend:ref:refs/heads/main`, stays in case GitHub sends the older format again. A subject that matches no credential fails with `AADSTS700213`. Its service principal has a single role: **SQL Server Contributor** on the server `itacr-sql`, which lets it add and remove firewall rules for both databases. The workflow uses no GitHub environment; adding `environment:` to the job would change the subject and need a new federated credential.
 2. **Its own database user.** `itacr_migrator`, created with [database/scripts/security/database-users.sql](database/scripts/security/database-users.sql).
 
 | Repository secret | Value |
@@ -683,6 +693,10 @@ The `migrate` job needs two things, both already set up:
 | `AZURE_TENANT_ID` | Directory (tenant) ID |
 | `AZURE_SUBSCRIPTION_ID` | Subscription ID of Azure for Students |
 | `SQL_MIGRATOR_CONNECTION_STRING` | `Server=tcp:itacr-sql.database.windows.net,1433;Initial Catalog=itacr-sql;User ID=itacr_migrator;Password=<password>;Encrypt=True;TrustServerCertificate=False;Connection Timeout=60` |
+| `SQL_MIGRATOR_QA_CONNECTION_STRING` | The same with `Initial Catalog=itacr-qa` and the password of the `itacr_migrator` user of `itacr-qa` |
+| `AZURE_WEBAPP_QA_PUBLISH_PROFILE` | Publish profile of `app-itacr-backend-qa` (same steps as `AZURE_WEBAPP_PUBLISH_PROFILE`) |
+
+QA has its own users: run `database-users.sql` in the `itacr-qa` database with new passwords, never the production ones. App Service `app-itacr-backend-qa` needs the same settings as production (section 15.1), with its own `Jwt__Secret`, `ConnectionStrings__Default` for the `itacr_app` user of `itacr-qa`, and `Cors__Origins__0` set to the QA frontend.
 
 **Database users (repository owner, once).** No application uses the server admin login:
 

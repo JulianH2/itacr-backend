@@ -134,7 +134,7 @@ flowchart LR
 ```
 
 - `ci.yml` runs on every PR: format, build, all tests, commit message and branch name checks.
-- `deploy.yml` runs on `main`. The migrator logs in to Azure with OIDC (no stored Azure password), opens a firewall rule only for the runner, migrates, and removes the rule. The API is deployed only if the migration succeeded.
+- `deploy.yml` runs on `main` (production) and on `release` (QA, with its own App Service `app-itacr-backend-qa`, database `itacr-qa`, and the test employees). The migrator logs in to Azure with OIDC (no stored Azure password), opens a firewall rule only for the runner, migrates, and removes the rule. The API is deployed only if the migration succeeded.
 - `release-please.yml` versions the API and writes the CHANGELOG from the commit messages.
 
 ## 9. Key decisions
