@@ -1,8 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Dapper;
 using Itacr.Api.Tests.Auth;
 using Itacr.Domain.Identity;
+using Microsoft.Data.SqlClient;
 
 namespace Itacr.Api.Tests.Orders;
 
@@ -81,11 +83,13 @@ public sealed class OrderDetailTests(DatabaseFixture database) : DatabaseTest(da
     {
         // Arrange
         await using var factory = new AuthApiFactory(Database);
-        var (waiter, waiterId) = await SignInAsync(factory, EmployeeRole.Waiter);
-        await PlaceOrderAsync(waiter, TableFive);
-        factory.Time.Advance(TimeSpan.FromHours(13));
-        // The 12-hour session expired with the shift, so the waiter signs in again.
-        AuthApiFactory.Authorize(waiter, (await factory.LoginAsync(waiter, waiterId, "1234")).AccessToken);
+        var (waiter, _) = await SignInAsync(factory, EmployeeRole.Waiter);
+        var orderId = await PlaceOrderAsync(waiter, TableFive);
+        // Moving the order back in time instead of the clock forward, which would leave the session token not yet valid.
+        await using (var connection = new SqlConnection(Database.ConnectionString))
+        {
+            await connection.ExecuteAsync("UPDATE dbo.Orders SET CreatedAt = DATEADD(HOUR, -13, CreatedAt) WHERE Id = @Id;", new { Id = orderId });
+        }
 
         // Act
         var orders = await waiter.GetFromJsonAsync<JsonElement>("/api/v1/orders/recent");
