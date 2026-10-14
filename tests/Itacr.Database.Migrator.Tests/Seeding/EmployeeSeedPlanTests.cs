@@ -49,6 +49,21 @@ public sealed class EmployeeSeedPlanTests
     }
 
     [Fact]
+    public void Build_ShouldReturnTheTestEmployees_WhenTestEmployeesIsEnabledOutsideDevelopment()
+    {
+        // Arrange
+        var plan = CreatePlan(new SeedOptions { TestEmployees = true });
+
+        // Act
+        var employees = plan.Build(isDevelopment: false, NoEmails, hasManager: false);
+
+        // Assert
+        Assert.Equivalent(
+            new[] { "mesero@itacr.test", "cocina@itacr.test", "gerente@itacr.test", "pendiente@itacr.test" },
+            employees.Select(employee => employee.Email));
+    }
+
+    [Fact]
     public void Build_ShouldReturnOnlyTheConfiguredManager_WhenEnvironmentIsProduction()
     {
         // Arrange
