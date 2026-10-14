@@ -81,10 +81,11 @@ public sealed class OrderDetailTests(DatabaseFixture database) : DatabaseTest(da
     {
         // Arrange
         await using var factory = new AuthApiFactory(Database);
-        var (waiter, _) = await SignInAsync(factory, EmployeeRole.Waiter);
+        var (waiter, waiterId) = await SignInAsync(factory, EmployeeRole.Waiter);
         await PlaceOrderAsync(waiter, TableFive);
         factory.Time.Advance(TimeSpan.FromHours(13));
-        AuthApiFactory.Authorize(waiter, (await factory.LoginAsync(waiter, await WaiterIdAsync(waiter), "1234")).AccessToken);
+        // The 12-hour session expired with the shift, so the waiter signs in again.
+        AuthApiFactory.Authorize(waiter, (await factory.LoginAsync(waiter, waiterId, "1234")).AccessToken);
 
         // Act
         var orders = await waiter.GetFromJsonAsync<JsonElement>("/api/v1/orders/recent");
@@ -92,9 +93,6 @@ public sealed class OrderDetailTests(DatabaseFixture database) : DatabaseTest(da
         // Assert
         Assert.Empty(orders.EnumerateArray());
     }
-
-    private static async Task<Guid> WaiterIdAsync(HttpClient client) =>
-        (await client.GetFromJsonAsync<JsonElement>("/api/v1/auth/me")).GetProperty("id").GetGuid();
 
     private static async Task<(HttpClient Client, Guid EmployeeId)> SignInAsync(AuthApiFactory factory, EmployeeRole role)
     {
