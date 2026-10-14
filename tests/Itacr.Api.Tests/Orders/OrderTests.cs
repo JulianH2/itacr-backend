@@ -193,4 +193,39 @@ public sealed class OrderTests
         // Assert
         Assert.All(results, changed => Assert.False(changed));
     }
+
+    [Theory]
+    [InlineData(OrderStatus.New, OrderStatus.InPreparation)]
+    [InlineData(OrderStatus.InPreparation, OrderStatus.Ready)]
+    public void CanUndo_ShouldAllow_WhenAKitchenStepIsUndoneWithinTheWindow(OrderStatus from, OrderStatus to)
+    {
+        // Act
+        var canUndo = OrderStatusRules.CanUndo(from, to, Now, Now + OrderStatusRules.UndoWindow);
+
+        // Assert
+        Assert.True(canUndo);
+    }
+
+    [Fact]
+    public void CanUndo_ShouldRefuse_WhenTheWindowHasPassed()
+    {
+        // Act
+        var canUndo = OrderStatusRules.CanUndo(OrderStatus.New, OrderStatus.InPreparation, Now, Now + OrderStatusRules.UndoWindow + TimeSpan.FromMilliseconds(1));
+
+        // Assert
+        Assert.False(canUndo);
+    }
+
+    [Theory]
+    [InlineData(null, OrderStatus.New)]
+    [InlineData(OrderStatus.Ready, OrderStatus.Delivered)]
+    [InlineData(OrderStatus.Ready, OrderStatus.InPreparation)]
+    public void CanUndo_ShouldRefuse_WhenTheChangeIsNotAKitchenStep(OrderStatus? from, OrderStatus to)
+    {
+        // Act
+        var canUndo = OrderStatusRules.CanUndo(from, to, Now, Now);
+
+        // Assert
+        Assert.False(canUndo);
+    }
 }
