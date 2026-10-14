@@ -139,7 +139,7 @@ erDiagram
 
 ## Order lifecycle
 
-An order moves **one step at a time**: `New` → `InPreparation` → `Ready` → `Delivered`. `Delivered` is final and nothing goes back or skips a step. The rules live in `Itacr.Domain/Orders/OrderStatusRules.cs`, and `Order.TryChangeStatus(...)` applies them: it returns `false` and changes nothing when the step is not allowed, so a use case turns that into a `409` `Conflict` error.
+An order moves **one step at a time**: `New` → `InPreparation` → `Ready` → `Delivered`. `Delivered` is final and nothing skips a step. The only way back is undoing the last kitchen step (below). The rules live in `Itacr.Domain/Orders/OrderStatusRules.cs`, and `Order.TryChangeStatus(...)` applies them: it returns `false` and changes nothing when the step is not allowed, so a use case turns that into a `409` `Conflict` error.
 
 Every status change, including the creation of the order, adds a row to `OrderStatusHistory` (`FromStatus` is null on the first row). `Order.TryChangeStatus` also sets `LastStatusChangeAt`, `ReadyAt` (when it becomes `Ready`), and `DeliveredAt` (when it becomes `Delivered`). `ChangedById` is the employee who made the change, or null when the system did.
 
@@ -153,7 +153,23 @@ The table was added in `database/migrations/V002__add_order_status_history.sql` 
 
 An order synced late after being taken offline keeps its original `CreatedAt`, so it sits where that time puts it. `CreatedAt` is stored in UTC and the API writes it with a `Z`; the response also carries `serverTime`, so the board measures elapsed time with the server clock instead of the clock of the device.
 
-The board polls this endpoint every 5 seconds. Real-time updates (SignalR) come with HU_05 and HU_09.
+The board polls this endpoint every 5 seconds. Real-time updates (SignalR) come with HU_09.
+
+## Kitchen status changes and undo
+
+HU_05 (ITACR-11) lets the kitchen move an order with a tap and undo an accidental one:
+
+| Endpoint | Roles | Procedure |
+| --- | --- | --- |
+| `POST /api/v1/orders/{id}/status` with `{ "status": "InPreparation" }` or `"Ready"` | Kitchen, Manager | `usp_Order_GetStatus`, then `usp_Order_ChangeStatus` |
+| `POST /api/v1/orders/{id}/status/undo` | Kitchen, Manager | Same |
+| `GET /api/v1/orders/{id}` (detail and timeline) | Waiter, Kitchen, Manager | `usp_Order_GetById` |
+| `GET /api/v1/orders/recent` (last 10 of the waiter, 12 hours) | Waiter | `usp_Order_GetRecentByWaiter` |
+
+- **One step, no races.** The API reads the current status, checks `OrderStatusRules.CanChange`, and `usp_Order_ChangeStatus` updates the order only `WHERE Status = @FromStatus`. When two boards tap the same order, the second one changes nothing and gets `409` ("El pedido ya cambió de estado"). Delivered is not a kitchen step (`400`); it belongs to HU_10.
+- **Times.** Each change sets `LastStatusChangeAt` and adds a history row; becoming `Ready` sets `ReadyAt`.
+- **Undo.** Allowed only for the last change, when it was a kitchen step (`New` → `InPreparation` or `InPreparation` → `Ready`), made by the same employee, at most `OrderStatusRules.UndoWindow` (15 seconds) ago; the board offers it for less, to allow for the network. The undo is one more history row going back (nothing is deleted), and undoing `Ready` clears `ReadyAt`. An undo cannot be undone.
+- **Timeline.** The detail lists every history row oldest first; `undone` is true for the rows that went back.
 
 ## Why `ClientOrderId` is unique
 
