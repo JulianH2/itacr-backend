@@ -35,37 +35,7 @@ internal sealed class OrderRepository(DbSession session) : IOrderRepository
 
     public async Task<bool> CreateAsync(Order order, CancellationToken cancellationToken)
     {
-        order.Id = SequentialGuid.Create();
-        var items = order.Items.Select(item =>
-        {
-            item.Id = SequentialGuid.Create();
-            item.OrderId = order.Id;
-            return new
-            {
-                item.Id,
-                item.ProductId,
-                item.Quantity,
-                item.UnitPrice,
-                item.Subtotal,
-                item.Size,
-                item.Drink,
-                item.Extras,
-                item.Exclusions,
-            };
-        }).ToList();
-        var history = order.StatusHistory.Select(entry =>
-        {
-            entry.Id = SequentialGuid.Create();
-            entry.OrderId = order.Id;
-            return new
-            {
-                entry.Id,
-                FromStatus = entry.FromStatus?.ToString(),
-                ToStatus = entry.ToStatus.ToString(),
-                entry.ChangedById,
-                entry.CreatedAt,
-            };
-        }).ToList();
+        var (itemsJson, historyJson) = OrderPayload.Prepare(order);
 
         var connection = await session.GetOpenConnectionAsync(cancellationToken);
         var saved = await connection.QuerySingleAsync<SavedOrderRow>(session.Procedure(
@@ -81,8 +51,8 @@ internal sealed class OrderRepository(DbSession session) : IOrderRepository
                 order.CustomerId,
                 order.Total,
                 Now = order.CreatedAt,
-                ItemsJson = JsonSerializer.Serialize(items),
-                HistoryJson = JsonSerializer.Serialize(history),
+                ItemsJson = itemsJson,
+                HistoryJson = historyJson,
             },
             cancellationToken));
 
