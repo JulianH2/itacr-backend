@@ -189,7 +189,7 @@ Two requests with the same new phone can arrive at once, so the lookup alone is 
 What changes in the database for HU_06, all additive and in one script (`V003`):
 
 - A unique index `IX_Customers_Phone` on `Customers (Phone)`, and a `CHECK` that `Phone` has 10 digits.
-- A `CHECK` on `Orders` that a `MobileApp` order has a `CustomerId` and no `TableId` and no `WaiterId`, and that the other channels have no `CustomerId`. The domain enforces the same rule; the constraint protects the data from any other way of writing it.
+- A `CHECK` on `Orders` that a `MobileApp` order has a `CustomerId` and no `TableId` and no `WaiterId`, and that the other channels have no `CustomerId`. The domain enforces the same rule; the constraint protects the data from any other way of writing it. **Before adding it**, query QA (and production once it has orders) for `MobileApp` rows that break the rule, because a constraint added to a table with such a row fails the migration, and fix or remove them first. It also breaks existing tests: the `AddOrderAsync` helper of `KitchenQueueTests` inserts `MobileApp` orders without a customer, so HU_06 must give it a customer.
 - No new table. The "2 active orders per phone" rule reads `Orders` through the existing index on `CustomerId`.
 
 A customer is never deleted while an order refers to it (`ON DELETE NO ACTION`). How long customers are kept is an open question in the architecture document.
