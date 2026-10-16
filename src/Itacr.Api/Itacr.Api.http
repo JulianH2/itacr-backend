@@ -17,3 +17,18 @@ GET {{baseUrl}}/api/v1/catalog/products
 @accessToken = paste-the-access-token-here
 GET {{baseUrl}}/api/v1/kitchen/queue
 Authorization: Bearer {{accessToken}}
+
+### Pickup order of a customer without login: 201 with the order number, 400 with the field errors, 409 at the third active order of a phone, 429 over the limit
+# Use a new clientOrderId for every order; sending the same one again answers 200 with the order already saved
+POST {{baseUrl}}/api/v1/public/orders
+Content-Type: application/json
+
+{
+  "clientOrderId": "3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b",
+  "name": "Ana María",
+  "phone": "7711234567",
+  "items": [{ "productId": "20000000-0000-0000-0000-000000000005", "quantity": 2 }]
+}
+
+### Follow a pickup order with the clientOrderId the phone kept: 200, or 404 when it is not a pickup order
+GET {{baseUrl}}/api/v1/public/orders/3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b
