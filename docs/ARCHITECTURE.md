@@ -126,7 +126,7 @@ Every controller requires a signed-in user (`AuthorizeFilter`) unless it says `[
 | `GET /api/v1/auth/employees?role=` | The people shown in the PIN picker | global | Returns only `id` and an abbreviated display name of **active** employees |
 | `POST /api/v1/auth/login/pin`, `POST /api/v1/auth/login/password`, `POST /api/v1/auth/pin-reset-requests` | Staff sign-in | `login`: 10 per minute (`LoginSecurity`) | A PIN also locks for 15 minutes after 5 failures |
 | `POST /api/v1/public/orders` *(HU_06)* | A customer sends a pickup order | `public-order-create`: **10 per 10 minutes** | The first public endpoint that creates data; see [6.2](#62-customer-pickup-orders-hu_06) |
-| `GET /api/v1/public/orders/{clientOrderId}` *(HU_06)* | A customer follows their order | `public-order-status`: **60 per minute** | Read-only, answers with the minimum; see [6.2](#62-customer-pickup-orders-hu_06) |
+| `GET /api/v1/public/orders/{clientOrderId}` *(HU_06)* | A customer follows their order | `public-order-status`: **60 per minute** | Read-only, answers with the minimum, and only for `MobileApp` orders; see [6.2](#62-customer-pickup-orders-hu_06) |
 | OpenAPI and Scalar | API docs | Development only | Not mapped in QA or production |
 
 Rules for any public endpoint, today and later:
@@ -136,7 +136,7 @@ Rules for any public endpoint, today and later:
 - Limits are options validated at startup (`PublicOrders` section, same pattern as `LoginSecurity`), never constants in code.
 - It never returns an employee id, a customer phone, or an id that another endpoint accepts as a credential.
 
-**To verify in HU_06:** the limits are per client IP, so the limiter must see the customer's real address. Behind the App Service front end `RemoteIpAddress` can be the proxy's address, which would put every customer in one bucket. The API does not configure forwarded headers today. Check it in QA and, if needed, add `UseForwardedHeaders` limited to the App Service proxy before opening the endpoints.
+**To verify in HU_06:** the limits are per client IP, so the limiter must see the customer's real address. Behind the App Service front end `RemoteIpAddress` can be the proxy's address, which would put every customer in one bucket. The API does not configure forwarded headers in code. Before adding `UseForwardedHeaders`, check in QA whether the App Service already sets `ASPNETCORE_FORWARDEDHEADERS_ENABLED` (on Linux it usually does), because that decides whether anything is needed and which proxies must be trusted. Log the address the limiter sees from a QA request to confirm it is the client's.
 
 ### 6.2 Customer pickup orders (HU_06)
 
@@ -161,7 +161,7 @@ Messages are in Spanish and come from the use case validator ("Este campo es obl
 - At most **2 active orders per phone** (status New, InPreparation, or Ready). The third answers `409` with a Spanish message. This keeps a script from filling the kitchen board with one phone number, and a person with one real phone from sending the same order again and again.
 - The order appears on the kitchen board as "Cliente · Para recoger" with no change to the board.
 
-**How the customer follows the order.** The phone keeps the `clientOrderId` (it is the receipt). `GET /api/v1/public/orders/{clientOrderId}` returns only the order number, status, product names and quantities, total, and creation time. A random GUID is 122 bits, so it cannot be guessed, and an unknown id answers `404` like any other. It never returns the name or the phone. The order number is shown for the counter but is **not** a key (it is sequential and easy to guess).
+**How the customer follows the order.** The phone keeps the `clientOrderId` of each active order (it is the receipt), at most 2 because that is the limit per phone. `GET /api/v1/public/orders/{clientOrderId}` returns only the order number, status, product names and quantities, total, and creation time. **It answers only for `MobileApp` orders**: a waiter order also has a `clientOrderId`, and a staff order has no reason to be readable from a public endpoint, so it answers `404` exactly like an id that does not exist. A random GUID is 122 bits, so it cannot be guessed. It never returns the name or the phone. The order number is shown for the counter but is **not** a key (it is sequential and easy to guess).
 
 Known limit: if the customer clears the browser data, the phone forgets the receipt and the order can no longer be followed from the app. They can still give their order number at the counter. Looking an order up by number and phone from another device is left for a later story.
 
@@ -169,12 +169,16 @@ Known limit: if the customer clears the browser data, the phone forgets the rece
 
 **Protection that was left out on purpose.** No CAPTCHA and no honeypot field for now: the limits and the per-phone rule are enough for the first release. If real abuse appears, a CAPTCHA (for example Cloudflare Turnstile) goes in front of `POST /api/v1/public/orders` as its own task.
 
-**Known gap.** There is no cancelled or rejected status, so the kitchen cannot discard an order that is obviously fake. The mitigation today is the limits above. A reject action for managers should be planned with the next kitchen story.
+**Known gaps.**
+
+- There is no cancelled or rejected status, so the kitchen cannot discard an order that is obviously fake. The mitigation today is the limits above. A reject action for managers should be planned with the next kitchen story.
+- **The phone is not verified.** Anyone can type a real customer's number: they use up that number's 2 active orders (so the real customer is blocked until the kitchen delivers them) and, because the last name wins, they rename the customer. The per-IP limits make it slow but do not stop it. A verification code by SMS or WhatsApp would close it, and it needs a provider, so it is left for a later story if it happens.
 
 **Open questions (for the Sprint 3 review).**
 
 1. How long are customers kept? (Proposal: delete customers with no order in the last 90 days.)
 2. Does the kitchen need to see the customer's name to call out a pickup order? The kitchen queue does not return it today.
+3. Should an existing customer keep the **first** name instead of the last one, given that the phone is not verified? It would stop a stranger from renaming a customer, at the cost of a stale name.
 
 ## 7. Testing strategy
 
