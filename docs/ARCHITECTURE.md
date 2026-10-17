@@ -158,7 +158,7 @@ Messages are in Spanish and come from the use case validator ("Este campo es obl
 **What the server decides.**
 
 - The order is created with channel `MobileApp`, status `New`, `CustomerId` set, and no table and no waiter. Prices always come from `dbo.Products`.
-- Orders are idempotent on `clientOrderId` like the waiter ones: sending it again returns the order already saved (`200`) instead of a duplicate. An order that belongs to another customer answers `409`.
+- Orders are idempotent on `clientOrderId`: sending the same one again returns the order already saved (`200`) instead of a duplicate, whatever name and phone the request carries (whoever knows the `clientOrderId` can already read the order with the public `GET`). An id that belongs to a waiter order answers `409` and exposes nothing of that order.
 - Stricter limits than the waiter flow: at most **20 products** and a quantity of **1 to 10** per product (the waiter allows 50 and 99).
 - At most **2 active orders per phone** (status New, InPreparation, or Ready). The third answers `409` with a Spanish message. This keeps a script from filling the kitchen board with one phone number, and a person with one real phone from sending the same order again and again.
 - The order appears on the kitchen board as "Cliente · Para recoger" with no change to the board.
