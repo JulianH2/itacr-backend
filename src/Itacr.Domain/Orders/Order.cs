@@ -37,9 +37,14 @@ public sealed class Order : AuditableEntity
     /// table and a take-away order has none. The repositories set the keys, including the <c>OrderId</c> of the items and
     /// history rows (the domain never sets it); the database sets <see cref="OrderNumber"/>.
     /// </summary>
-    /// <exception cref="ArgumentException">The table does not match the channel.</exception>
+    /// <exception cref="ArgumentException">The table does not match the channel, or the channel is MobileApp (see <see cref="CreatePickup"/>).</exception>
     public static Order Create(Guid clientOrderId, OrderChannel channel, Guid? tableId, Guid? waiterId, Guid? customerId, DateTime now)
     {
+        if (channel == OrderChannel.MobileApp)
+        {
+            throw new ArgumentException("A pickup order of a customer is created with CreatePickup.", nameof(channel));
+        }
+
         if (channel == OrderChannel.DineIn && tableId is null)
         {
             throw new ArgumentException("A dine-in order needs a table.", nameof(tableId));
@@ -63,6 +68,26 @@ public sealed class Order : AuditableEntity
             UpdatedAt = now,
         };
         order.StatusHistory.Add(new OrderStatusHistory { FromStatus = null, ToStatus = OrderStatus.New, ChangedById = waiterId, CreatedAt = now, UpdatedAt = now });
+        return order;
+    }
+
+    /// <summary>
+    /// The pickup order of a customer without an account: channel MobileApp, status <see cref="OrderStatus.New"/>, no table and
+    /// no waiter, and a first history row that no employee made. The repository links the customer when it saves the order,
+    /// like it links the items, because the customer is found or created by phone in the same transaction.
+    /// </summary>
+    public static Order CreatePickup(Guid clientOrderId, DateTime now)
+    {
+        var order = new Order
+        {
+            ClientOrderId = clientOrderId,
+            Channel = OrderChannel.MobileApp,
+            Status = OrderStatus.New,
+            LastStatusChangeAt = now,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        order.StatusHistory.Add(new OrderStatusHistory { FromStatus = null, ToStatus = OrderStatus.New, ChangedById = null, CreatedAt = now, UpdatedAt = now });
         return order;
     }
 

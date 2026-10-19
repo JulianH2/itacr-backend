@@ -125,8 +125,8 @@ Every controller requires a signed-in user (`AuthorizeFilter`) unless it says `[
 | `GET /api/v1/catalog/categories`, `GET /api/v1/catalog/products` | The menu | global | Read-only, same for everyone |
 | `GET /api/v1/auth/employees?role=` | The people shown in the PIN picker | global | Returns only `id` and an abbreviated display name of **active** employees |
 | `POST /api/v1/auth/login/pin`, `POST /api/v1/auth/login/password`, `POST /api/v1/auth/pin-reset-requests` | Staff sign-in | `login`: 10 per minute (`LoginSecurity`) | A PIN also locks for 15 minutes after 5 failures |
-| `POST /api/v1/public/orders` *(HU_06)* | A customer sends a pickup order | `public-order-create`: **10 per 10 minutes** | The first public endpoint that creates data; see [6.2](#62-customer-pickup-orders-hu_06) |
-| `GET /api/v1/public/orders/{clientOrderId}` *(HU_06)* | A customer follows their order | `public-order-status`: **60 per minute** | Read-only, answers with the minimum, and only for `MobileApp` orders; see [6.2](#62-customer-pickup-orders-hu_06) |
+| `POST /api/v1/public/orders` | A customer sends a pickup order | `public-order-create`: **10 per 10 minutes** | The first public endpoint that creates data; see [6.2](#62-customer-pickup-orders-hu_06) |
+| `GET /api/v1/public/orders/{clientOrderId}` | A customer follows their order | `public-order-status`: **60 per minute** | Read-only, answers with the minimum, and only for `MobileApp` orders; see [6.2](#62-customer-pickup-orders-hu_06) |
 | OpenAPI and Scalar | API docs | Development only | Not mapped in QA or production |
 
 Rules for any public endpoint, today and later:
@@ -139,6 +139,8 @@ Rules for any public endpoint, today and later:
 **To verify in HU_06:** the limits are per client IP, so the limiter must see the customer's real address. Behind the App Service front end `RemoteIpAddress` can be the proxy's address, which would put every customer in one bucket. The API does not configure forwarded headers in code. Before adding `UseForwardedHeaders`, check in QA whether the App Service already sets `ASPNETCORE_FORWARDEDHEADERS_ENABLED` (on Linux it usually does), because that decides whether anything is needed and which proxies must be trusted. Log the address the limiter sees from a QA request to confirm it is the client's.
 
 ### 6.2 Customer pickup orders (HU_06)
+
+Implemented in ITACR-12: the use cases `Orders/CreatePickupOrder` and `Orders/GetPickupOrderStatus`, their two endpoints, the procedures `usp_Order_CreatePickup` and `usp_Order_GetPickupByClientOrderId`, and the migration `V003`. The limits below are the `PublicOrders` options in `appsettings.json` (`MaxActiveOrdersPerPhone`, `MaxProducts`, `MaxQuantity`, `CreatePermitLimit`/`CreateWindowSeconds`, `StatusPermitLimit`/`StatusWindowSeconds`), validated at startup, so QA or production can tune them without a release.
 
 A customer without an employee account sends an order from the phone and later follows it. There is no login, so every control lives in the endpoint and in the data. Decided in ITACR-42.
 
@@ -156,7 +158,7 @@ Messages are in Spanish and come from the use case validator ("Este campo es obl
 **What the server decides.**
 
 - The order is created with channel `MobileApp`, status `New`, `CustomerId` set, and no table and no waiter. Prices always come from `dbo.Products`.
-- Orders are idempotent on `clientOrderId` like the waiter ones: sending it again returns the order already saved (`200`) instead of a duplicate. An order that belongs to another customer answers `409`.
+- Orders are idempotent on `clientOrderId`: sending the same one again returns the order already saved (`200`) instead of a duplicate, whatever name and phone the request carries (whoever knows the `clientOrderId` can already read the order with the public `GET`). An id that belongs to a waiter order answers `409` and exposes nothing of that order.
 - Stricter limits than the waiter flow: at most **20 products** and a quantity of **1 to 10** per product (the waiter allows 50 and 99).
 - At most **2 active orders per phone** (status New, InPreparation, or Ready). The third answers `409` with a Spanish message. This keeps a script from filling the kitchen board with one phone number, and a person with one real phone from sending the same order again and again.
 - The order appears on the kitchen board as "Cliente · Para recoger" with no change to the board.

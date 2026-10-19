@@ -184,13 +184,15 @@ A customer is a person who orders for pickup without an account: only a **name**
 
 **One customer per phone.** When a pickup order arrives, the API finds the customer by phone and creates it only if it does not exist. If the phone exists, the name is updated to the one just typed (the last one wins). The name is not a credential, and a wrong name only changes what the kitchen reads out at the counter.
 
-Two requests with the same new phone can arrive at once, so the lookup alone is not enough. A unique index on `Phone` is what guarantees one row, and the procedure that saves the customer (`dbo.usp_Customer_Upsert`, in HU_06) treats the duplicate-key errors 2601 and 2627 as "it already exists" and reads the winner, the same way `ClientOrderId` works.
+Two requests with the same new phone can arrive at once, so the lookup alone is not enough. A unique index on `Phone` is what guarantees one row, and the procedure that saves the order (`dbo.usp_Order_CreatePickup`) takes a range lock on the phone, so two requests of the same phone wait for each other; if a duplicate-key error (2601 or 2627) still gets through, it treats it as "it already exists" and reads the winner, the same way `ClientOrderId` works.
 
-What changes in the database for HU_06, all additive and in one script (`V003`):
+What HU_06 changed in the database, all additive and in one script (`V003__add_pickup_order_constraints.sql`, ITACR-12):
 
-- A unique index `IX_Customers_Phone` on `Customers (Phone)`, and a `CHECK` that `Phone` has 10 digits.
-- A `CHECK` on `Orders` that a `MobileApp` order has a `CustomerId` and no `TableId` and no `WaiterId`, and that the other channels have no `CustomerId`. The domain enforces the same rule; the constraint protects the data from any other way of writing it. **Before adding it**, query QA (and production once it has orders) for `MobileApp` rows that break the rule, because a constraint added to a table with such a row fails the migration, and fix or remove them first. It also breaks existing tests: the `AddOrderAsync` helper of `KitchenQueueTests` inserts `MobileApp` orders without a customer, so HU_06 must give it a customer.
-- No new table. The "2 active orders per phone" rule reads `Orders` through the existing index on `CustomerId`.
+- A unique index `IX_Customers_Phone` on `Customers (Phone)`, and the `CHECK` `CK_Customers_Phone` that `Phone` has 10 digits.
+- A `CHECK` `CK_Orders_ChannelParties` on `Orders`: a `MobileApp` order has a `CustomerId` and no `TableId` and no `WaiterId`, and the other channels have no `CustomerId`. `Order.CreatePickup` builds the order that way, and the constraint protects the data from any other way of writing it. The script checks the existing rows first and stops with a clear message (error 50001, 50002, or 50003) before changing anything, so a QA or production database with a row that breaks a rule is fixed by hand and the migration is run again. The `AddOrderAsync` helper of `KitchenQueueTests` now gives every `MobileApp` order its own customer.
+- No new table. The "2 active orders per phone" rule (`PublicOrders:MaxActiveOrdersPerPhone`) reads `Orders` through the existing index on `CustomerId`, inside the same transaction and under the lock of the phone.
+
+The procedures are `dbo.usp_Order_CreatePickup` (finds or creates the customer, keeps the last name typed, checks the limit, and saves the order, its items, and its history; a refused order changes nothing, not even the name) and `dbo.usp_Order_GetPickupByClientOrderId` (answers only `MobileApp` orders and never returns the customer, the table, or the waiter).
 
 A customer is never deleted while an order refers to it (`ON DELETE NO ACTION`). How long customers are kept is an open question in the architecture document.
 

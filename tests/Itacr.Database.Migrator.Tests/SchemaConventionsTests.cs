@@ -122,6 +122,106 @@ public sealed class SchemaConventionsTests(SqlServerFixture sqlServer)
         Assert.Equal("OrderId,CreatedAt", timeOrderIndex);
     }
 
+    [Theory]
+    [InlineData("abc1234567")]
+    [InlineData("771123456")]
+    public async Task Schema_ShouldRefuseAPhoneThatIsNotTenDigits_WhenACustomerIsSaved(string phone)
+    {
+        // Arrange
+        await using var connection = await MigrateNewDatabaseAsync();
+
+        // Act
+        var insert = () => AddCustomerAsync(connection, phone);
+
+        // Assert
+        var error = await Assert.ThrowsAsync<SqlException>(insert);
+        Assert.Contains("CK_Customers_Phone", error.Message);
+    }
+
+    [Fact]
+    public async Task Schema_ShouldKeepOneCustomerPerPhone_WhenTwoCustomersUseTheSamePhone()
+    {
+        // Arrange
+        await using var connection = await MigrateNewDatabaseAsync();
+        await AddCustomerAsync(connection, "7711234567");
+
+        // Act
+        var insert = () => AddCustomerAsync(connection, "7711234567");
+
+        // Assert
+        var error = await Assert.ThrowsAsync<SqlException>(insert);
+        Assert.Contains("IX_Customers_Phone", error.Message);
+    }
+
+    [Theory]
+    [InlineData("MobileApp", false, false, false)]
+    [InlineData("MobileApp", true, true, false)]
+    [InlineData("MobileApp", true, false, true)]
+    [InlineData("DineIn", true, false, false)]
+    [InlineData("TakeAway", true, false, false)]
+    public async Task Schema_ShouldRefuseAnOrderWhoseChannelDoesNotMatchItsParties_WhenItIsSaved(string channel, bool withCustomer, bool withTable, bool withWaiter)
+    {
+        // Arrange
+        await using var connection = await MigrateNewDatabaseAsync();
+
+        // Act
+        var insert = () => AddOrderAsync(connection, channel, withCustomer, withTable, withWaiter);
+
+        // Assert
+        var error = await Assert.ThrowsAsync<SqlException>(insert);
+        Assert.Contains("CK_Orders_ChannelParties", error.Message);
+    }
+
+    [Theory]
+    [InlineData("MobileApp", true, false, false)]
+    [InlineData("DineIn", false, true, false)]
+    [InlineData("DineIn", false, true, true)]
+    [InlineData("TakeAway", false, false, true)]
+    public async Task Schema_ShouldAcceptAnOrderWhoseChannelMatchesItsParties_WhenItIsSaved(string channel, bool withCustomer, bool withTable, bool withWaiter)
+    {
+        // Arrange
+        await using var connection = await MigrateNewDatabaseAsync();
+
+        // Act
+        await AddOrderAsync(connection, channel, withCustomer, withTable, withWaiter);
+
+        // Assert
+        Assert.Equal(1, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Orders;"));
+    }
+
+    private static async Task AddCustomerAsync(SqlConnection connection, string phone, Guid? id = null) =>
+        await connection.ExecuteAsync(
+            "INSERT INTO dbo.Customers (Id, Name, Phone, CreatedAt, UpdatedAt) VALUES (@Id, N'Ana', @Phone, SYSUTCDATETIME(), SYSUTCDATETIME());",
+            new { Id = id ?? Guid.NewGuid(), Phone = phone });
+
+    private static async Task AddOrderAsync(SqlConnection connection, string channel, bool withCustomer, bool withTable, bool withWaiter)
+    {
+        Guid? customerId = withCustomer ? Guid.NewGuid() : null;
+        if (customerId is not null)
+        {
+            await AddCustomerAsync(connection, "7711234567", customerId);
+        }
+
+        Guid? waiterId = withWaiter ? Guid.NewGuid() : null;
+        if (waiterId is not null)
+        {
+            await connection.ExecuteAsync(
+                """
+                INSERT INTO dbo.Employees (Id, FullName, Email, Phone, Role, PinHash, Status, FailedLoginAttempts, CreatedAt, UpdatedAt)
+                VALUES (@Id, N'Mesero', @Email, N'7710000000', N'Waiter', N'hash', N'Active', 0, SYSUTCDATETIME(), SYSUTCDATETIME());
+                """,
+                new { Id = waiterId, Email = $"{waiterId:N}@itacr.test" });
+        }
+
+        Guid? tableId = withTable ? await connection.ExecuteScalarAsync<Guid>("SELECT TOP 1 Id FROM dbo.DiningTables;") : null;
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO dbo.Orders (Id, ClientOrderId, Channel, Status, TableId, WaiterId, CustomerId, Total, LastStatusChangeAt, CreatedAt, UpdatedAt)
+            VALUES (NEWID(), NEWID(), @Channel, N'New', @TableId, @WaiterId, @CustomerId, 0, SYSUTCDATETIME(), SYSUTCDATETIME(), SYSUTCDATETIME());
+            """,
+            new { Channel = channel, TableId = tableId, WaiterId = waiterId, CustomerId = customerId });
+    }
+
     private async Task<SqlConnection> MigrateNewDatabaseAsync()
     {
         var connectionString = sqlServer.ConnectionStringFor($"ItacrSchemaTests_{Guid.NewGuid():N}");

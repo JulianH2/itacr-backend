@@ -54,4 +54,23 @@ public static class OrdersErrors
         "Order already exists",
         "Este pedido ya fue registrado por otro mesero.",
         OrderConflictType);
+
+    public const string PickupFieldRequired = "Este campo es obligatorio.";
+    public const string PickupNameLength = "El nombre debe tener entre 2 y 60 caracteres.";
+    public const string PickupNameInvalid = "El nombre tiene caracteres que no se pueden usar.";
+    public const string PickupPhoneLength = "El teléfono debe tener 10 dígitos.";
+    public const string PickupPhoneInvalid = "Escribe un teléfono válido.";
+    public const string PickupLimitType = "https://itacr.app/problems/pickup-order-limit";
+
+    public static Error PickupLimitReached(int maxActiveOrders) => new(
+        ErrorKind.Conflict,
+        "Pickup order limit reached",
+        $"Ya tienes {maxActiveOrders} pedidos en curso. Espera a que los entreguemos para pedir otro.",
+        PickupLimitType);
+
+    public static readonly Error PickupOrderIdTaken = new(
+        ErrorKind.Conflict,
+        "Order already exists",
+        "Este pedido ya fue registrado. Arma tu pedido de nuevo.",
+        OrderConflictType);
 }
