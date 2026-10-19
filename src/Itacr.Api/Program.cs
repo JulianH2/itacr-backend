@@ -13,6 +13,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
 builder.Services.AddApiBase();
 builder.Services.AddAuthFeature();
+builder.Services.AddPublicOrders();
 
 var app = builder.Build();
 

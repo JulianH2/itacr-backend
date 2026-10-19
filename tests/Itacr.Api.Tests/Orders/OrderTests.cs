@@ -72,7 +72,6 @@ public sealed class OrderTests
     [Theory]
     [InlineData(OrderChannel.DineIn, true)]
     [InlineData(OrderChannel.TakeAway, false)]
-    [InlineData(OrderChannel.MobileApp, false)]
     public void Create_ShouldAccept_WhenTheTableMatchesTheChannel(OrderChannel channel, bool withTable)
     {
         // Arrange
@@ -83,6 +82,51 @@ public sealed class OrderTests
 
         // Assert
         Assert.Equal(tableId, order.TableId);
+    }
+
+    [Fact]
+    public void Create_ShouldRejectTheMobileAppChannel_WhenTheOrderIsNotAPickupOrder()
+    {
+        // Act
+        var create = () => Order.Create(Guid.NewGuid(), OrderChannel.MobileApp, null, null, Guid.NewGuid(), Now);
+
+        // Assert
+        Assert.Equal("channel", Assert.Throws<ArgumentException>(create).ParamName);
+    }
+
+    [Fact]
+    public void CreatePickup_ShouldStartAsANewMobileAppOrderWithoutTableOrWaiter_WhenACustomerOrders()
+    {
+        // Arrange
+        var clientOrderId = Guid.NewGuid();
+
+        // Act
+        var order = Order.CreatePickup(clientOrderId, Now);
+
+        // Assert
+        Assert.Equal((clientOrderId, OrderChannel.MobileApp, OrderStatus.New), (order.ClientOrderId, order.Channel, order.Status));
+        Assert.Null(order.TableId);
+        Assert.Null(order.WaiterId);
+        Assert.Null(order.CustomerId);
+        var first = Assert.Single(order.StatusHistory);
+        Assert.Null(first.FromStatus);
+        Assert.Null(first.ChangedById);
+        Assert.Equal(Now, order.LastStatusChangeAt);
+    }
+
+    [Fact]
+    public void CreatePickup_ShouldLetTheKitchenAdvanceTheOrderLikeAnyOther_WhenItIsNew()
+    {
+        // Arrange
+        var order = Order.CreatePickup(Guid.NewGuid(), Now);
+        order.AddItem(Guid.NewGuid(), 2, 32m, null, null, [], [], Now);
+
+        // Act
+        var changed = order.TryChangeStatus(OrderStatus.InPreparation, Guid.NewGuid(), Now.AddMinutes(1));
+
+        // Assert
+        Assert.True(changed);
+        Assert.Equal(64m, order.Total);
     }
 
     [Fact]
@@ -192,5 +236,40 @@ public sealed class OrderTests
 
         // Assert
         Assert.All(results, changed => Assert.False(changed));
+    }
+
+    [Theory]
+    [InlineData(OrderStatus.New, OrderStatus.InPreparation)]
+    [InlineData(OrderStatus.InPreparation, OrderStatus.Ready)]
+    public void CanUndo_ShouldAllow_WhenAKitchenStepIsUndoneWithinTheWindow(OrderStatus from, OrderStatus to)
+    {
+        // Act
+        var canUndo = OrderStatusRules.CanUndo(from, to, Now, Now + OrderStatusRules.UndoWindow);
+
+        // Assert
+        Assert.True(canUndo);
+    }
+
+    [Fact]
+    public void CanUndo_ShouldRefuse_WhenTheWindowHasPassed()
+    {
+        // Act
+        var canUndo = OrderStatusRules.CanUndo(OrderStatus.New, OrderStatus.InPreparation, Now, Now + OrderStatusRules.UndoWindow + TimeSpan.FromMilliseconds(1));
+
+        // Assert
+        Assert.False(canUndo);
+    }
+
+    [Theory]
+    [InlineData(null, OrderStatus.New)]
+    [InlineData(OrderStatus.Ready, OrderStatus.Delivered)]
+    [InlineData(OrderStatus.Ready, OrderStatus.InPreparation)]
+    public void CanUndo_ShouldRefuse_WhenTheChangeIsNotAKitchenStep(OrderStatus? from, OrderStatus to)
+    {
+        // Act
+        var canUndo = OrderStatusRules.CanUndo(from, to, Now, Now);
+
+        // Assert
+        Assert.False(canUndo);
     }
 }

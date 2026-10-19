@@ -46,6 +46,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IDiningTableRepository, DiningTableRepository>();
         services.AddScoped<IKitchenRepository, KitchenRepository>();
+        services.AddScoped<IPickupOrderRepository, PickupOrderRepository>();
         services.AddSingleton<IPasswordHasher<Employee>, PasswordHasher<Employee>>();
 
         services.AddHealthChecks().AddCheck<DatabaseHealthCheck>(HealthCheckName);

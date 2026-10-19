@@ -7,8 +7,9 @@ namespace Itacr.Database.Migrator.Seeding;
 public sealed record SeedEmployee(string FullName, string Email, string Pin, EmployeeRole Role, EmployeeStatus Status, string? Password);
 
 /// <summary>
-/// Decides which employees to seed: Development gets four test employees; any other environment gets one
-/// initial manager from configuration. Employees that already exist (by email) are skipped, so it can run any number of times.
+/// Decides which employees to seed: Development, or any environment with Seed:TestEmployees (QA), gets four test employees;
+/// production gets one initial manager from configuration. Employees that already exist (by email) are skipped, so it can run
+/// any number of times.
 /// </summary>
 public sealed class EmployeeSeedPlan(IOptions<SeedOptions> options, ILogger<EmployeeSeedPlan> logger)
 {
@@ -25,7 +26,7 @@ public sealed class EmployeeSeedPlan(IOptions<SeedOptions> options, ILogger<Empl
 
     public IReadOnlyList<SeedEmployee> Build(bool isDevelopment, IReadOnlySet<string> existingEmails, bool hasManager)
     {
-        if (isDevelopment)
+        if (isDevelopment || options.Value.TestEmployees)
         {
             return DevelopmentEmployees.Where(candidate => !existingEmails.Contains(candidate.Email)).ToList();
         }

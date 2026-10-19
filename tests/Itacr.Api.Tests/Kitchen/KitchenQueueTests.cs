@@ -205,12 +205,25 @@ public sealed class KitchenQueueTests(DatabaseFixture database) : DatabaseTest(d
     {
         var orderId = Guid.NewGuid();
         await using var connection = new SqlConnection(Database.ConnectionString);
+
+        // A pickup order always has a customer (V003); each one gets its own phone so they never share an active limit.
+        Guid? customerId = channel == "MobileApp" ? Guid.NewGuid() : null;
+        if (customerId is not null)
+        {
+            await connection.ExecuteAsync(
+                """
+                INSERT INTO dbo.Customers (Id, Name, Phone, CreatedAt, UpdatedAt)
+                VALUES (@Id, N'Cliente de Prueba', RIGHT(CONCAT(N'0000000000', ABS(CHECKSUM(NEWID()))), 10), @CreatedAt, @CreatedAt);
+                """,
+                new { Id = customerId, CreatedAt = createdAt });
+        }
+
         await connection.ExecuteAsync(
             """
-            INSERT INTO dbo.Orders (Id, ClientOrderId, Channel, Status, TableId, Total, LastStatusChangeAt, CreatedAt, UpdatedAt)
-            VALUES (@Id, NEWID(), @Channel, @Status, @TableId, 0, @CreatedAt, @CreatedAt, @CreatedAt);
+            INSERT INTO dbo.Orders (Id, ClientOrderId, Channel, Status, TableId, CustomerId, Total, LastStatusChangeAt, CreatedAt, UpdatedAt)
+            VALUES (@Id, NEWID(), @Channel, @Status, @TableId, @CustomerId, 0, @CreatedAt, @CreatedAt, @CreatedAt);
             """,
-            new { Id = orderId, Channel = channel, Status = status, TableId = tableId, CreatedAt = createdAt });
+            new { Id = orderId, Channel = channel, Status = status, TableId = tableId, CustomerId = customerId, CreatedAt = createdAt });
 
         for (var index = 0; index < items.Length; index++)
         {
