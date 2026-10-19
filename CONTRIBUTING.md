@@ -648,7 +648,7 @@ Branch `feature/ITACR-28-seed-data` from `sprint-01` after ITACR-27 is merged.
 
 ## 15. Deployment to Azure
 
-The Azure resources are created by hand in the Azure Portal (see [README: Deployment](README.md#deployment)). This repository never creates or changes them.
+The Azure resources are created by hand in the Azure Portal (see [README: Deployment](README.md#deployment) and the map of resources, settings, secrets, and known problems in [docs/deployment/azure.md](docs/deployment/azure.md)). This repository never creates or changes them.
 
 ### 15.1 App Service settings
 
