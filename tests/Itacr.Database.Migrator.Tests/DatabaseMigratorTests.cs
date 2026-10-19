@@ -16,10 +16,11 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
 {
     private const string InitialSchemaScript = "V001__initial_schema.sql";
     private const string OrderStatusHistoryScript = "V002__add_order_status_history.sql";
+    private const string PickupConstraintsScript = "V003__add_pickup_order_constraints.sql";
     private const string LastEfCoreMigration = "20261002130000_AddFnGetProductsByCategory";
 
     private static readonly PasswordHasher<Employee> PasswordHasher = new();
-    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript];
+    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript, PickupConstraintsScript];
 
     [Fact]
     public async Task RunAsync_ShouldCreateTheSchemaAndSeedTheTestEmployees_WhenDatabaseDoesNotExist()

@@ -72,7 +72,6 @@ public sealed class OrderTests
     [Theory]
     [InlineData(OrderChannel.DineIn, true)]
     [InlineData(OrderChannel.TakeAway, false)]
-    [InlineData(OrderChannel.MobileApp, false)]
     public void Create_ShouldAccept_WhenTheTableMatchesTheChannel(OrderChannel channel, bool withTable)
     {
         // Arrange
@@ -83,6 +82,51 @@ public sealed class OrderTests
 
         // Assert
         Assert.Equal(tableId, order.TableId);
+    }
+
+    [Fact]
+    public void Create_ShouldRejectTheMobileAppChannel_WhenTheOrderIsNotAPickupOrder()
+    {
+        // Act
+        var create = () => Order.Create(Guid.NewGuid(), OrderChannel.MobileApp, null, null, Guid.NewGuid(), Now);
+
+        // Assert
+        Assert.Equal("channel", Assert.Throws<ArgumentException>(create).ParamName);
+    }
+
+    [Fact]
+    public void CreatePickup_ShouldStartAsANewMobileAppOrderWithoutTableOrWaiter_WhenACustomerOrders()
+    {
+        // Arrange
+        var clientOrderId = Guid.NewGuid();
+
+        // Act
+        var order = Order.CreatePickup(clientOrderId, Now);
+
+        // Assert
+        Assert.Equal((clientOrderId, OrderChannel.MobileApp, OrderStatus.New), (order.ClientOrderId, order.Channel, order.Status));
+        Assert.Null(order.TableId);
+        Assert.Null(order.WaiterId);
+        Assert.Null(order.CustomerId);
+        var first = Assert.Single(order.StatusHistory);
+        Assert.Null(first.FromStatus);
+        Assert.Null(first.ChangedById);
+        Assert.Equal(Now, order.LastStatusChangeAt);
+    }
+
+    [Fact]
+    public void CreatePickup_ShouldLetTheKitchenAdvanceTheOrderLikeAnyOther_WhenItIsNew()
+    {
+        // Arrange
+        var order = Order.CreatePickup(Guid.NewGuid(), Now);
+        order.AddItem(Guid.NewGuid(), 2, 32m, null, null, [], [], Now);
+
+        // Act
+        var changed = order.TryChangeStatus(OrderStatus.InPreparation, Guid.NewGuid(), Now.AddMinutes(1));
+
+        // Assert
+        Assert.True(changed);
+        Assert.Equal(64m, order.Total);
     }
 
     [Fact]
