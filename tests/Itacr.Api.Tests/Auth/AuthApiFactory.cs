@@ -18,7 +18,7 @@ using Microsoft.Extensions.Time.Testing;
 namespace Itacr.Api.Tests.Auth;
 
 /// <summary>Starts the API against the shared test database, with a fake clock and no rate limits.</summary>
-public sealed class AuthApiFactory(DatabaseFixture database) : WebApplicationFactory<Program>
+public sealed class AuthApiFactory(DatabaseFixture database, IReadOnlyDictionary<string, string>? settings = null) : WebApplicationFactory<Program>
 {
     public const string Password = "Itacr2026!";
 
@@ -119,6 +119,12 @@ public sealed class AuthApiFactory(DatabaseFixture database) : WebApplicationFac
         builder.UseSetting("Jwt:Secret", ApiFactory.TestJwtSecret);
         builder.UseSetting("RateLimiting:PermitLimit", "10000");
         builder.UseSetting("LoginSecurity:PermitLimit", "10000");
+        builder.UseSetting("PublicOrders:CreatePermitLimit", "10000");
+        builder.UseSetting("PublicOrders:StatusPermitLimit", "10000");
+        foreach (var (key, value) in settings ?? new Dictionary<string, string>())
+        {
+            builder.UseSetting(key, value);
+        }
 
         builder.ConfigureTestServices(services =>
         {
