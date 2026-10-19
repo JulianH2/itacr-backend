@@ -194,6 +194,8 @@ The SQL Server image is pinned (`2025-CU9`) and the tests run with `-m:1` in CI 
 
 ## 8. Deployment
 
+The Azure resources, settings, GitHub secrets, and the OIDC sign-in are described in [deployment/azure.md](deployment/azure.md).
+
 ```mermaid
 flowchart LR
     Build["build<br/>restore, test, publish"] --> Migrate["migrate<br/>OIDC login, temporary firewall rule,<br/>DbUp as itacr_migrator"]
