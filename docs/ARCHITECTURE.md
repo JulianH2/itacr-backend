@@ -87,6 +87,7 @@ sequenceDiagram
 - **`DbSession`** (scoped) opens one connection per request. It retries only while opening the connection (transient Azure SQL errors), never a command, so nothing runs twice. Transactions are explicit through `ExecuteInTransactionAsync`.
 - **Keys** are `SequentialGuid` values made in C#, so inserts do not fragment the clustered index and rows sort in the order they were created.
 - **Idempotency**: `POST /orders` carries a `clientOrderId` made by the PWA. A repeated request returns the order that already exists (200) instead of creating a second one.
+- **Offline orders** (HU_07): an order the PWA queued without a connection is sent later with the same `clientOrderId` and a `createdAt`, the time the waiter sent it on the device, so it keeps its original place in the kitchen queue. `createdAt` can be up to 12 hours old (a shift) and at most 2 minutes ahead of the server; out of that range the API answers `400` on `createdAt`. Without it, the order is created at the server time. An order that was already saved is returned (200) before that check, so a late retry never fails.
 - **Dates** are UTC `datetime2`.
 
 Details: [CODING_STANDARDS.md §3](CODING_STANDARDS.md#3-database-azure-sql--dbup) and [database.md](database.md).
