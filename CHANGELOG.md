@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.3.0](https://github.com/JulianH2/itacr-backend/compare/v0.2.0...v0.3.0) (2026-10-19)
+
+
+### Added
+
+* **db:** add pickup order constraints and procedures (ITACR-12) ([3f1ba03](https://github.com/JulianH2/itacr-backend/commit/3f1ba031e65462ae4cb96cda01ff44aa30f6eda1))
+* **db:** add procedures to change an order status and read its detail and recent orders (ITACR-11) ([8fd5fec](https://github.com/JulianH2/itacr-backend/commit/8fd5fec7e8a3ac3bec1c7633a594f072085d1524))
+* **db:** seed the test employees outside development with seed:testemployees (ITACR-43) ([5690191](https://github.com/JulianH2/itacr-backend/commit/5690191a6649ae605f7b26b2e78f6a29f0f985f4))
+* **orders:** add the pickup order repository (ITACR-12) ([395fc1e](https://github.com/JulianH2/itacr-backend/commit/395fc1e714c05ff47dd38fb3aefe294694874b23))
+* **orders:** add the pickup order to the domain (ITACR-12) ([e6db843](https://github.com/JulianH2/itacr-backend/commit/e6db84353e08003e695fcd2e13fe5769d8b52556))
+* **orders:** add the pickup order use cases (ITACR-12) ([d6ac7c1](https://github.com/JulianH2/itacr-backend/commit/d6ac7c12c16fac9c99b6c3756ca17e96c4675e8b))
+* **orders:** add the public pickup order endpoints with their rate limits (ITACR-12) ([acd5273](https://github.com/JulianH2/itacr-backend/commit/acd527338be7d2516c708d859552f413e4779a86))
+* **orders:** advance and undo the kitchen status of an order (ITACR-11) ([b59026d](https://github.com/JulianH2/itacr-backend/commit/b59026d65c574ab99316488085224df50e4335bf))
+* **orders:** change and undo the kitchen status and read the order detail and timeline (ITACR-11) ([91bb2be](https://github.com/JulianH2/itacr-backend/commit/91bb2beaa2aff464f46f43c136038bdc5b2bc822))
+* **orders:** public pickup order endpoints for customers without an account (ITACR-12) ([a8fe5ee](https://github.com/JulianH2/itacr-backend/commit/a8fe5eec639e8b386604c1b574c0a8917215623c))
+
+
+### Fixed
+
+* **deps:** pin system.security.cryptography.pkcs 10.0.13 for two dos advisories (ITACR-44) ([474a0e5](https://github.com/JulianH2/itacr-backend/commit/474a0e56fef61be35f94f141a89ff56054990a89))
+* **deps:** pin the patched system.security.cryptography.pkcs (ITACR-44) ([99db36e](https://github.com/JulianH2/itacr-backend/commit/99db36e2b1e746db0f857929768a9faa6fd85881))
+
+
+### Documentation
+
+* **db:** define the customer model for pickup orders (ITACR-42) ([6ad5129](https://github.com/JulianH2/itacr-backend/commit/6ad512929b69233bf2e74329754c98553e4e856b))
+* **db:** document kitchen status changes, undo and the order timeline (ITACR-11) ([53c33e8](https://github.com/JulianH2/itacr-backend/commit/53c33e8ff612ec6acc1c7029e72fc22fd60f2edb))
+* **db:** note the checks needed before the customer constraint (ITACR-42) ([a2e97bf](https://github.com/JulianH2/itacr-backend/commit/a2e97bfeb127717efa15666a1ed496851124b943))
+* **orders:** define public endpoints, limits and pickup order rules (ITACR-42) ([2e1691c](https://github.com/JulianH2/itacr-backend/commit/2e1691c7b34fc10cd5c32340e62036daa5c44dd4))
+* **orders:** define public endpoints, limits and pickup order rules (ITACR-42) ([c028e64](https://github.com/JulianH2/itacr-backend/commit/c028e648dd0d00dc987a8f3f35f9ccf909b9103e))
+* **orders:** document the pickup order endpoints and constraints (ITACR-12) ([3abd4d1](https://github.com/JulianH2/itacr-backend/commit/3abd4d14c558243ac62815ba687459559a17d551))
+* **orders:** restrict public status to pickup orders and note phone abuse (ITACR-42) ([8b5ab79](https://github.com/JulianH2/itacr-backend/commit/8b5ab791c96e21aeaac14a316af56a8534604214))
+* **orders:** say that a repeated pickup id returns the order saved (ITACR-12) ([c737281](https://github.com/JulianH2/itacr-backend/commit/c73728168593069c28bfafe0de08888b5591e6e4))
+* **repo:** document the azure configuration (ITACR-34) ([33f7ae3](https://github.com/JulianH2/itacr-backend/commit/33f7ae32524be2976d554ca610ddac3bc857c9ba))
+* **repo:** document the azure configuration (ITACR-34) ([2ff8e28](https://github.com/JulianH2/itacr-backend/commit/2ff8e28d97204773a240ddd13162f124db6f0286))
+* **repo:** document the qa environment and its deploy (ITACR-43) ([521a330](https://github.com/JulianH2/itacr-backend/commit/521a33013c13ffe7f649ed16712aa9c72ae5af95))
+* **repo:** link the azure configuration from the readme and the guides (ITACR-34) ([ee1c233](https://github.com/JulianH2/itacr-backend/commit/ee1c2339eeb2cc740f29c2d0ed5746ea794752b8))
+
 ## [0.2.0](https://github.com/JulianH2/itacr-backend/compare/v0.1.0...v0.2.0) (2026-10-09)
 
 
