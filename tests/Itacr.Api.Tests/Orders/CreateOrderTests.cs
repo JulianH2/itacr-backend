@@ -252,7 +252,7 @@ public sealed class CreateOrderTests(DatabaseFixture database) : DatabaseTest(da
         using var kitchenClient = factory.CreateClient();
         AuthApiFactory.Authorize(kitchenClient, (await factory.LoginAsync(kitchenClient, kitchen.Id, "2222")).AccessToken);
         var queue = await kitchenClient.GetFromJsonAsync<JsonElement>("/api/v1/kitchen/queue");
-        int[] expected = [await OrderNumberAsync(first), await OrderNumberAsync(second), await OrderNumberAsync(online)];
+        int[] expected = [firstOrder.GetProperty("orderNumber").GetInt32(), await OrderNumberAsync(second), await OrderNumberAsync(online)];
         Assert.Equal(expected, queue.GetProperty("orders").EnumerateArray().Select(order => order.GetProperty("orderNumber").GetInt32()));
     }
 
