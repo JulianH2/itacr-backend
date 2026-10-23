@@ -218,6 +218,10 @@ Seed data is split in two because the two kinds of data have different needs.
 
 User-facing names (categories, products, options) are stored in Spanish because the UI shows them as they are. Prices are in MXN.
 
+### Product photos
+
+`Products.ImageUrl` is `/assets/images/products/<name>.webp`, where `<name>` is the product name without accents in kebab case (`combo-clasico`, `refresco-de-lima-limon`). The files live in `public/assets/images/products/` of itacr-frontend (ITACR-48), so the API only stores the path. `V001` seeded the paths ending in `.png`, and `V004__use_webp_product_images.sql` changes the extension of those 18 products to `.webp`. It only touches paths that still end in `.png` in that folder, so it changes nothing when it runs again. A migrator test checks that each product points to the photo named after it.
+
 ### Development test logins
 
 Every test employee also has the password `Itacr2026!` for the email and password login.
