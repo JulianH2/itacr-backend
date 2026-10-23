@@ -104,11 +104,13 @@ hotfix/ITACR-N-description (from main) --PR--> main, then the same branch --PR--
 
 ### 2.2 Protection rules
 
-`main`, `release`, and `develop` are protected (the Scrum Master can also protect `sprint-*`):
+`main`, `release`, `develop`, and every `sprint-*` branch are protected by the ruleset **`protected-branches`** (Settings > Rules > Rulesets, ITACR-46):
 
-- Pull Request required, with **1 approval** from the other team member.
-- Required status checks: **`ci`** and **`branch-name`**.
-- No direct pushes and no force pushes, for everyone (including admins).
+- Pull Request required for every change. GitHub does **not** require an approval: with a two-person team, the Scrum Master merges their own PRs, the release-please PRs, and the back-merges. Reviews are still expected ([section 6](#6-pull-requests-and-code-review)).
+- Required status checks: **`ci`** and **`branch-name`**. A PR cannot be merged until both pass.
+- Merge commits only; squash and rebase are disabled.
+- No direct pushes, no force pushes, and no deletion, for everyone (admins included, no bypass). `sprint-XX` branches stay as evidence of each sprint, so they cannot be deleted.
+- Creating a branch is allowed, so the Scrum Master opens `sprint-XX` from `develop` as usual (the checks do not apply to the creation).
 
 ### 2.3 Personal branch names
 
@@ -303,7 +305,7 @@ Any other combination is rejected by the `branch-name` CI check, which prints th
 ### 6.3 Merging
 
 - Merge method: **Create a merge commit**, for every PR. Squash or rebase merges on long-lived branches rewrite commits, which makes `develop`, `release`, and `main` diverge and causes false conflicts at the next sprint close.
-- Only merge after 1 approval and green `ci` and `branch-name` checks.
+- Only merge after green `ci` and `branch-name` checks (GitHub blocks the merge otherwise) and, for anything that is not routine, a review from the other team member.
 - Delete personal and hotfix branches after merge. Never delete `develop`, `release`, or `main`.
 
 ## 7. Starting a sprint (Monday)
