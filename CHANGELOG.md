@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.4.0](https://github.com/JulianH2/itacr-backend/compare/v0.3.0...v0.4.0) (2026-10-24)
+
+
+### Added
+
+* **db:** add active orders of a waiter and expose the waiter on the order detail (ITACR-14) ([800a8c1](https://github.com/JulianH2/itacr-backend/commit/800a8c14caab8f6f9037e20cc17402388c660609))
+* **db:** add migration status and development rollback to the migrator (ITACR-52) ([83ed7f6](https://github.com/JulianH2/itacr-backend/commit/83ed7f6b1c93cff6734136f8af7f60ebab3df93b))
+* **db:** add migration status and development rollback to the migrator (ITACR-52) ([e70f1e0](https://github.com/JulianH2/itacr-backend/commit/e70f1e005972ed4264fafd73240419696fbc16f2))
+* **db:** point the seeded products to their webp photos (ITACR-48) ([71a06fd](https://github.com/JulianH2/itacr-backend/commit/71a06fd6e3a775cf2ea2f106ed88fea4fa45e6d7))
+* **db:** point the seeded products to their webp photos (ITACR-48) ([c8cf870](https://github.com/JulianH2/itacr-backend/commit/c8cf8700bd161d0189fb5fac4708a5e1e4d84b59))
+* **orders:** active orders of a waiter and the detail only for its waiter (ITACR-14) ([fa1f16d](https://github.com/JulianH2/itacr-backend/commit/fa1f16d8de5e2182f599bc5e351eab323330f39e))
+* **orders:** add the active orders endpoint and show a waiter only their orders (ITACR-14) ([4330761](https://github.com/JulianH2/itacr-backend/commit/43307618e79a57b5097b4a54923649a3c404005d))
+* **orders:** add the active orders use case and limit the detail to its waiter (ITACR-14) ([bb3455b](https://github.com/JulianH2/itacr-backend/commit/bb3455bced909e65b1ef104a4055074d7a93c8fa))
+* **orders:** keep the device time of orders sent after being offline (ITACR-13) ([866688b](https://github.com/JulianH2/itacr-backend/commit/866688b0768e80b506a0a7f51c98653f6ceb217d))
+* **orders:** keep the device time of orders sent after being offline (ITACR-13) ([657bebd](https://github.com/JulianH2/itacr-backend/commit/657bebdcdb1a4ea03007750cc455424c972811a0))
+* **orders:** read the active orders of a waiter and the waiter of an order (ITACR-14) ([ac38005](https://github.com/JulianH2/itacr-backend/commit/ac38005cb98ee0691ba61737d1fee4d331d00d77))
+
+
+### Fixed
+
+* **db:** give old local test employees the test password in development (ITACR-47) ([6c4d430](https://github.com/JulianH2/itacr-backend/commit/6c4d430b5ae7ebd28ea9e8a36275313246d34bda))
+* **db:** give old local test employees the test password in development (ITACR-47) ([89f76cb](https://github.com/JulianH2/itacr-backend/commit/89f76cb62e000a8242a906ad2ee4f05f8492913b))
+* **repo:** pin third-party actions to a commit sha (ITACR-51) ([f099054](https://github.com/JulianH2/itacr-backend/commit/f099054936780717d94afce3d9011a41f77f7478))
+* **repo:** pin third-party actions to a commit sha (ITACR-51) ([11e455a](https://github.com/JulianH2/itacr-backend/commit/11e455aba568dfde1e7fee80dc00cc1330da4177))
+
+
+### Documentation
+
+* **db:** document the migrator status, rollback and reapplication (ITACR-53) ([1416cb9](https://github.com/JulianH2/itacr-backend/commit/1416cb95d4772d35f1eef6866bc2880cf2bdb494))
+* **db:** document the migrator status, rollback and reapplication (ITACR-53) ([19e00d2](https://github.com/JulianH2/itacr-backend/commit/19e00d2cebdd40d3b5bd8a49ed555cf164688b1c))
+* **db:** document the product photo paths (ITACR-48) ([7e957f3](https://github.com/JulianH2/itacr-backend/commit/7e957f37a8064d6e96a57a220084325debfec8fd))
+* **orders:** document the active orders endpoint and the waiter rule (ITACR-14) ([d238948](https://github.com/JulianH2/itacr-backend/commit/d238948933f21f5ab6413b5da92fdb0cefffa4c8))
+* **repo:** document the branch rulesets (ITACR-46) ([2f00e56](https://github.com/JulianH2/itacr-backend/commit/2f00e56b73832d339b129bf70253c8b5d5c1c146))
+* **repo:** document the branch rulesets (ITACR-46) ([6c11bb9](https://github.com/JulianH2/itacr-backend/commit/6c11bb9599d1b41c47381cb8f4a14b3bc9043a6b))
+* **repo:** document the createdAt rule for offline orders (ITACR-13) ([6279981](https://github.com/JulianH2/itacr-backend/commit/6279981c331f4dde3b7122665e823ec0089d0802))
+
 ## [0.3.0](https://github.com/JulianH2/itacr-backend/compare/v0.2.0...v0.3.0) (2026-10-19)
 
 
