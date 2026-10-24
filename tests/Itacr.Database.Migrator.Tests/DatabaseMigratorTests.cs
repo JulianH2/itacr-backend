@@ -17,10 +17,11 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
     private const string InitialSchemaScript = "V001__initial_schema.sql";
     private const string OrderStatusHistoryScript = "V002__add_order_status_history.sql";
     private const string PickupConstraintsScript = "V003__add_pickup_order_constraints.sql";
+    private const string WebpImagesScript = "V004__use_webp_product_images.sql";
     private const string LastEfCoreMigration = "20261002130000_AddFnGetProductsByCategory";
 
     private static readonly PasswordHasher<Employee> PasswordHasher = new();
-    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript, PickupConstraintsScript];
+    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript, PickupConstraintsScript, WebpImagesScript];
 
     [Fact]
     public async Task RunAsync_ShouldCreateTheSchemaAndSeedTheTestEmployees_WhenDatabaseDoesNotExist()
@@ -127,6 +128,23 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
     }
 
     [Fact]
+    public async Task RunAsync_ShouldPointEveryProductToItsWebpPhoto_WhenTheDatabaseIsMigrated()
+    {
+        // Arrange (ITACR-48): the photos are public/assets/images/products/<name>.webp in the frontend.
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+
+        // Act
+        Assert.True(await CreateMigrator(connectionString, Environments.Development).RunAsync(CancellationToken.None));
+
+        // Assert
+        await using var connection = new SqlConnection(connectionString);
+        var products = (await connection.QueryAsync<(string Name, string? ImageUrl)>("SELECT Name, ImageUrl FROM dbo.Products;")).ToList();
+        Assert.Equal(18, products.Count);
+        Assert.All(products, product => Assert.Equal($"/assets/images/products/{PhotoName(product.Name)}.webp", product.ImageUrl));
+        Assert.Equal(18, products.Select(product => product.ImageUrl).Distinct().Count());
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldSeedTheReferenceCatalog_WhenDatabaseDoesNotExist()
     {
         // Arrange
@@ -202,6 +220,14 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
 
     private static PasswordVerificationResult VerifyHash(string hash, string value) =>
         PasswordHasher.VerifyHashedPassword(null!, hash, value);
+
+    /// <summary>The name of a photo: the product name without accents, in lowercase kebab case.</summary>
+    private static string PhotoName(string productName)
+    {
+        var withoutAccents = new string([.. productName.Normalize(System.Text.NormalizationForm.FormD)
+            .Where(character => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(character) != System.Globalization.UnicodeCategory.NonSpacingMark)]);
+        return string.Join('-', System.Text.RegularExpressions.Regex.Split(withoutAccents.ToLowerInvariant(), "[^a-z0-9]+").Where(part => part.Length > 0));
+    }
 
     private static string NewDatabaseName() => $"ItacrMigratorTests_{Guid.NewGuid():N}";
 }
