@@ -5,6 +5,7 @@ Everything that reaches the database lives here, and it reaches the database onl
 ```
 database/
 ├── migrations/                 # V001__initial_schema.sql, V002__...: schema and reference data; each runs once, in order
+├── rollbacks/                  # V005__...sql: the reversal of a migration, same file name; run only by `rollback`
 ├── functions/<Module>/         # fn_*.sql   Inline table-valued functions       ┐
 ├── views/<Module>/             # vw_*.sql   Views                               │ CREATE OR ALTER, applied again
 ├── procedures/<Module>/        # usp_*.sql  Stored procedures                   │ on every run, in this order
@@ -44,6 +45,19 @@ dotnet run --project database/Itacr.Database.Migrator
 ```
 
 Run it again after every pull that brings new scripts. To start from an empty database: `docker compose down -v`, `docker compose up -d sqlserver`, and run the migrator.
+
+## See applied and pending changes, and reverse one (development)
+
+```bash
+dotnet run --project database/Itacr.Database.Migrator -- status
+dotnet run --project database/Itacr.Database.Migrator -- rollback V005__add_product_is_available.sql
+dotnet run --project database/Itacr.Database.Migrator
+```
+
+- `status` lists every versioned script in `dbo.SchemaVersions` with the date it was applied, then the scripts of `migrations/` that are still pending. It changes nothing, so it also works against QA or production with their connection string.
+- `rollback <script>` reverses **the last applied** script with its file in `rollbacks/` (same name) and removes it from `dbo.SchemaVersions`, both in one transaction. It only runs in `Development`: QA and production never go back, and a fix there is always a new script.
+- Running the migrator again applies the reversed script again (reapplication).
+- A migration that can be reversed adds its script in `rollbacks/` in the same PR. Write it so it can run on a database where the change is already gone (`IF COL_LENGTH(...) IS NOT NULL`, `IF OBJECT_ID(...) IS NOT NULL`).
 
 ## Add a schema change (table, column, index, reference data)
 

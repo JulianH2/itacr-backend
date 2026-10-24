@@ -17,10 +17,12 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
     private const string InitialSchemaScript = "V001__initial_schema.sql";
     private const string OrderStatusHistoryScript = "V002__add_order_status_history.sql";
     private const string PickupConstraintsScript = "V003__add_pickup_order_constraints.sql";
+    private const string WebpImagesScript = "V004__use_webp_product_images.sql";
+    private const string ProductAvailabilityScript = "V005__add_product_is_available.sql";
     private const string LastEfCoreMigration = "20261002130000_AddFnGetProductsByCategory";
 
     private static readonly PasswordHasher<Employee> PasswordHasher = new();
-    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript, PickupConstraintsScript];
+    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript, PickupConstraintsScript, WebpImagesScript, ProductAvailabilityScript];
 
     [Fact]
     public async Task RunAsync_ShouldCreateTheSchemaAndSeedTheTestEmployees_WhenDatabaseDoesNotExist()
@@ -105,6 +107,105 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
     }
 
     [Fact]
+    public async Task RunAsync_ShouldSetTheTestPasswordOnlyWhereItIsMissing_WhenALocalDatabaseWasSeededBeforePasswords()
+    {
+        // Arrange (ITACR-47): test employees of a database seeded before 2 October 2026 have no PasswordHash.
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var migrator = CreateMigrator(connectionString, Environments.Development);
+        Assert.True(await migrator.RunAsync(CancellationToken.None));
+        await using var connection = new SqlConnection(connectionString);
+        await connection.ExecuteAsync("UPDATE dbo.Employees SET PasswordHash = NULL WHERE Email = 'mesero@itacr.test';");
+        var ownHash = PasswordHasher.HashPassword(null!, "OtraClave2026!");
+        await connection.ExecuteAsync("UPDATE dbo.Employees SET PasswordHash = @Hash WHERE Email = 'gerente@itacr.test';", new { Hash = ownHash });
+
+        // Act
+        var succeeded = await migrator.RunAsync(CancellationToken.None);
+
+        // Assert
+        Assert.True(succeeded);
+        var waiterHash = await connection.ExecuteScalarAsync<string>("SELECT PasswordHash FROM dbo.Employees WHERE Email = 'mesero@itacr.test';");
+        Assert.Equal(PasswordVerificationResult.Success, VerifyHash(waiterHash!, "Itacr2026!"));
+        Assert.Equal(ownHash, await connection.ExecuteScalarAsync<string>("SELECT PasswordHash FROM dbo.Employees WHERE Email = 'gerente@itacr.test';"));
+        Assert.Equal(4, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Employees;"));
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldNotSetAnyPassword_WhenEnvironmentIsProduction()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        Assert.True(await CreateMigrator(connectionString, Environments.Development).RunAsync(CancellationToken.None));
+        await using var connection = new SqlConnection(connectionString);
+        await connection.ExecuteAsync("UPDATE dbo.Employees SET PasswordHash = NULL;");
+        var migrator = CreateMigrator(connectionString, Environments.Production, new SeedOptions { TestEmployees = true });
+
+        // Act
+        var succeeded = await migrator.RunAsync(CancellationToken.None);
+
+        // Assert
+        Assert.True(succeeded);
+        Assert.Equal(0, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Employees WHERE PasswordHash IS NOT NULL;"));
+    }
+
+    [Fact]
+    public async Task RollbackAsync_ShouldReverseTheLastScriptAndTheNextRunShouldApplyItAgain_WhenEnvironmentIsDevelopment()
+    {
+        // Arrange (ITACR-52)
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var migrator = CreateMigrator(connectionString, Environments.Development);
+        Assert.True(await migrator.RunAsync(CancellationToken.None));
+        await using var connection = new SqlConnection(connectionString);
+
+        // Act
+        var reversed = await migrator.RollbackAsync(ProductAvailabilityScript, CancellationToken.None);
+        var columnAfterRollback = await connection.ExecuteScalarAsync<int?>("SELECT COL_LENGTH(N'dbo.Products', N'IsAvailable');");
+        var scriptsAfterRollback = await ExecutedScriptsAsync(connection);
+        var reapplied = await migrator.RunAsync(CancellationToken.None);
+
+        // Assert
+        Assert.True(reversed);
+        Assert.Null(columnAfterRollback);
+        Assert.Equal(AllScripts[..^1], scriptsAfterRollback);
+        Assert.True(reapplied);
+        Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
+        Assert.Equal(18, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Products WHERE IsAvailable = 1;"));
+    }
+
+    [Fact]
+    public async Task RollbackAsync_ShouldRefuseAScriptThatIsNotTheLastApplied_WhenEnvironmentIsDevelopment()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var migrator = CreateMigrator(connectionString, Environments.Development);
+        Assert.True(await migrator.RunAsync(CancellationToken.None));
+
+        // Act
+        var reversed = await migrator.RollbackAsync(PickupConstraintsScript, CancellationToken.None);
+
+        // Assert
+        Assert.False(reversed);
+        await using var connection = new SqlConnection(connectionString);
+        Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
+    }
+
+    [Fact]
+    public async Task RollbackAsync_ShouldChangeNothing_WhenEnvironmentIsProduction()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        Assert.True(await CreateMigrator(connectionString, Environments.Development).RunAsync(CancellationToken.None));
+
+        // Act
+        var reversed = await CreateMigrator(connectionString, Environments.Production).RollbackAsync(ProductAvailabilityScript, CancellationToken.None);
+
+        // Assert
+        Assert.False(reversed);
+        await using var connection = new SqlConnection(connectionString);
+        Assert.NotNull(await connection.ExecuteScalarAsync<int?>("SELECT COL_LENGTH(N'dbo.Products', N'IsAvailable');"));
+        Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldCreateOnlyTheConfiguredManager_WhenEnvironmentIsProduction()
     {
         // Arrange
@@ -124,6 +225,23 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         Assert.Equal((manager.ManagerEmail, nameof(EmployeeRole.Manager)), (employee.Email, employee.Role));
         Assert.Equal(PasswordVerificationResult.Success, VerifyHash(employee.PinHash, "4821"));
         Assert.Null(employee.PasswordHash);
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldPointEveryProductToItsWebpPhoto_WhenTheDatabaseIsMigrated()
+    {
+        // Arrange (ITACR-48): the photos are public/assets/images/products/<name>.webp in the frontend.
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+
+        // Act
+        Assert.True(await CreateMigrator(connectionString, Environments.Development).RunAsync(CancellationToken.None));
+
+        // Assert
+        await using var connection = new SqlConnection(connectionString);
+        var products = (await connection.QueryAsync<(string Name, string? ImageUrl)>("SELECT Name, ImageUrl FROM dbo.Products;")).ToList();
+        Assert.Equal(18, products.Count);
+        Assert.All(products, product => Assert.Equal($"/assets/images/products/{PhotoName(product.Name)}.webp", product.ImageUrl));
+        Assert.Equal(18, products.Select(product => product.ImageUrl).Distinct().Count());
     }
 
     [Fact]
@@ -202,6 +320,14 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
 
     private static PasswordVerificationResult VerifyHash(string hash, string value) =>
         PasswordHasher.VerifyHashedPassword(null!, hash, value);
+
+    /// <summary>The name of a photo: the product name without accents, in lowercase kebab case.</summary>
+    private static string PhotoName(string productName)
+    {
+        var withoutAccents = new string([.. productName.Normalize(System.Text.NormalizationForm.FormD)
+            .Where(character => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(character) != System.Globalization.UnicodeCategory.NonSpacingMark)]);
+        return string.Join('-', System.Text.RegularExpressions.Regex.Split(withoutAccents.ToLowerInvariant(), "[^a-z0-9]+").Where(part => part.Length > 0));
+    }
 
     private static string NewDatabaseName() => $"ItacrMigratorTests_{Guid.NewGuid():N}";
 }

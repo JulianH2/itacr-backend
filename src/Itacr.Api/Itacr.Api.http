@@ -18,6 +18,11 @@ GET {{baseUrl}}/api/v1/catalog/products
 GET {{baseUrl}}/api/v1/kitchen/queue
 Authorization: Bearer {{accessToken}}
 
+### Active orders of the signed-in waiter: 200 with the orders in New, InPreparation or Ready, 403 for kitchen or manager
+# Sign in as a waiter first (POST /api/v1/auth/login/pin) and paste the accessToken in the variable of the kitchen request
+GET {{baseUrl}}/api/v1/orders/active
+Authorization: Bearer {{accessToken}}
+
 ### Pickup order of a customer without login: 201 with the order number, 400 with the field errors, 409 at the third active order of a phone, 429 over the limit
 # Use a new clientOrderId for every order; sending the same one again answers 200 with the order already saved
 POST {{baseUrl}}/api/v1/public/orders
