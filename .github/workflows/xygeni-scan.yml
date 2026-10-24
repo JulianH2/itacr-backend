@@ -1,0 +1,37 @@
+name: Xygeni Scan
+
+# Code quality and security analysis with Xygeni (ITACR-50): on every PR into the long-lived branches, every night,
+# and by hand. Results are in the Xygeni dashboard (in.xygeni.io), project JulianH2/<repository>.
+on:
+  pull_request:
+    branches: ['sprint-*', develop, release, main]
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  xygeni-scan:
+    name: Xygeni Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Set up JDK 17
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Run Xygeni scanner
+        uses: xygeni/xygeni-action@4c800b1936f3edef2021f82a2e1dfb740e48d832
+        with:
+          xygeni_url: https://api.xygeni.io
+          token: ${{ secrets.XYGENI_TOKEN }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
