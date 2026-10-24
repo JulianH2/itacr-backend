@@ -203,6 +203,26 @@ The code is analyzed with [Xygeni](https://in.xygeni.io) (free plan) for code qu
 - **Exclusions:** none beyond build output and dependencies (`bin/`, `obj/`, `node_modules/`); findings are fixed, never hidden.
 - GitHub **CodeQL** (Security > Code scanning, default setup with the `security-and-quality` suite) also analyzes every PR.
 
+## Database versioning (DbUp)
+
+The schema is versioned with [DbUp](https://dbup.readthedocs.io/): every change is a numbered T-SQL script in `database/migrations/` (`V001__...sql`, `V002__...sql`), applied once and in order by `Itacr.Database.Migrator`. The applied scripts and their dates are in the table `dbo.SchemaVersions`. DbUp has no native rollback, so the migrator adds one: each reversible migration has a script with the same file name in `database/rollbacks/` (ITACR-52).
+
+Reproduce it locally (Docker running, connection string already set with `dotnet user-secrets`, see [Getting started](#getting-started)):
+
+```bash
+docker compose up -d sqlserver
+dotnet run --project database/Itacr.Database.Migrator                  # apply what is pending
+dotnet run --project database/Itacr.Database.Migrator -- status        # applied (with date) and pending, changes nothing
+dotnet run --project database/Itacr.Database.Migrator -- rollback V005__add_product_is_available.sql
+dotnet run --project database/Itacr.Database.Migrator -- status        # V005 is Pending again
+dotnet run --project database/Itacr.Database.Migrator                  # reapplies V005
+```
+
+- `rollback <script>` reverses only **the last applied** script and removes it from `dbo.SchemaVersions`, both in one transaction. It runs only in `Development`: QA and production refuse it, and a mistake there is fixed with a new script.
+- To rebuild the whole database from zero: `docker compose down -v`, `docker compose up -d sqlserver`, and run the migrator.
+- Automatic runs: the deploy workflow runs the migrator against QA and production, and the migrator tests (Testcontainers) cover apply, rollback, reapplication, and the refusal outside Development.
+- Connection strings are never committed: locally they live in `dotnet user-secrets`; in QA and production they are the GitHub secrets `SQL_MIGRATOR_QA_CONNECTION_STRING` and `SQL_MIGRATOR_CONNECTION_STRING`. More in [database/README.md](database/README.md).
+
 ## Commit convention
 
 ```
