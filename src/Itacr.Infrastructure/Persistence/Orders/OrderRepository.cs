@@ -114,12 +114,29 @@ internal sealed class OrderRepository(DbSession session) : IOrderRepository
             Enum.Parse<OrderChannel>(row.Channel),
             Enum.Parse<OrderStatus>(row.Status),
             row.TableNumber,
+            row.WaiterId,
             row.Total,
             row.CreatedAt,
             row.LastStatusChangeAt,
             row.ReadyAt,
             items,
             [.. history.Select(entry => new OrderStatusChange(ParseStatus(entry.FromStatus), Enum.Parse<OrderStatus>(entry.ToStatus), entry.ChangedById, entry.ChangedAt))]);
+    }
+
+    public async Task<IReadOnlyList<WaiterActiveOrder>> GetActiveByWaiterAsync(Guid waiterId, int take, CancellationToken cancellationToken)
+    {
+        var connection = await session.GetOpenConnectionAsync(cancellationToken);
+        var rows = await connection.QueryAsync<ActiveOrderRow>(
+            session.Procedure("dbo.usp_Order_GetActiveByWaiter", new { WaiterId = waiterId, Take = take }, cancellationToken));
+        return [.. rows.Select(row => new WaiterActiveOrder(
+            row.Id,
+            row.OrderNumber,
+            Enum.Parse<OrderChannel>(row.Channel),
+            Enum.Parse<OrderStatus>(row.Status),
+            row.TableNumber,
+            // datetime2 comes back without a kind; every timestamp is stored in UTC.
+            DateTime.SpecifyKind(row.CreatedAt, DateTimeKind.Utc),
+            DateTime.SpecifyKind(row.LastStatusChangeAt, DateTimeKind.Utc)))];
     }
 
     public async Task<IReadOnlyList<RecentOrder>> GetRecentByWaiterAsync(Guid waiterId, DateTime since, int take, CancellationToken cancellationToken)
@@ -146,6 +163,7 @@ internal sealed class OrderRepository(DbSession session) : IOrderRepository
         string Channel,
         string Status,
         int? TableNumber,
+        Guid? WaiterId,
         decimal Total,
         DateTime CreatedAt,
         DateTime LastStatusChangeAt,
@@ -156,6 +174,8 @@ internal sealed class OrderRepository(DbSession session) : IOrderRepository
     private sealed record HistoryEntryJson(string? FromStatus, string ToStatus, Guid? ChangedById, DateTime ChangedAt);
 
     private sealed record RecentOrderRow(Guid Id, int OrderNumber, string Channel, string Status, int? TableNumber, DateTime CreatedAt);
+
+    private sealed record ActiveOrderRow(Guid Id, int OrderNumber, string Channel, string Status, int? TableNumber, DateTime CreatedAt, DateTime LastStatusChangeAt);
 
     private sealed record PlacedOrderRow(
         Guid Id,
