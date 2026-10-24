@@ -25,12 +25,14 @@ public sealed record OrderStatusState(Guid Id, OrderStatus Status, OrderStatusCh
 
 public sealed record OrderDetailItem(string Name, int Quantity, decimal UnitPrice, decimal Subtotal);
 
+/// <summary><see cref="WaiterId"/> is only to decide who may read the order; it is never part of a response.</summary>
 public sealed record OrderDetail(
     Guid Id,
     int OrderNumber,
     OrderChannel Channel,
     OrderStatus Status,
     int? TableNumber,
+    Guid? WaiterId,
     decimal Total,
     DateTime CreatedAt,
     DateTime LastStatusChangeAt,
@@ -39,6 +41,9 @@ public sealed record OrderDetail(
     IReadOnlyList<OrderStatusChange> History);
 
 public sealed record RecentOrder(Guid Id, int OrderNumber, OrderChannel Channel, OrderStatus Status, int? TableNumber, DateTime CreatedAt);
+
+/// <summary>An order of a waiter that is not delivered yet.</summary>
+public sealed record WaiterActiveOrder(Guid Id, int OrderNumber, OrderChannel Channel, OrderStatus Status, int? TableNumber, DateTime CreatedAt, DateTime LastStatusChangeAt);
 
 public interface IOrderRepository
 {
@@ -63,4 +68,7 @@ public interface IOrderRepository
 
     /// <summary>The latest orders of a waiter created since <paramref name="since"/>, newest first.</summary>
     Task<IReadOnlyList<RecentOrder>> GetRecentByWaiterAsync(Guid waiterId, DateTime since, int take, CancellationToken cancellationToken);
+
+    /// <summary>The orders of a waiter in New, InPreparation, or Ready, newest first.</summary>
+    Task<IReadOnlyList<WaiterActiveOrder>> GetActiveByWaiterAsync(Guid waiterId, int take, CancellationToken cancellationToken);
 }

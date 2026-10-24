@@ -163,13 +163,24 @@ HU_05 (ITACR-11) lets the kitchen move an order with a tap and undo an accidenta
 | --- | --- | --- |
 | `POST /api/v1/orders/{id}/status` with `{ "status": "InPreparation" }` or `"Ready"` | Kitchen, Manager | `usp_Order_GetStatus`, then `usp_Order_ChangeStatus` |
 | `POST /api/v1/orders/{id}/status/undo` | Kitchen, Manager | Same |
-| `GET /api/v1/orders/{id}` (detail and timeline) | Waiter, Kitchen, Manager | `usp_Order_GetById` |
+| `GET /api/v1/orders/{id}` (detail and timeline) | Waiter (only their own orders), Kitchen, Manager | `usp_Order_GetById` |
 | `GET /api/v1/orders/recent` (last 10 of the waiter, 12 hours) | Waiter | `usp_Order_GetRecentByWaiter` |
+| `GET /api/v1/orders/active` (the waiter's orders that are not delivered) | Waiter | `usp_Order_GetActiveByWaiter` |
 
 - **One step, no races.** The API reads the current status, checks `OrderStatusRules.CanChange`, and `usp_Order_ChangeStatus` updates the order only `WHERE Status = @FromStatus`. When two boards tap the same order, the second one changes nothing and gets `409` ("El pedido ya cambió de estado"). Delivered is not a kitchen step (`400`); it belongs to HU_10.
 - **Times.** Each change sets `LastStatusChangeAt` and adds a history row; becoming `Ready` sets `ReadyAt`.
 - **Undo.** Allowed only for the last change, when it was a kitchen step (`New` → `InPreparation` or `InPreparation` → `Ready`), made by the same employee, at most `OrderStatusRules.UndoWindow` (15 seconds) ago; the board offers it for less, to allow for the network. The undo is one more history row going back (nothing is deleted), and undoing `Ready` clears `ReadyAt`. An undo cannot be undone.
 - **Timeline.** The detail lists every history row oldest first; `undone` is true for the rows that went back.
+
+## Orders of a waiter (HU_08)
+
+The waiter's dashboard (`GET /api/v1/orders/active`, ITACR-14) lists the orders **that waiter took** and that are still `New`, `InPreparation`, or `Ready`, newest first, with their table, status, and `LastStatusChangeAt`. `usp_Order_GetActiveByWaiter` filters by `WaiterId` and by status, so:
+
+- A waiter never sees the orders of another waiter, and a customer's pickup order (no waiter) is nobody's.
+- A `Delivered` order leaves the list as soon as it is delivered.
+- There is no time limit: an order that is still active stays on the list after the shift, unlike `GET /orders/recent`, which only looks at the last 12 hours.
+
+The same rule protects the detail: `GET /api/v1/orders/{id}` returns the order of a waiter only to that waiter. For any other waiter, and for a pickup order, it answers `404` exactly like an id that does not exist, so it does not reveal that the order exists. Kitchen staff and managers read any order. `usp_Order_GetById` returns the `WaiterId` only for the API to decide this; it is never part of a response.
 
 ## Customers (pickup orders)
 
@@ -218,9 +229,13 @@ Seed data is split in two because the two kinds of data have different needs.
 
 User-facing names (categories, products, options) are stored in Spanish because the UI shows them as they are. Prices are in MXN.
 
+### Product photos
+
+`Products.ImageUrl` is `/assets/images/products/<name>.webp`, where `<name>` is the product name without accents in kebab case (`combo-clasico`, `refresco-de-lima-limon`). The files live in `public/assets/images/products/` of itacr-frontend (ITACR-48), so the API only stores the path. `V001` seeded the paths ending in `.png`, and `V004__use_webp_product_images.sql` changes the extension of those 18 products to `.webp`. It only touches paths that still end in `.png` in that folder, so it changes nothing when it runs again. A migrator test checks that each product points to the photo named after it.
+
 ### Development test logins
 
-Every test employee also has the password `Itacr2026!` for the email and password login.
+Every test employee also has the password `Itacr2026!` for the email and password login. A local database seeded before 2 October 2026 has those employees without a password; in `Development` the migrator gives them `Itacr2026!` (only where `PasswordHash` is null, never over an existing hash), so running it once fixes the password login. It never does this outside `Development`, not even with `Seed__TestEmployees` (ITACR-47).
 
 | Employee          | Email                  | PIN    | Role    | Status          |
 | ----------------- | ---------------------- | ------ | ------- | --------------- |

@@ -13,6 +13,8 @@ public static class OrdersErrors
     public const string ClientOrderIdRequired = "Falta el identificador del pedido.";
     public const string TableNotFound = "La mesa seleccionada no existe.";
     public const string ProductsNotFound = "Uno o más productos ya no están en el menú.";
+    public const string CreatedAtInTheFutureMessage = "La hora del pedido está adelantada. Revisa la hora del dispositivo.";
+    public const string CreatedAtTooOldMessage = "El pedido lleva más de 12 horas sin enviarse y ya no se puede mandar a cocina.";
 
     public const string KitchenStatusOnly = "Cocina solo puede pasar un pedido a 'En preparación' o 'Listo'.";
 
@@ -48,6 +50,10 @@ public static class OrdersErrors
     public static readonly Error UnknownTable = Error.Validation(new Dictionary<string, string[]> { ["tableId"] = [TableNotFound] });
 
     public static readonly Error UnknownProducts = Error.Validation(new Dictionary<string, string[]> { ["items"] = [ProductsNotFound] });
+
+    public static readonly Error CreatedAtInTheFuture = Error.Validation(new Dictionary<string, string[]> { ["createdAt"] = [CreatedAtInTheFutureMessage] });
+
+    public static readonly Error CreatedAtTooOld = Error.Validation(new Dictionary<string, string[]> { ["createdAt"] = [CreatedAtTooOldMessage] });
 
     public static readonly Error PlacedByAnotherWaiter = new(
         ErrorKind.Conflict,
