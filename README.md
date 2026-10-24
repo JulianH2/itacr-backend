@@ -77,7 +77,7 @@ The API listens on `http://localhost:3000`:
 
 ## Local development
 
-`dotnet run --project database/Itacr.Database.Migrator` creates the database, applies every script in `database/` (schema and catalog: categories, products, combo options, and tables 1 to 10), and, because `dotnet run` uses the `Development` environment, creates four test employees, all with the password `Itacr2026!`. Run it again after every pull that brings new scripts; it only applies what is missing.
+`dotnet run --project database/Itacr.Database.Migrator` creates the database, applies every script in `database/` (schema and catalog: categories, products, combo options, and tables 1 to 10), and, because `dotnet run` uses the `Development` environment, creates four test employees, all with the password `Itacr2026!` (a local database from before 2 October 2026 gets the password on the next run, ITACR-47). Run it again after every pull that brings new scripts; it only applies what is missing.
 
 | Role    | Email                  | PIN    | Status           |
 | ------- | ---------------------- | ------ | ---------------- |
