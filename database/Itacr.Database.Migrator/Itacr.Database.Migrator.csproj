@@ -16,6 +16,7 @@
     <None Include="..\views\**\*.sql" Link="Scripts\views\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\procedures\**\*.sql" Link="Scripts\procedures\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\triggers\**\*.sql" Link="Scripts\triggers\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\rollbacks\**\*.sql" Link="Scripts\rollbacks\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
