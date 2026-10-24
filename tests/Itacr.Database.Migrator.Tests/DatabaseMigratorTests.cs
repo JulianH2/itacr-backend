@@ -17,10 +17,11 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
     private const string InitialSchemaScript = "V001__initial_schema.sql";
     private const string OrderStatusHistoryScript = "V002__add_order_status_history.sql";
     private const string PickupConstraintsScript = "V003__add_pickup_order_constraints.sql";
+    private const string ProductAvailabilityScript = "V005__add_product_is_available.sql";
     private const string LastEfCoreMigration = "20261002130000_AddFnGetProductsByCategory";
 
     private static readonly PasswordHasher<Employee> PasswordHasher = new();
-    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript, PickupConstraintsScript];
+    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript, PickupConstraintsScript, ProductAvailabilityScript];
 
     [Fact]
     public async Task RunAsync_ShouldCreateTheSchemaAndSeedTheTestEmployees_WhenDatabaseDoesNotExist()
@@ -102,6 +103,64 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         Assert.False(succeeded);
         await using var connection = new SqlConnection(connectionString);
         Assert.Null(await connection.ExecuteScalarAsync<int?>("SELECT OBJECT_ID(N'dbo.SchemaVersions', N'U');"));
+    }
+
+    [Fact]
+    public async Task RollbackAsync_ShouldReverseTheLastScriptAndTheNextRunShouldApplyItAgain_WhenEnvironmentIsDevelopment()
+    {
+        // Arrange (ITACR-50)
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var migrator = CreateMigrator(connectionString, Environments.Development);
+        Assert.True(await migrator.RunAsync(CancellationToken.None));
+        await using var connection = new SqlConnection(connectionString);
+
+        // Act
+        var reversed = await migrator.RollbackAsync(ProductAvailabilityScript, CancellationToken.None);
+        var columnAfterRollback = await connection.ExecuteScalarAsync<int?>("SELECT COL_LENGTH(N'dbo.Products', N'IsAvailable');");
+        var scriptsAfterRollback = await ExecutedScriptsAsync(connection);
+        var reapplied = await migrator.RunAsync(CancellationToken.None);
+
+        // Assert
+        Assert.True(reversed);
+        Assert.Null(columnAfterRollback);
+        Assert.Equal(AllScripts[..^1], scriptsAfterRollback);
+        Assert.True(reapplied);
+        Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
+        Assert.Equal(18, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Products WHERE IsAvailable = 1;"));
+    }
+
+    [Fact]
+    public async Task RollbackAsync_ShouldRefuseAScriptThatIsNotTheLastApplied_WhenEnvironmentIsDevelopment()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var migrator = CreateMigrator(connectionString, Environments.Development);
+        Assert.True(await migrator.RunAsync(CancellationToken.None));
+
+        // Act
+        var reversed = await migrator.RollbackAsync(PickupConstraintsScript, CancellationToken.None);
+
+        // Assert
+        Assert.False(reversed);
+        await using var connection = new SqlConnection(connectionString);
+        Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
+    }
+
+    [Fact]
+    public async Task RollbackAsync_ShouldChangeNothing_WhenEnvironmentIsProduction()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        Assert.True(await CreateMigrator(connectionString, Environments.Development).RunAsync(CancellationToken.None));
+
+        // Act
+        var reversed = await CreateMigrator(connectionString, Environments.Production).RollbackAsync(ProductAvailabilityScript, CancellationToken.None);
+
+        // Assert
+        Assert.False(reversed);
+        await using var connection = new SqlConnection(connectionString);
+        Assert.NotNull(await connection.ExecuteScalarAsync<int?>("SELECT COL_LENGTH(N'dbo.Products', N'IsAvailable');"));
+        Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
     }
 
     [Fact]

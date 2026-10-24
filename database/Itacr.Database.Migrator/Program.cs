@@ -22,5 +22,11 @@ Console.CancelKeyPress += (_, eventArgs) =>
     cancellation.Cancel();
 };
 
-var succeeded = await host.Services.GetRequiredService<DatabaseMigrator>().RunAsync(cancellation.Token);
+var migrator = host.Services.GetRequiredService<DatabaseMigrator>();
+var succeeded = args switch
+{
+    ["status", ..] => await migrator.ShowStatusAsync(cancellation.Token),
+    ["rollback", var script, ..] => await migrator.RollbackAsync(script, cancellation.Token),
+    _ => await migrator.RunAsync(cancellation.Token),
+};
 return succeeded ? 0 : 1;

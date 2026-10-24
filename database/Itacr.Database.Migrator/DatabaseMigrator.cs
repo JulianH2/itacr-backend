@@ -69,6 +69,119 @@ public sealed class DatabaseMigrator(
         }
     }
 
+    /// <summary>Logs the versioned scripts already applied (with their date) and the ones still pending. Changes nothing.</summary>
+    public Task<bool> ShowStatusAsync(CancellationToken cancellationToken) => GuardAsync(async () =>
+    {
+        if (ConnectionString() is not { } connectionString)
+        {
+            return false;
+        }
+
+        var upgrader = BuildUpgrader(connectionString);
+        await using var connection = new SqlConnection(connectionString);
+        var applied = await connection.QueryAsync<(string ScriptName, DateTime Applied)>(new CommandDefinition(
+            "IF OBJECT_ID(N'dbo.SchemaVersions', N'U') IS NOT NULL SELECT ScriptName, Applied FROM dbo.SchemaVersions ORDER BY Id;",
+            cancellationToken: cancellationToken));
+        foreach (var script in applied)
+        {
+            logger.LogInformation("Applied  {Script} on {Applied:yyyy-MM-dd HH:mm:ss}", script.ScriptName, script.Applied);
+        }
+
+        var pending = upgrader.GetScriptsToExecute().Where(script => script.SqlScriptOptions.ScriptType == ScriptType.RunOnce).ToList();
+        foreach (var script in pending)
+        {
+            logger.LogInformation("Pending  {Script}", script.Name);
+        }
+
+        logger.LogInformation("{Applied} versioned scripts applied, {Pending} pending", applied.Count(), pending.Count);
+        return true;
+    }, cancellationToken);
+
+    /// <summary>
+    /// Reverses the last applied versioned script with its script in <c>rollbacks/</c> (same file name) and removes it from
+    /// dbo.SchemaVersions, in one transaction, so the next run applies it again. Development only: QA and production never
+    /// go back.
+    /// </summary>
+    public Task<bool> RollbackAsync(string scriptName, CancellationToken cancellationToken) => GuardAsync(async () =>
+    {
+        if (!environment.IsDevelopment())
+        {
+            logger.LogError("Rollback only runs in Development; the {Environment} database was not changed", environment.EnvironmentName);
+            return false;
+        }
+
+        if (ConnectionString() is not { } connectionString)
+        {
+            return false;
+        }
+
+        var rollbackPath = Path.Combine(ScriptsRoot, "rollbacks", Path.GetFileName(scriptName));
+        if (!File.Exists(rollbackPath))
+        {
+            logger.LogError("There is no rollback script for {Script} in database/rollbacks", scriptName);
+            return false;
+        }
+
+        var lastApplied = BuildUpgrader(connectionString).GetExecutedScripts().LastOrDefault();
+        if (!string.Equals(lastApplied, scriptName, StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogError("Only the last applied script can be reversed: {LastApplied}, not {Script}", lastApplied, scriptName);
+            return false;
+        }
+
+        var script = await File.ReadAllTextAsync(rollbackPath, cancellationToken);
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        foreach (var batch in script.Replace("\r\n", "\n").Split("\nGO\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            await connection.ExecuteAsync(new CommandDefinition(batch, transaction: transaction, cancellationToken: cancellationToken));
+        }
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            "DELETE FROM dbo.SchemaVersions WHERE ScriptName = @ScriptName;",
+            new { ScriptName = lastApplied },
+            transaction,
+            cancellationToken: cancellationToken));
+        await transaction.CommitAsync(cancellationToken);
+        logger.LogInformation("{Script} reversed and removed from dbo.SchemaVersions; the next run applies it again", lastApplied);
+        return true;
+    }, cancellationToken);
+
+    private async Task<bool> GuardAsync(Func<Task<bool>> action, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await action();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError("The command was cancelled");
+            return false;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError("The command stopped: {ExceptionType}: {Message}", exception.GetType().Name, exception.Message);
+            logger.LogDebug(exception, "Failure details");
+            return false;
+        }
+    }
+
+    private string? ConnectionString()
+    {
+        var connectionString = configuration.GetConnectionString(ConnectionStringName);
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            logger.LogError(
+                "The connection string 'ConnectionStrings:{Name}' is missing. Set it with dotnet user-secrets or the ConnectionStrings__{Name} environment variable",
+                ConnectionStringName,
+                ConnectionStringName);
+            return null;
+        }
+
+        return connectionString;
+    }
+
     private async Task<bool> MigrateAsync(CancellationToken cancellationToken)
     {
         var connectionString = configuration.GetConnectionString(ConnectionStringName);
