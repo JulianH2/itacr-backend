@@ -9,7 +9,8 @@ namespace Itacr.Application.Orders.CreateOrder;
 
 /// <summary>
 /// A waiter sends an order to the kitchen: it is saved as New with menu prices, for a table or to take away. Sending
-/// the same order again (same ClientOrderId) returns the order already saved instead of a duplicate.
+/// the same order again (same ClientOrderId) returns the order already saved instead of a duplicate. An order that
+/// waited offline keeps the time it was sent on the device, so the kitchen sees it in its original place.
 /// </summary>
 public sealed class CreateOrderHandler(
     IOrderRepository orderRepository,
@@ -18,6 +19,9 @@ public sealed class CreateOrderHandler(
     TimeProvider timeProvider,
     IValidator<CreateOrderCommand> validator)
 {
+    private static readonly TimeSpan MaxClockAhead = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan MaxOfflineAge = TimeSpan.FromHours(12);
+
     public async Task<Result<CreateOrderOutcome>> HandleAsync(CreateOrderCommand command, Guid waiterId, CancellationToken cancellationToken)
     {
         if (await validator.ValidateToErrorAsync(command, cancellationToken) is { } error)
@@ -28,6 +32,18 @@ public sealed class CreateOrderHandler(
         if (await orderRepository.GetByClientOrderIdAsync(command.ClientOrderId, cancellationToken) is { } existing)
         {
             return Replay(existing, waiterId);
+        }
+
+        var now = timeProvider.GetUtcNow();
+        var createdAt = command.CreatedAt ?? now;
+        if (createdAt > now + MaxClockAhead)
+        {
+            return OrdersErrors.CreatedAtInTheFuture;
+        }
+
+        if (createdAt < now - MaxOfflineAge)
+        {
+            return OrdersErrors.CreatedAtTooOld;
         }
 
         int? tableNumber = null;
@@ -49,12 +65,11 @@ public sealed class CreateOrderHandler(
             return OrdersErrors.UnknownProducts;
         }
 
-        var now = timeProvider.GetUtcNow().UtcDateTime;
         var channel = command.TakeAway ? OrderChannel.TakeAway : OrderChannel.DineIn;
-        var order = Order.Create(command.ClientOrderId, channel, command.TableId, waiterId, customerId: null, now);
+        var order = Order.Create(command.ClientOrderId, channel, command.TableId, waiterId, customerId: null, createdAt.UtcDateTime);
         foreach (var item in command.Items)
         {
-            order.AddItem(item.ProductId, item.Quantity, products[item.ProductId].Price, size: null, drink: null, extras: [], exclusions: [], now);
+            order.AddItem(item.ProductId, item.Quantity, products[item.ProductId].Price, size: null, drink: null, extras: [], exclusions: [], createdAt.UtcDateTime);
         }
 
         if (!await orderRepository.CreateAsync(order, cancellationToken))

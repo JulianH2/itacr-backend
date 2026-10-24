@@ -49,6 +49,35 @@ public sealed class EmployeeSeedPlanTests
     }
 
     [Fact]
+    public void BuildMissingPasswords_ShouldReturnTheTestEmployeesWithoutPassword_WhenEnvironmentIsDevelopment()
+    {
+        // Arrange (ITACR-47): a local database seeded before 2 October 2026.
+        var plan = CreatePlan();
+        var withoutPassword = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "MESERO@itacr.test", "cocina@itacr.test", "gerente@itacr.example" };
+
+        // Act
+        var employees = plan.BuildMissingPasswords(isDevelopment: true, withoutPassword);
+
+        // Assert
+        Assert.Equivalent(new[] { "mesero@itacr.test", "cocina@itacr.test" }, employees.Select(employee => employee.Email));
+        Assert.All(employees, employee => Assert.Equal("Itacr2026!", employee.Password));
+    }
+
+    [Fact]
+    public void BuildMissingPasswords_ShouldReturnNothing_WhenEnvironmentIsNotDevelopmentEvenWithTestEmployees()
+    {
+        // Arrange
+        var plan = CreatePlan(new SeedOptions { TestEmployees = true });
+        var withoutPassword = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "mesero@itacr.test" };
+
+        // Act
+        var employees = plan.BuildMissingPasswords(isDevelopment: false, withoutPassword);
+
+        // Assert
+        Assert.Empty(employees);
+    }
+
+    [Fact]
     public void Build_ShouldReturnTheTestEmployees_WhenTestEmployeesIsEnabledOutsideDevelopment()
     {
         // Arrange

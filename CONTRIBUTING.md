@@ -104,11 +104,13 @@ hotfix/ITACR-N-description (from main) --PR--> main, then the same branch --PR--
 
 ### 2.2 Protection rules
 
-`main`, `release`, and `develop` are protected (the Scrum Master can also protect `sprint-*`):
+`main`, `release`, `develop`, and every `sprint-*` branch are protected by the ruleset **`protected-branches`** (Settings > Rules > Rulesets, ITACR-46):
 
-- Pull Request required, with **1 approval** from the other team member.
-- Required status checks: **`ci`** and **`branch-name`**.
-- No direct pushes and no force pushes, for everyone (including admins).
+- Pull Request required for every change. GitHub does **not** require an approval: with a two-person team, the Scrum Master merges their own PRs, the release-please PRs, and the back-merges. Reviews are still expected ([section 6](#6-pull-requests-and-code-review)).
+- Required status checks: **`ci`** and **`branch-name`**. A PR cannot be merged until both pass.
+- Merge commits only; squash and rebase are disabled.
+- No direct pushes, no force pushes, and no deletion, for everyone (admins included, no bypass). `sprint-XX` branches stay as evidence of each sprint, so they cannot be deleted.
+- Creating a branch is allowed, so the Scrum Master opens `sprint-XX` from `develop` as usual (the checks do not apply to the creation).
 
 ### 2.3 Personal branch names
 
@@ -303,7 +305,7 @@ Any other combination is rejected by the `branch-name` CI check, which prints th
 ### 6.3 Merging
 
 - Merge method: **Create a merge commit**, for every PR. Squash or rebase merges on long-lived branches rewrite commits, which makes `develop`, `release`, and `main` diverge and causes false conflicts at the next sprint close.
-- Only merge after 1 approval and green `ci` and `branch-name` checks.
+- Only merge after green `ci` and `branch-name` checks (GitHub blocks the merge otherwise) and, for anything that is not routine, a review from the other team member.
 - Delete personal and hotfix branches after merge. Never delete `develop`, `release`, or `main`.
 
 ## 7. Starting a sprint (Monday)
@@ -663,7 +665,6 @@ The production settings (`ASPNETCORE_ENVIRONMENT`, `ConnectionStrings__Default`,
 | App Service | `app-itacr-backend-prod` | `app-itacr-backend-qa` |
 | Database | `itacr-sql` | `itacr-qa` (same server, Azure SQL free offer) |
 | Migrator secret | `SQL_MIGRATOR_CONNECTION_STRING` | `SQL_MIGRATOR_QA_CONNECTION_STRING` |
-| Publish profile secret | `AZURE_WEBAPP_PUBLISH_PROFILE` | `AZURE_WEBAPP_QA_PUBLISH_PROFILE` |
 | Seed | Initial manager only | The 4 test employees (`Seed__TestEmployees=true`) |
 
 It has three jobs; each starts only if the previous one succeeded:
@@ -672,19 +673,23 @@ It has three jobs; each starts only if the previous one succeeded:
 | --- | ------------ |
 | `build` | Restores, builds, and tests the solution, and publishes the API and `Itacr.Database.Migrator` as artifacts (kept 3 days) |
 | `migrate` | Signs in to Azure with OIDC, opens a firewall rule on `itacr-sql` for the runner's IP, runs the migrator as `itacr_migrator`, and removes the rule even if the migrator failed |
-| `deploy` | Deploys the API to the App Service of the branch with its publish profile secret |
+| `deploy` | Signs in to Azure with OIDC and deploys the API to the App Service of the branch |
 
 The database is migrated **before** the new API starts, so the scripts must be additive: for a moment the previous API runs against the new schema. If the migrator fails, its script is rolled back, the job fails, and the API is not deployed. Rename or drop columns in a later release.
 
 The seed runs in `Production`, so it only creates the initial manager while no manager exists, from `Seed__ManagerName`, `Seed__ManagerEmail`, and `Seed__ManagerPin`. Production already has its manager, so those variables are not set in the workflow.
 
-**One-time setup (repository owner):** App Service `app-itacr-backend-prod` > Overview > **Download publish profile**, then paste the whole file into the repository secret `AZURE_WEBAPP_PUBLISH_PROFILE` (Settings > Secrets and variables > Actions). Delete the downloaded file afterwards, and never commit it. Downloading it requires App Service > Configuration > **SCM Basic Auth Publishing Credentials** turned on. If the file is ever exposed, reset it (Overview > **Reset publish profile**) and update the secret.
+**No publish profile (ITACR-45).** The `deploy` job signs in with the same OIDC identity as `migrate` (section 15.3), which has **Website Contributor** on `app-itacr-backend-prod` and `app-itacr-backend-qa`, so no deploy credential is stored in GitHub. **SCM Basic Auth Publishing Credentials** and **FTP Basic Auth Publishing Credentials** are off on both App Services (Settings > Configuration > General settings), so a publish profile could not deploy even if one leaked. A new App Service needs the same role before its first deploy (repository owner):
+
+```bash
+az role assignment create --assignee <service principal object id> --role "Website Contributor"   --scope "$(az webapp show --resource-group rg-itacr-prod-westus --name <app> --query id --output tsv)"
+```
 
 ### 15.3 Database access from the workflow
 
 The `migrate` job needs two things, both already set up:
 
-1. **An Azure identity without stored passwords (OIDC).** App registration `github-itacr-backend-deploy` with one federated credential per branch that deploys, so only runs on `main` and `release` can sign in. GitHub sends the subject with the owner and repository ids, `repo:JulianH2@132315504/itacr-backend@1394612450:ref:refs/heads/<branch>` (credentials `itacr-backend-main-ids` and `itacr-backend-release-ids`); the older credential `itacr-backend-main`, with the subject `repo:JulianH2/itacr-backend:ref:refs/heads/main`, stays in case GitHub sends the older format again. A subject that matches no credential fails with `AADSTS700213`. Its service principal has a single role: **SQL Server Contributor** on the server `itacr-sql`, which lets it add and remove firewall rules for both databases. The workflow uses no GitHub environment; adding `environment:` to the job would change the subject and need a new federated credential.
+1. **An Azure identity without stored passwords (OIDC).** App registration `github-itacr-backend-deploy` with one federated credential per branch that deploys, so only runs on `main` and `release` can sign in. GitHub sends the subject with the owner and repository ids, `repo:JulianH2@132315504/itacr-backend@1394612450:ref:refs/heads/<branch>` (credentials `itacr-backend-main-ids` and `itacr-backend-release-ids`); the older credential `itacr-backend-main`, with the subject `repo:JulianH2/itacr-backend:ref:refs/heads/main`, stays in case GitHub sends the older format again. A subject that matches no credential fails with `AADSTS700213`. Its service principal has three roles and nothing else: **SQL Server Contributor** on the server `itacr-sql`, which lets it add and remove firewall rules for both databases, and **Website Contributor** on `app-itacr-backend-prod` and on `app-itacr-backend-qa`, for the `deploy` job. The workflow uses no GitHub environment; adding `environment:` to the job would change the subject and need a new federated credential.
 2. **Its own database user.** `itacr_migrator`, created with [database/scripts/security/database-users.sql](database/scripts/security/database-users.sql).
 
 | Repository secret | Value |
@@ -694,7 +699,6 @@ The `migrate` job needs two things, both already set up:
 | `AZURE_SUBSCRIPTION_ID` | Subscription ID of Azure for Students |
 | `SQL_MIGRATOR_CONNECTION_STRING` | `Server=tcp:itacr-sql.database.windows.net,1433;Initial Catalog=itacr-sql;User ID=itacr_migrator;Password=<password>;Encrypt=True;TrustServerCertificate=False;Connection Timeout=60` |
 | `SQL_MIGRATOR_QA_CONNECTION_STRING` | The same with `Initial Catalog=itacr-qa` and the password of the `itacr_migrator` user of `itacr-qa` |
-| `AZURE_WEBAPP_QA_PUBLISH_PROFILE` | Publish profile of `app-itacr-backend-qa` (same steps as `AZURE_WEBAPP_PUBLISH_PROFILE`) |
 
 QA has its own users: run `database-users.sql` in the `itacr-qa` database with new passwords, never the production ones. App Service `app-itacr-backend-qa` needs the same settings as production (section 15.1), with its own `Jwt__Secret`, `ConnectionStrings__Default` for the `itacr_app` user of `itacr-qa`, and `Cors__Origins__0` set to the QA frontend.
 

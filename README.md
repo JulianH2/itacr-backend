@@ -77,7 +77,7 @@ The API listens on `http://localhost:3000`:
 
 ## Local development
 
-`dotnet run --project database/Itacr.Database.Migrator` creates the database, applies every script in `database/` (schema and catalog: categories, products, combo options, and tables 1 to 10), and, because `dotnet run` uses the `Development` environment, creates four test employees, all with the password `Itacr2026!`. Run it again after every pull that brings new scripts; it only applies what is missing.
+`dotnet run --project database/Itacr.Database.Migrator` creates the database, applies every script in `database/` (schema and catalog: categories, products, combo options, and tables 1 to 10), and, because `dotnet run` uses the `Development` environment, creates four test employees, all with the password `Itacr2026!` (a local database from before 2 October 2026 gets the password on the next run, ITACR-47). Run it again after every pull that brings new scripts; it only applies what is missing.
 
 | Role    | Email                  | PIN    | Status           |
 | ------- | ---------------------- | ------ | ---------------- |
@@ -192,6 +192,36 @@ hotfix/ITACR-N-description (from main) --PR--> main, then the same branch --PR--
 - CI validates that each PR comes from an allowed branch and prints the allowed flow when it does not.
 
 Full workflow and sprint close checklist: [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Code quality analysis (Xygeni)
+
+The code is analyzed with [Xygeni](https://in.xygeni.io) (free plan) for code quality and security: quality findings, vulnerable dependencies, exposed secrets, and workflow risks (ITACR-50).
+
+- **Installation (once, repository owner):** sign in to in.xygeni.io with GitHub, install the Xygeni GitHub App on `JulianH2`, and import `JulianH2/itacr-backend` in **Manage Scans**. Create an API token in Xygeni and save it as the repository secret `XYGENI_TOKEN` (Settings > Secrets and variables > Actions); never commit it.
+- **Automatic run:** `.github/workflows/xygeni-scan.yml` runs the Xygeni scanner on every PR into `sprint-*`, `develop`, `release`, and `main`, every night, and by hand (**Actions** > **Xygeni Scan** > **Run workflow**). The Xygeni GitHub App also runs scheduled scans.
+- **Results:** in.xygeni.io > **Code Quality** and **Risks**, project `JulianH2/itacr-backend`; the history of runs is in **Scan History**.
+- **Exclusions:** none beyond build output and dependencies (`bin/`, `obj/`, `node_modules/`); findings are fixed, never hidden.
+- GitHub **CodeQL** (Security > Code scanning, default setup with the `security-and-quality` suite) also analyzes every PR.
+
+## Database versioning (DbUp)
+
+The schema is versioned with [DbUp](https://dbup.readthedocs.io/): every change is a numbered T-SQL script in `database/migrations/` (`V001__...sql`, `V002__...sql`), applied once and in order by `Itacr.Database.Migrator`. The applied scripts and their dates are in the table `dbo.SchemaVersions`. DbUp has no native rollback, so the migrator adds one: each reversible migration has a script with the same file name in `database/rollbacks/` (ITACR-52).
+
+Reproduce it locally (Docker running, connection string already set with `dotnet user-secrets`, see [Getting started](#getting-started)):
+
+```bash
+docker compose up -d sqlserver
+dotnet run --project database/Itacr.Database.Migrator                  # apply what is pending
+dotnet run --project database/Itacr.Database.Migrator -- status        # applied (with date) and pending, changes nothing
+dotnet run --project database/Itacr.Database.Migrator -- rollback V005__add_product_is_available.sql
+dotnet run --project database/Itacr.Database.Migrator -- status        # V005 is Pending again
+dotnet run --project database/Itacr.Database.Migrator                  # reapplies V005
+```
+
+- `rollback <script>` reverses only **the last applied** script and removes it from `dbo.SchemaVersions`, both in one transaction. It runs only in `Development`: QA and production refuse it, and a mistake there is fixed with a new script.
+- To rebuild the whole database from zero: `docker compose down -v`, `docker compose up -d sqlserver`, and run the migrator.
+- Automatic runs: the deploy workflow runs the migrator against QA and production, and the migrator tests (Testcontainers) cover apply, rollback, reapplication, and the refusal outside Development.
+- Connection strings are never committed: locally they live in `dotnet user-secrets`; in QA and production they are the GitHub secrets `SQL_MIGRATOR_QA_CONNECTION_STRING` and `SQL_MIGRATOR_CONNECTION_STRING`. More in [database/README.md](database/README.md).
 
 ## Commit convention
 
