@@ -105,6 +105,47 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
     }
 
     [Fact]
+    public async Task RunAsync_ShouldSetTheTestPasswordOnlyWhereItIsMissing_WhenALocalDatabaseWasSeededBeforePasswords()
+    {
+        // Arrange (ITACR-47): test employees of a database seeded before 2 October 2026 have no PasswordHash.
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var migrator = CreateMigrator(connectionString, Environments.Development);
+        Assert.True(await migrator.RunAsync(CancellationToken.None));
+        await using var connection = new SqlConnection(connectionString);
+        await connection.ExecuteAsync("UPDATE dbo.Employees SET PasswordHash = NULL WHERE Email = 'mesero@itacr.test';");
+        var ownHash = PasswordHasher.HashPassword(null!, "OtraClave2026!");
+        await connection.ExecuteAsync("UPDATE dbo.Employees SET PasswordHash = @Hash WHERE Email = 'gerente@itacr.test';", new { Hash = ownHash });
+
+        // Act
+        var succeeded = await migrator.RunAsync(CancellationToken.None);
+
+        // Assert
+        Assert.True(succeeded);
+        var waiterHash = await connection.ExecuteScalarAsync<string>("SELECT PasswordHash FROM dbo.Employees WHERE Email = 'mesero@itacr.test';");
+        Assert.Equal(PasswordVerificationResult.Success, VerifyHash(waiterHash!, "Itacr2026!"));
+        Assert.Equal(ownHash, await connection.ExecuteScalarAsync<string>("SELECT PasswordHash FROM dbo.Employees WHERE Email = 'gerente@itacr.test';"));
+        Assert.Equal(4, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Employees;"));
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldNotSetAnyPassword_WhenEnvironmentIsProduction()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        Assert.True(await CreateMigrator(connectionString, Environments.Development).RunAsync(CancellationToken.None));
+        await using var connection = new SqlConnection(connectionString);
+        await connection.ExecuteAsync("UPDATE dbo.Employees SET PasswordHash = NULL;");
+        var migrator = CreateMigrator(connectionString, Environments.Production, new SeedOptions { TestEmployees = true });
+
+        // Act
+        var succeeded = await migrator.RunAsync(CancellationToken.None);
+
+        // Assert
+        Assert.True(succeeded);
+        Assert.Equal(0, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Employees WHERE PasswordHash IS NOT NULL;"));
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldCreateOnlyTheConfiguredManager_WhenEnvironmentIsProduction()
     {
         // Arrange

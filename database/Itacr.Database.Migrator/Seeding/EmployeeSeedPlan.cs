@@ -9,7 +9,7 @@ public sealed record SeedEmployee(string FullName, string Email, string Pin, Emp
 /// <summary>
 /// Decides which employees to seed: Development, or any environment with Seed:TestEmployees (QA), gets four test employees;
 /// production gets one initial manager from configuration. Employees that already exist (by email) are skipped, so it can run
-/// any number of times.
+/// any number of times. In Development, test employees seeded before passwords existed get the test password.
 /// </summary>
 public sealed class EmployeeSeedPlan(IOptions<SeedOptions> options, ILogger<EmployeeSeedPlan> logger)
 {
@@ -33,6 +33,13 @@ public sealed class EmployeeSeedPlan(IOptions<SeedOptions> options, ILogger<Empl
 
         return BuildInitialManager(existingEmails, hasManager);
     }
+
+    /// <summary>
+    /// The test employees of a local database seeded before 2 October 2026, which exist without a password, so the password
+    /// login works there too. Development only: never in QA or production.
+    /// </summary>
+    public IReadOnlyList<SeedEmployee> BuildMissingPasswords(bool isDevelopment, IReadOnlySet<string> emailsWithoutPassword) =>
+        isDevelopment ? DevelopmentEmployees.Where(candidate => emailsWithoutPassword.Contains(candidate.Email)).ToList() : [];
 
     private List<SeedEmployee> BuildInitialManager(IReadOnlySet<string> existingEmails, bool hasManager)
     {

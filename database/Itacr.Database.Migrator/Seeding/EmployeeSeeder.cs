@@ -28,8 +28,13 @@ public sealed class EmployeeSeeder(
             new { Role = nameof(EmployeeRole.Manager) },
             cancellationToken: cancellationToken));
 
+        var withoutPassword = (await connection.QueryAsync<(Guid Id, string Email)>(new CommandDefinition(
+            "SELECT Id, Email FROM dbo.Employees WHERE PasswordHash IS NULL;",
+            cancellationToken: cancellationToken))).ToDictionary(employee => employee.Email, employee => employee.Id, StringComparer.OrdinalIgnoreCase);
+
         var newEmployees = plan.Build(isDevelopment, emails.ToHashSet(StringComparer.OrdinalIgnoreCase), hasManager);
-        if (newEmployees.Count == 0)
+        var missingPasswords = plan.BuildMissingPasswords(isDevelopment, withoutPassword.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase));
+        if (newEmployees.Count == 0 && missingPasswords.Count == 0)
         {
             return;
         }
@@ -61,9 +66,23 @@ public sealed class EmployeeSeeder(
                 cancellationToken: cancellationToken));
         }
 
+        foreach (var candidate in missingPasswords)
+        {
+            var id = withoutPassword[candidate.Email];
+            var passwordHash = passwordHasher.HashPassword(Unused, candidate.Password!);
+            await connection.ExecuteAsync(new CommandDefinition(
+                "UPDATE dbo.Employees SET PasswordHash = @PasswordHash, UpdatedAt = @UpdatedAt WHERE Id = @Id AND PasswordHash IS NULL;",
+                new { Id = id, PasswordHash = passwordHash, UpdatedAt = now },
+                transaction,
+                cancellationToken: cancellationToken));
+        }
+
         await transaction.CommitAsync(cancellationToken);
-        logger.LogInformation("Seeded {Count} employees", newEmployees.Count);
+        logger.LogInformation("Seeded {Count} employees and set the test password of {Updated}", newEmployees.Count, missingPasswords.Count);
     }
+
+    // PasswordHasher<TUser> never reads the user: the hash depends only on its options.
+    private static readonly Employee Unused = new() { FullName = string.Empty, Email = string.Empty, Phone = string.Empty, PinHash = string.Empty };
 
     private Employee ToEmployee(SeedEmployee candidate, DateTime now)
     {

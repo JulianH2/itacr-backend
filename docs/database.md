@@ -220,7 +220,7 @@ User-facing names (categories, products, options) are stored in Spanish because 
 
 ### Development test logins
 
-Every test employee also has the password `Itacr2026!` for the email and password login.
+Every test employee also has the password `Itacr2026!` for the email and password login. A local database seeded before 2 October 2026 has those employees without a password; in `Development` the migrator gives them `Itacr2026!` (only where `PasswordHash` is null, never over an existing hash), so running it once fixes the password login. It never does this outside `Development`, not even with `Seed__TestEmployees` (ITACR-47).
 
 | Employee          | Email                  | PIN    | Role    | Status          |
 | ----------------- | ---------------------- | ------ | ------- | --------------- |
