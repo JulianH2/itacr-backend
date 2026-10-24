@@ -17,11 +17,12 @@ public sealed class CreateOrderEndpoint(CreateOrderHandler handler) : Controller
     /// <summary>Sends an order taken by the waiter to the kitchen.</summary>
     /// <remarks>
     /// Idempotent on <c>clientOrderId</c>: sending the same order again returns the order already saved with 200 instead of
-    /// creating a duplicate. Prices come from the menu, never from the request.
+    /// creating a duplicate. Prices come from the menu, never from the request. An order sent offline carries
+    /// <c>createdAt</c>, the time it was sent on the device: it can be up to 12 hours old and at most 2 minutes ahead.
     /// </remarks>
     /// <response code="201">The order was saved with status New.</response>
     /// <response code="200">The order had already been saved; it is returned as it is.</response>
-    /// <response code="400">Invalid order: no table and not to take away, no products, an unknown table or product.</response>
+    /// <response code="400">Invalid order: no table and not to take away, no products, an unknown table or product, or a createdAt out of range.</response>
     /// <response code="409">The clientOrderId belongs to an order of another waiter.</response>
     [HttpPost]
     [ProducesResponseType<CreateOrderResponse>(StatusCodes.Status201Created)]

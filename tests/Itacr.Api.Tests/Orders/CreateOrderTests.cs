@@ -222,6 +222,98 @@ public sealed class CreateOrderTests(DatabaseFixture database) : DatabaseTest(da
     }
 
     [Fact]
+    public async Task Post_ShouldKeepTheDeviceTimeAndTheKitchenOrder_WhenOrdersTakenOfflineArriveLater()
+    {
+        // Arrange (HU_07 CA2)
+        await using var factory = new AuthApiFactory(Database);
+        var (client, _) = await SignInWaiterAsync(factory);
+        var now = factory.Time.GetUtcNow();
+        var firstTaken = now.AddMinutes(-20);
+        var secondTaken = now.AddMinutes(-10);
+        using var online = await client.PostAsJsonAsync(OrdersRoute, OrderBody(Guid.NewGuid(), TableFive, takeAway: false, (Soda, 1)));
+
+        // Act
+        using var first = await client.PostAsJsonAsync(OrdersRoute, OfflineOrderBody(Guid.NewGuid(), firstTaken, (ClassicBurger, 1)));
+        using var second = await client.PostAsJsonAsync(OrdersRoute, OfflineOrderBody(Guid.NewGuid(), secondTaken, (Soda, 2)));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+        var firstOrder = await first.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(firstTaken.UtcDateTime, firstOrder.GetProperty("createdAt").GetDateTimeOffset().UtcDateTime, TimeSpan.FromMilliseconds(1));
+
+        await using var connection = new SqlConnection(Database.ConnectionString);
+        var history = await connection.QuerySingleAsync<DateTime>(
+            "SELECT h.CreatedAt FROM dbo.OrderStatusHistory AS h JOIN dbo.Orders AS o ON o.Id = h.OrderId WHERE o.ClientOrderId = @ClientOrderId;",
+            new { ClientOrderId = firstOrder.GetProperty("clientOrderId").GetGuid() });
+        Assert.Equal(firstTaken.UtcDateTime, history, TimeSpan.FromMilliseconds(1));
+
+        var kitchen = await factory.AddEmployeeAsync("Cocina de Prueba", EmployeeRole.Kitchen, "2222");
+        using var kitchenClient = factory.CreateClient();
+        AuthApiFactory.Authorize(kitchenClient, (await factory.LoginAsync(kitchenClient, kitchen.Id, "2222")).AccessToken);
+        var queue = await kitchenClient.GetFromJsonAsync<JsonElement>("/api/v1/kitchen/queue");
+        int[] expected = [firstOrder.GetProperty("orderNumber").GetInt32(), await OrderNumberAsync(second), await OrderNumberAsync(online)];
+        Assert.Equal(expected, queue.GetProperty("orders").EnumerateArray().Select(order => order.GetProperty("orderNumber").GetInt32()));
+    }
+
+    [Fact]
+    public async Task Post_ShouldSaveTheOrderOnce_WhenAnOfflineOrderIsSentAgainAfterReconnecting()
+    {
+        // Arrange (HU_07 CA3)
+        await using var factory = new AuthApiFactory(Database);
+        var (client, _) = await SignInWaiterAsync(factory);
+        var body = OfflineOrderBody(Guid.NewGuid(), factory.Time.GetUtcNow().AddMinutes(-5), (Soda, 1));
+
+        // Act
+        using var first = await client.PostAsJsonAsync(OrdersRoute, body);
+        using var second = await client.PostAsJsonAsync(OrdersRoute, body);
+        using var third = await client.PostAsJsonAsync(OrdersRoute, body);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, third.StatusCode);
+        Assert.Equal(1, await CountOrdersAsync());
+    }
+
+    [Fact]
+    public async Task Post_ShouldReturnTheSavedOrder_WhenAnOrderAlreadySavedIsRetriedAfterTheOfflineWindow()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        var (client, _) = await SignInWaiterAsync(factory);
+        var body = OfflineOrderBody(Guid.NewGuid(), factory.Time.GetUtcNow().AddHours(-11), (Soda, 1));
+        using var saved = await client.PostAsJsonAsync(OrdersRoute, body);
+        factory.Time.Advance(TimeSpan.FromHours(2));
+
+        // Act
+        using var response = await client.PostAsJsonAsync(OrdersRoute, body);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Created, saved.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(1, await CountOrdersAsync());
+    }
+
+    [Theory]
+    [InlineData(-13 * 60, OrdersErrors.CreatedAtTooOldMessage)]
+    [InlineData(3, OrdersErrors.CreatedAtInTheFutureMessage)]
+    public async Task Post_ShouldRejectWithoutSaving_WhenTheDeviceTimeIsOutOfRange(int minutesFromNow, string message)
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        var (client, _) = await SignInWaiterAsync(factory);
+        var createdAt = factory.Time.GetUtcNow().AddMinutes(minutesFromNow);
+
+        // Act
+        using var response = await client.PostAsJsonAsync(OrdersRoute, OfflineOrderBody(Guid.NewGuid(), createdAt, (Soda, 1)));
+
+        // Assert
+        Assert.Equal([message], await FieldMessagesAsync(response, "createdAt"));
+        Assert.Equal(0, await CountOrdersAsync());
+    }
+
+    [Fact]
     public async Task Post_ShouldBeForbidden_WhenTheEmployeeIsNotAWaiter()
     {
         // Arrange
@@ -281,6 +373,18 @@ public sealed class CreateOrderTests(DatabaseFixture database) : DatabaseTest(da
         takeAway,
         items = items.Select(item => new { productId = item.ProductId, quantity = item.Quantity }).ToArray(),
     };
+
+    private static object OfflineOrderBody(Guid clientOrderId, DateTimeOffset createdAt, params (Guid ProductId, int Quantity)[] items) => new
+    {
+        clientOrderId,
+        tableId = TableFive,
+        takeAway = false,
+        items = items.Select(item => new { productId = item.ProductId, quantity = item.Quantity }).ToArray(),
+        createdAt,
+    };
+
+    private static async Task<int> OrderNumberAsync(HttpResponseMessage response) =>
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("orderNumber").GetInt32();
 
     private static async Task<string[]> FieldMessagesAsync(HttpResponseMessage response, string field)
     {
