@@ -29,6 +29,18 @@ public static class OrdersErrors
         "El pedido ya cambió de estado. Actualiza el tablero.",
         StatusConflictType);
 
+    public static readonly Error OrderNotReady = new(
+        ErrorKind.Conflict,
+        "Order not ready",
+        "El pedido todavía no está listo. Solo se puede entregar cuando cocina lo marca como listo.",
+        StatusConflictType);
+
+    public static readonly Error OrderAlreadyDelivered = new(
+        ErrorKind.Conflict,
+        "Order already delivered",
+        "El pedido ya fue entregado.",
+        StatusConflictType);
+
     public static readonly Error StatusStepNotAllowed = new(
         ErrorKind.Conflict,
         "Order status step not allowed",
