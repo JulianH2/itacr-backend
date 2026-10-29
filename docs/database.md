@@ -172,6 +172,16 @@ HU_05 (ITACR-11) lets the kitchen move an order with a tap and undo an accidenta
 - **Undo.** Allowed only for the last change, when it was a kitchen step (`New` → `InPreparation` or `InPreparation` → `Ready`), made by the same employee, at most `OrderStatusRules.UndoWindow` (15 seconds) ago; the board offers it for less, to allow for the network. The undo is one more history row going back (nothing is deleted), and undoing `Ready` clears `ReadyAt`. An undo cannot be undone.
 - **Timeline.** The detail lists every history row oldest first; `undone` is true for the rows that went back.
 
+## Order ready notices (HU_09)
+
+When the kitchen marks an order as `Ready`, its waiter, or the customer of a pickup order, gets a push notification on the phone if they accepted notifications there.
+
+- **Subscriptions:** `PushSubscriptions` (since V001) holds one row per browser: `Endpoint` and the keys `P256dh` and `Auth`, owned by an employee (`EmployeeId`) or a customer (`CustomerId`). `V006` adds the unique index `UX_PushSubscriptions_Endpoint`, so the same browser saved again updates its row: `usp_PushSubscription_SaveForEmployee` (`POST /api/v1/push/subscriptions`, waiters) moves it to the employee who saved it last, and `usp_PushSubscription_SaveForPickupOrder` (`POST /api/v1/public/orders/{clientOrderId}/push-subscription`) gives it to the customer of that pickup order, so their next orders from the same phone are notified too.
+- **One notice per order:** `usp_Notification_CreateOrderReady` records a `Notifications` row of type `OrderReady` (recipient, `SentAt`) only while the order is `Ready` and only the first time; an undo and a new `Ready` record nothing more. It returns the order number, table, waiter, and customer to build the message. The text has the order number and the table for the waiter, and only the order number for the customer, never their name or phone.
+- **Sending:** the kitchen's request only puts the order id in an in-memory queue; a background service records the notice and sends it, so a slow push service never delays the tap. A restart can lose a queued notice; the order is still shown as `Ready` in the app (CA4). A browser the push service reports as gone (404 or 410) is deleted with `usp_PushSubscription_Delete`.
+- **Read:** the notification carries its id; opening it calls `POST /api/v1/public/notifications/{id}/read`, and `usp_Notification_MarkRead` sets `ReadAt` the first time only.
+- `V006` has its reversal in `database/rollbacks/`, so it is now the script the development `rollback` command reverses first.
+
 ## Delivering an order (HU_10)
 
 A waiter closes an order when they hand it over, at the table or when the customer arrives (ITACR-16):

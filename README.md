@@ -169,6 +169,7 @@ They live only in App Service `app-itacr-backend-prod` > Settings > **Environmen
 
 - `Cors:Origins` is a list, so each origin is its own variable (`Cors__Origins__0`, `Cors__Origins__1`, ...). A single `Cors__Origins` variable is ignored, the list stays empty, and the API does not start.
 - `Connection Timeout=60` gives the serverless database time to resume after a pause.
+- **Push notifications (HU_09), optional:** `WebPush__Subject` (`mailto:` of the team), `WebPush__PublicKey` and `WebPush__PrivateKey`, a VAPID pair generated with `npx web-push generate-vapid-keys`, **a different pair for QA and for production**. The private key is a secret: only in the App Service and a password manager. Without the two keys the API starts and works, and only the "order ready" notices are not sent. Locally: `dotnet user-secrets set "WebPush:PublicKey" "<key>" --project src/Itacr.Api` (and the same for `WebPush:PrivateKey`).
 
 ## Branching model
 
