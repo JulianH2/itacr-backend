@@ -15,6 +15,9 @@ permissions:
 jobs:
   xygeni-scan:
     name: Xygeni Scan
+    # Dependabot PRs cannot read repository secrets, so the scanner would run without XYGENI_TOKEN and fail. The nightly
+    # scan of develop covers the dependency updates once they are merged.
+    if: github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

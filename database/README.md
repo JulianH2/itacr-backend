@@ -5,7 +5,7 @@ Everything that reaches the database lives here, and it reaches the database onl
 ```
 database/
 ├── migrations/                 # V001__initial_schema.sql, V002__...: schema and reference data; each runs once, in order
-├── rollbacks/                  # V005__...sql: the reversal of a migration, same file name; run only by `rollback`
+├── rollbacks/                  # V005__...sql, V006__...sql: the reversal of a migration, same file name; run only by `rollback`
 ├── functions/<Module>/         # fn_*.sql   Inline table-valued functions       ┐
 ├── views/<Module>/             # vw_*.sql   Views                               │ CREATE OR ALTER, applied again
 ├── procedures/<Module>/        # usp_*.sql  Stored procedures                   │ on every run, in this order
@@ -50,7 +50,7 @@ Run it again after every pull that brings new scripts. To start from an empty da
 
 ```bash
 dotnet run --project database/Itacr.Database.Migrator -- status
-dotnet run --project database/Itacr.Database.Migrator -- rollback V005__add_product_is_available.sql
+dotnet run --project database/Itacr.Database.Migrator -- rollback V006__add_push_subscription_endpoint_index.sql
 dotnet run --project database/Itacr.Database.Migrator
 ```
 

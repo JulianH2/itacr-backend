@@ -20,12 +20,12 @@ public sealed record PlacedOrder(
 /// <summary>The last change of an order's history; <see cref="FromStatus"/> is null for the change that created it.</summary>
 public sealed record OrderStatusChange(OrderStatus? FromStatus, OrderStatus ToStatus, Guid? ChangedById, DateTime ChangedAt);
 
-/// <summary>The current status of an order and its last change, to validate the next one.</summary>
-public sealed record OrderStatusState(Guid Id, OrderStatus Status, OrderStatusChange LastChange);
+/// <summary>The current status of an order and its last change, to validate the next one. <see cref="WaiterId"/> is null for a pickup order.</summary>
+public sealed record OrderStatusState(Guid Id, OrderStatus Status, Guid? WaiterId, OrderStatusChange LastChange);
 
 public sealed record OrderDetailItem(string Name, int Quantity, decimal UnitPrice, decimal Subtotal);
 
-/// <summary><see cref="WaiterId"/> is only to decide who may read the order; it is never part of a response.</summary>
+/// <summary><see cref="WaiterId"/> (null for a pickup order) is only to decide who may read the order; it is never part of a response.</summary>
 public sealed record OrderDetail(
     Guid Id,
     int OrderNumber,
@@ -37,6 +37,7 @@ public sealed record OrderDetail(
     DateTime CreatedAt,
     DateTime LastStatusChangeAt,
     DateTime? ReadyAt,
+    DateTime? DeliveredAt,
     IReadOnlyList<OrderDetailItem> Items,
     IReadOnlyList<OrderStatusChange> History);
 
@@ -71,4 +72,7 @@ public interface IOrderRepository
 
     /// <summary>The orders of a waiter in New, InPreparation, or Ready, newest first.</summary>
     Task<IReadOnlyList<WaiterActiveOrder>> GetActiveByWaiterAsync(Guid waiterId, int take, CancellationToken cancellationToken);
+
+    /// <summary>The pickup orders of customers that are Ready and wait to be handed over, the longest waiting first.</summary>
+    Task<IReadOnlyList<WaiterActiveOrder>> GetReadyPickupsAsync(int take, CancellationToken cancellationToken);
 }

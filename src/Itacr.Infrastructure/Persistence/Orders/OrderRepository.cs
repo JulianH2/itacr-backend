@@ -76,7 +76,7 @@ internal sealed class OrderRepository(DbSession session) : IOrderRepository
         }
 
         var lastChange = new OrderStatusChange(ParseStatus(row.LastFromStatus), Enum.Parse<OrderStatus>(row.LastToStatus), row.LastChangedById, row.LastChangedAt);
-        return new OrderStatusState(row.Id, Enum.Parse<OrderStatus>(row.Status), lastChange);
+        return new OrderStatusState(row.Id, Enum.Parse<OrderStatus>(row.Status), row.WaiterId, lastChange);
     }
 
     public async Task<bool> ChangeStatusAsync(Guid orderId, OrderStatus from, OrderStatus to, Guid changedById, DateTime now, CancellationToken cancellationToken)
@@ -119,6 +119,7 @@ internal sealed class OrderRepository(DbSession session) : IOrderRepository
             row.CreatedAt,
             row.LastStatusChangeAt,
             row.ReadyAt,
+            row.DeliveredAt,
             items,
             [.. history.Select(entry => new OrderStatusChange(ParseStatus(entry.FromStatus), Enum.Parse<OrderStatus>(entry.ToStatus), entry.ChangedById, entry.ChangedAt))]);
     }
@@ -139,6 +140,21 @@ internal sealed class OrderRepository(DbSession session) : IOrderRepository
             DateTime.SpecifyKind(row.LastStatusChangeAt, DateTimeKind.Utc)))];
     }
 
+    public async Task<IReadOnlyList<WaiterActiveOrder>> GetReadyPickupsAsync(int take, CancellationToken cancellationToken)
+    {
+        var connection = await session.GetOpenConnectionAsync(cancellationToken);
+        var rows = await connection.QueryAsync<ActiveOrderRow>(
+            session.Procedure("dbo.usp_Order_GetReadyPickups", new { Take = take }, cancellationToken));
+        return [.. rows.Select(row => new WaiterActiveOrder(
+            row.Id,
+            row.OrderNumber,
+            Enum.Parse<OrderChannel>(row.Channel),
+            Enum.Parse<OrderStatus>(row.Status),
+            row.TableNumber,
+            DateTime.SpecifyKind(row.CreatedAt, DateTimeKind.Utc),
+            DateTime.SpecifyKind(row.LastStatusChangeAt, DateTimeKind.Utc)))];
+    }
+
     public async Task<IReadOnlyList<RecentOrder>> GetRecentByWaiterAsync(Guid waiterId, DateTime since, int take, CancellationToken cancellationToken)
     {
         var connection = await session.GetOpenConnectionAsync(cancellationToken);
@@ -155,7 +171,7 @@ internal sealed class OrderRepository(DbSession session) : IOrderRepository
 
     private static OrderStatus? ParseStatus(string? status) => status is null ? null : Enum.Parse<OrderStatus>(status);
 
-    private sealed record OrderStatusRow(Guid Id, string Status, string? LastFromStatus, string LastToStatus, Guid? LastChangedById, DateTime LastChangedAt);
+    private sealed record OrderStatusRow(Guid Id, string Status, Guid? WaiterId, string? LastFromStatus, string LastToStatus, Guid? LastChangedById, DateTime LastChangedAt);
 
     private sealed record OrderDetailRow(
         Guid Id,
@@ -168,6 +184,7 @@ internal sealed class OrderRepository(DbSession session) : IOrderRepository
         DateTime CreatedAt,
         DateTime LastStatusChangeAt,
         DateTime? ReadyAt,
+        DateTime? DeliveredAt,
         string? ItemsJson,
         string? HistoryJson);
 
