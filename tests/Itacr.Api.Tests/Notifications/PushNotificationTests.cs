@@ -37,7 +37,7 @@ public sealed class PushNotificationTests(DatabaseFixture database) : DatabaseTe
         Assert.Equal(endpoint, subscription.Endpoint);
         Assert.Equal("Pedido listo", message.Title);
         Assert.Matches(@"^Orden #\d+ · Mesa 3 está lista para entregar\.$", message.Body);
-        Assert.Equal($"/orders/detail/{orderId}", message.Url);
+        Assert.Equal($"/orders/detail/{orderId}?notification={message.NotificationId}", message.Url);
 
         await using var connection = new SqlConnection(Database.ConnectionString);
         var notification = await connection.QuerySingleAsync<(Guid Id, Guid? RecipientEmployeeId, DateTime SentAt, DateTime? ReadAt)>(
@@ -75,7 +75,7 @@ public sealed class PushNotificationTests(DatabaseFixture database) : DatabaseTe
         var (subscription, message) = Assert.Single(sent);
         Assert.Equal(endpoint, subscription.Endpoint);
         Assert.Matches(@"^Tu pedido #\d+ está listo\. Ya puedes pasar por él\.$", message.Body);
-        Assert.Equal("/pickup/orders", message.Url);
+        Assert.Equal($"/pickup/orders?notification={message.NotificationId}", message.Url);
         Assert.DoesNotContain("Ana", message.Body + message.Title);
         Assert.DoesNotContain("7719876543", message.Body + message.Title);
     }
