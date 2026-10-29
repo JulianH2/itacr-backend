@@ -231,7 +231,7 @@ public sealed class ActiveOrdersTests(DatabaseFixture database) : DatabaseTest(d
     }
 
     [Fact]
-    public async Task GetDetail_ShouldKeepThePickupOrdersOfCustomersAwayFromWaiters_WhenAWaiterKnowsTheirId()
+    public async Task GetDetail_ShouldLetAWaiterOpenAPickupOrder_WhenTheyHaveToHandItOver()
     {
         // Arrange
         await using var factory = new AuthApiFactory(Database);
@@ -246,7 +246,7 @@ public sealed class ActiveOrdersTests(DatabaseFixture database) : DatabaseTest(d
         using var asKitchen = await kitchen.GetAsync($"/api/v1/orders/{pickupId}");
 
         // Assert
-        Assert.Equal(HttpStatusCode.NotFound, asWaiter.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, asWaiter.StatusCode);
         Assert.Equal(HttpStatusCode.OK, asKitchen.StatusCode);
     }
 
