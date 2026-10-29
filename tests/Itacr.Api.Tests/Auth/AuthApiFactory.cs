@@ -3,7 +3,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Dapper;
+using Itacr.Api.Tests.Notifications;
 using Itacr.Application.Identity;
+using Itacr.Application.Notifications;
 using Itacr.Domain.Identity;
 using Itacr.Domain.Notifications;
 using Microsoft.AspNetCore.Hosting;
@@ -32,6 +34,8 @@ public sealed class AuthApiFactory(DatabaseFixture database, IReadOnlyDictionary
     private static readonly PasswordHasher<Employee> PasswordHasher = new();
 
     public FakeTimeProvider Time { get; } = new(DateTimeOffset.UtcNow);
+
+    public FakePushSender PushSender { get; } = new();
 
     public async Task<Employee> AddEmployeeAsync(
         string fullName,
@@ -130,6 +134,8 @@ public sealed class AuthApiFactory(DatabaseFixture database, IReadOnlyDictionary
         {
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Time);
+            services.RemoveAll<IPushSender>();
+            services.AddSingleton<IPushSender>(PushSender);
         });
     }
 }

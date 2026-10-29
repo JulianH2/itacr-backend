@@ -23,6 +23,15 @@ Authorization: Bearer {{accessToken}}
 GET {{baseUrl}}/api/v1/orders/active
 Authorization: Bearer {{accessToken}}
 
+### Mark an order as delivered: 200 when it is Ready, 409 when it is not Ready yet or was already delivered, 404 for another waiter's order
+# Sign in as a waiter first (POST /api/v1/auth/login/pin) and use the id of one of the waiter's orders that the kitchen marked Ready
+POST {{baseUrl}}/api/v1/orders/00000000-0000-0000-0000-000000000000/deliver
+Authorization: Bearer {{accessToken}}
+
+### Pickup orders of customers that are Ready and wait to be handed over: 200 for a waiter, 403 for kitchen or manager
+GET {{baseUrl}}/api/v1/orders/pickups/ready
+Authorization: Bearer {{accessToken}}
+
 ### Pickup order of a customer without login: 201 with the order number, 400 with the field errors, 409 at the third active order of a phone, 429 over the limit
 # Use a new clientOrderId for every order; sending the same one again answers 200 with the order already saved
 POST {{baseUrl}}/api/v1/public/orders

@@ -12,6 +12,7 @@
     <PackageReference Include="Dapper" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.Data.SqlClient" />
+    <PackageReference Include="Lib.Net.Http.WebPush" />
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
   </ItemGroup>
 

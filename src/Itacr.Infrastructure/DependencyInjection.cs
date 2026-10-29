@@ -1,5 +1,6 @@
 using Itacr.Application.Identity;
 using Itacr.Infrastructure.Identity;
+using Itacr.Infrastructure.Notifications;
 using Itacr.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +13,7 @@ public static class DependencyInjection
     {
         services.AddPersistence(configuration);
         services.AddJwtAuthentication();
+        services.AddPushNotifications();
         services.AddSingleton<ICredentialHasher, CredentialHasher>();
 
         return services;
