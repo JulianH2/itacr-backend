@@ -4,7 +4,7 @@
 -- Purpose:     Moves an order from one status to another and records the change in OrderStatusHistory, in one
 --              transaction. It only changes the order while it is still in @FromStatus, so when two kitchen boards move
 --              the same order at once the second one changes nothing. ReadyAt is set when the order becomes Ready and
---              cleared when an undo takes it back from Ready; DeliveredAt is set when it becomes Delivered. The API
+--              cleared when an undo takes it back from Ready (delivering keeps it); DeliveredAt is set when it becomes Delivered. The API
 --              validates which steps are allowed.
 -- Parameters:  @Id uniqueidentifier - order id
 --              @FromStatus nvarchar(20) - status the API read; the change is skipped if the order no longer has it
@@ -14,7 +14,7 @@
 --              @Now datetime2 - current time (UTC)
 -- Returns:     Changed bit (0 when the order was not in @FromStatus)
 -- Author:      JulianH2
--- Jira:        ITACR-11
+-- Jira:        ITACR-11, ITACR-16
 -- =============================================================================
 CREATE OR ALTER PROCEDURE dbo.usp_Order_ChangeStatus
     @Id uniqueidentifier,
@@ -34,7 +34,7 @@ BEGIN
         UPDATE dbo.Orders
         SET Status = @ToStatus,
             LastStatusChangeAt = @Now,
-            ReadyAt = CASE WHEN @ToStatus = N'Ready' THEN @Now WHEN @FromStatus = N'Ready' THEN NULL ELSE ReadyAt END,
+            ReadyAt = CASE WHEN @ToStatus = N'Ready' THEN @Now WHEN @FromStatus = N'Ready' AND @ToStatus <> N'Delivered' THEN NULL ELSE ReadyAt END,
             DeliveredAt = CASE WHEN @ToStatus = N'Delivered' THEN @Now ELSE DeliveredAt END,
             UpdatedAt = @Now
         WHERE Id = @Id AND Status = @FromStatus;

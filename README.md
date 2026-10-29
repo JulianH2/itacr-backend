@@ -169,6 +169,7 @@ They live only in App Service `app-itacr-backend-prod` > Settings > **Environmen
 
 - `Cors:Origins` is a list, so each origin is its own variable (`Cors__Origins__0`, `Cors__Origins__1`, ...). A single `Cors__Origins` variable is ignored, the list stays empty, and the API does not start.
 - `Connection Timeout=60` gives the serverless database time to resume after a pause.
+- **Push notifications (HU_09), optional:** `WebPush__Subject` (`mailto:` of the team), `WebPush__PublicKey` and `WebPush__PrivateKey`, a VAPID pair generated with `npx web-push generate-vapid-keys`, **a different pair for QA and for production**. The private key is a secret: only in the App Service and a password manager. Without the two keys the API starts and works, and only the "order ready" notices are not sent. Locally: `dotnet user-secrets set "WebPush:PublicKey" "<key>" --project src/Itacr.Api` (and the same for `WebPush:PrivateKey`).
 
 ## Branching model
 
@@ -198,7 +199,7 @@ Full workflow and sprint close checklist: [CONTRIBUTING.md](CONTRIBUTING.md).
 The code is analyzed with [Xygeni](https://in.xygeni.io) (free plan) for code quality and security: quality findings, vulnerable dependencies, exposed secrets, and workflow risks (ITACR-50).
 
 - **Installation (once, repository owner):** sign in to in.xygeni.io with GitHub, install the Xygeni GitHub App on `JulianH2`, and import `JulianH2/itacr-backend` in **Manage Scans**. Create an API token in Xygeni and save it as the repository secret `XYGENI_TOKEN` (Settings > Secrets and variables > Actions); never commit it.
-- **Automatic run:** `.github/workflows/xygeni-scan.yml` runs the Xygeni scanner on every PR into `sprint-*`, `develop`, `release`, and `main`, every night, and by hand (**Actions** > **Xygeni Scan** > **Run workflow**). The Xygeni GitHub App also runs scheduled scans.
+- **Automatic run:** `.github/workflows/xygeni-scan.yml` runs the Xygeni scanner on every PR into `sprint-*`, `develop`, `release`, and `main`, every night, and by hand (**Actions** > **Xygeni Scan** > **Run workflow**). The Xygeni GitHub App also runs scheduled scans. Dependabot PRs skip it: GitHub does not give them the repository secrets, so the scan would fail without `XYGENI_TOKEN`; the nightly scan of `develop` covers those updates after they are merged (ITACR-55).
 - **Results:** in.xygeni.io > **Code Quality** and **Risks**, project `JulianH2/itacr-backend`; the history of runs is in **Scan History**.
 - **Exclusions:** none beyond build output and dependencies (`bin/`, `obj/`, `node_modules/`); findings are fixed, never hidden.
 - GitHub **CodeQL** (Security > Code scanning, default setup with the `security-and-quality` suite) also analyzes every PR.

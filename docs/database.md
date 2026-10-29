@@ -163,14 +163,38 @@ HU_05 (ITACR-11) lets the kitchen move an order with a tap and undo an accidenta
 | --- | --- | --- |
 | `POST /api/v1/orders/{id}/status` with `{ "status": "InPreparation" }` or `"Ready"` | Kitchen, Manager | `usp_Order_GetStatus`, then `usp_Order_ChangeStatus` |
 | `POST /api/v1/orders/{id}/status/undo` | Kitchen, Manager | Same |
-| `GET /api/v1/orders/{id}` (detail and timeline) | Waiter (only their own orders), Kitchen, Manager | `usp_Order_GetById` |
+| `GET /api/v1/orders/{id}` (detail and timeline) | Waiter (their own orders and the pickup ones), Kitchen, Manager | `usp_Order_GetById` |
 | `GET /api/v1/orders/recent` (last 10 of the waiter, 12 hours) | Waiter | `usp_Order_GetRecentByWaiter` |
 | `GET /api/v1/orders/active` (the waiter's orders that are not delivered) | Waiter | `usp_Order_GetActiveByWaiter` |
 
 - **One step, no races.** The API reads the current status, checks `OrderStatusRules.CanChange`, and `usp_Order_ChangeStatus` updates the order only `WHERE Status = @FromStatus`. When two boards tap the same order, the second one changes nothing and gets `409` ("El pedido ya cambió de estado"). Delivered is not a kitchen step (`400`); it belongs to HU_10.
-- **Times.** Each change sets `LastStatusChangeAt` and adds a history row; becoming `Ready` sets `ReadyAt`.
+- **Times.** Each change sets `LastStatusChangeAt` and adds a history row; becoming `Ready` sets `ReadyAt`, and becoming `Delivered` sets `DeliveredAt` and keeps `ReadyAt`.
 - **Undo.** Allowed only for the last change, when it was a kitchen step (`New` → `InPreparation` or `InPreparation` → `Ready`), made by the same employee, at most `OrderStatusRules.UndoWindow` (15 seconds) ago; the board offers it for less, to allow for the network. The undo is one more history row going back (nothing is deleted), and undoing `Ready` clears `ReadyAt`. An undo cannot be undone.
 - **Timeline.** The detail lists every history row oldest first; `undone` is true for the rows that went back.
+
+## Order ready notices (HU_09)
+
+When the kitchen marks an order as `Ready`, its waiter, or the customer of a pickup order, gets a push notification on the phone if they accepted notifications there.
+
+- **Subscriptions:** `PushSubscriptions` (since V001) holds one row per browser: `Endpoint` and the keys `P256dh` and `Auth`, owned by an employee (`EmployeeId`) or a customer (`CustomerId`). `V006` adds the unique index `UX_PushSubscriptions_Endpoint`, so the same browser saved again updates its row: `usp_PushSubscription_SaveForEmployee` (`POST /api/v1/push/subscriptions`, waiters) moves it to the employee who saved it last, and `usp_PushSubscription_SaveForPickupOrder` (`POST /api/v1/public/orders/{clientOrderId}/push-subscription`) gives it to the customer of that pickup order, so their next orders from the same phone are notified too.
+- **One notice per order:** `usp_Notification_CreateOrderReady` records a `Notifications` row of type `OrderReady` (recipient, `SentAt`) only while the order is `Ready` and only the first time; an undo and a new `Ready` record nothing more. It returns the order number, table, waiter, and customer to build the message. The text has the order number and the table for the waiter, and only the order number for the customer, never their name or phone.
+- **Sending:** the kitchen's request only puts the order id in an in-memory queue; a background service records the notice and sends it, so a slow push service never delays the tap. A restart can lose a queued notice; the order is still shown as `Ready` in the app (CA4). A browser the push service reports as gone (404 or 410) is deleted with `usp_PushSubscription_Delete`.
+- **Read:** the notification's link carries its id (`?notification=<id>`), so the PWA reports it even when the tap is what opens the app; it calls `POST /api/v1/public/notifications/{id}/read`, and `usp_Notification_MarkRead` sets `ReadAt` the first time only.
+- `V006` has its reversal in `database/rollbacks/`, so it is now the script the development `rollback` command reverses first.
+
+## Delivering an order (HU_10)
+
+A waiter closes an order when they hand it over, at the table or when the customer arrives (ITACR-16):
+
+| Endpoint | Roles | Procedure |
+| --- | --- | --- |
+| `POST /api/v1/orders/{id}/deliver` | Waiter | `usp_Order_GetStatus`, then `usp_Order_ChangeStatus` |
+| `GET /api/v1/orders/pickups/ready` (pickup orders of customers that are Ready) | Waiter | `usp_Order_GetReadyPickups` |
+
+- **Only a Ready order.** `New` and `InPreparation` answer `409` ("El pedido todavía no está listo"), and a `Delivered` order answers `409` too ("El pedido ya fue entregado"): it is final and cannot be edited or delivered again. Delivering is `Ready` to `Delivered` through the same procedure as the kitchen steps, so it is also one step with no races: two taps on the same order give one `200` and one `409`.
+- **Whose order.** A waiter delivers the orders they took, and any waiter delivers a pickup order of a customer (it has no waiter, so it is nobody's active order; `GET /orders/pickups/ready` is how they find it). The order of another waiter answers `404`, like an id that does not exist. Pickup orders are read by waiters through `GET /orders/{id}` for the same reason.
+- **Times.** The delivery sets `DeliveredAt` and adds a `Ready` to `Delivered` history row with the waiter as `ChangedById`. The detail returns `deliveredAt`, and its timeline has the time of each stage (taken, in preparation, ready, delivered), which is what a manager reads when they open a delivered order (HU_10 CA3).
+- **Leaves the lists.** A `Delivered` order is not part of the kitchen queue, `GET /orders/active`, or `GET /orders/pickups/ready`.
 
 ## Orders of a waiter (HU_08)
 

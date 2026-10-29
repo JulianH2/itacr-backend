@@ -7,14 +7,14 @@ public sealed class GetOrderDetailHandler(IOrderRepository orderRepository)
 {
     /// <param name="orderId">The order to read.</param>
     /// <param name="onlyWaiterId">
-    /// When set, only the orders this waiter took can be read: another waiter's order, and a pickup order, answer "not found" exactly
-    /// like an id that does not exist. Kitchen staff and managers pass null and read any order.
+    /// When set, a waiter can read the orders they took and the pickup orders of customers (they hand those over, HU_10); the order of
+    /// another waiter answers "not found" exactly like an id that does not exist. Kitchen staff and managers pass null and read any order.
     /// </param>
     /// <param name="cancellationToken">Aborts the request.</param>
     public async Task<Result<OrderDetailResponse>> HandleAsync(Guid orderId, Guid? onlyWaiterId, CancellationToken cancellationToken)
     {
         if (await orderRepository.GetDetailAsync(orderId, cancellationToken) is not { } order
-            || (onlyWaiterId is { } waiterId && order.WaiterId != waiterId))
+            || (onlyWaiterId is { } waiterId && order.WaiterId is { } takenBy && takenBy != waiterId))
         {
             return OrdersErrors.OrderNotFound;
         }
@@ -28,6 +28,7 @@ public sealed class GetOrderDetailHandler(IOrderRepository orderRepository)
             order.Total,
             order.CreatedAt,
             order.ReadyAt,
+            order.DeliveredAt,
             [.. order.Items.Select(item => new OrderDetailItemResponse(item.Name, item.Quantity, item.UnitPrice, item.Subtotal))],
             [.. order.History.Select(change => new OrderTimelineEntryResponse(change.ToStatus, change.ChangedAt, change.FromStatus > change.ToStatus))]);
     }
