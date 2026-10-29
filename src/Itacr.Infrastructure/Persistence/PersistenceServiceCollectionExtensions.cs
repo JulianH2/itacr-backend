@@ -42,6 +42,7 @@ public static class PersistenceServiceCollectionExtensions
 
         services.AddScoped<IEmployeeRepository, EmployeeRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<IPushSubscriptionRepository, PushSubscriptionRepository>();
         services.AddScoped<ICatalogRepository, CatalogRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IDiningTableRepository, DiningTableRepository>();

@@ -1,4 +1,5 @@
 using FluentValidation;
+using Itacr.Application.Notifications;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Itacr.Application;
@@ -16,6 +17,7 @@ public static class DependencyInjection
             services.AddScoped(handler);
         }
 
+        services.AddScoped<OrderReadyNotifier>();
         services.AddValidatorsFromAssembly(assembly);
         return services;
     }
