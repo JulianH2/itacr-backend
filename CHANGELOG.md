@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.5.0](https://github.com/JulianH2/itacr-backend/compare/v0.4.0...v0.5.0) (2026-10-29)
+
+
+### Added
+
+* **db:** add the delivery time and the ready pickup orders to the procedures (ITACR-16) ([97905bc](https://github.com/JulianH2/itacr-backend/commit/97905bce667aec64b9ff9d4503d074c0251d2861))
+* **db:** add the push subscription index and the order ready notice procedures (ITACR-15) ([02145bf](https://github.com/JulianH2/itacr-backend/commit/02145bfe7704b408638056364d04a64cf403b070))
+* **orders:** add the notification id to the link of the ready notice (ITACR-15) ([8d67a75](https://github.com/JulianH2/itacr-backend/commit/8d67a75e95a25bbc7cd7e0c920b5fd9767525e09))
+* **orders:** add the use cases to deliver an order and to list the ready pickups (ITACR-16) ([0407998](https://github.com/JulianH2/itacr-backend/commit/0407998c9fc8f9019b0cfdb391bf4933a9591c63))
+* **orders:** expose the endpoints to deliver an order and to list the ready pickups (ITACR-16) ([74d84cf](https://github.com/JulianH2/itacr-backend/commit/74d84cf307f624ee6cc335cc3fb87485d05ea382))
+* **orders:** let a waiter mark a ready order as delivered (ITACR-16) ([138ced5](https://github.com/JulianH2/itacr-backend/commit/138ced5e991933dc8c1c1b3fcd4473377ed92c4a))
+* **orders:** notify the waiter or customer when their order is ready (ITACR-15) ([bf87c55](https://github.com/JulianH2/itacr-backend/commit/bf87c556bd5b6e5bd3c3d0e6280f8f7f2c180236))
+* **orders:** notify the waiter or customer when their order is ready (ITACR-15) ([1b6da3a](https://github.com/JulianH2/itacr-backend/commit/1b6da3a953b705a6702a66627a44dbdacba7f0ca))
+
+
+### Fixed
+
+* **db:** keep the ready time when an order is delivered (ITACR-16) ([2c6b54e](https://github.com/JulianH2/itacr-backend/commit/2c6b54e180673a000d9009628a44f3fe9934f84a))
+
+
+### Documentation
+
+* **orders:** document delivering an order (ITACR-16) ([df102ec](https://github.com/JulianH2/itacr-backend/commit/df102eca7663fd25b019da21a4f9e4f6d8fb754c))
+* **orders:** document the order ready notices and the web push settings (ITACR-15) ([e9d7114](https://github.com/JulianH2/itacr-backend/commit/e9d7114f579cd9177cbcc163e6db2da4110238ae))
+
 ## [0.4.0](https://github.com/JulianH2/itacr-backend/compare/v0.3.0...v0.4.0) (2026-10-24)
 
 
