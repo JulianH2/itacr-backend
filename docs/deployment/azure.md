@@ -139,6 +139,9 @@ Only the two **backend** apps have settings. They are set in the app's **Setting
 | `Jwt__Secret` | App setting | Signs the session tokens. Random, at least 64 characters, **different in production and in QA** |
 | `Cors__Origins__0` | App setting | The URL of its own frontend (the production frontend for production, the QA frontend for QA) |
 | `WEBSITE_HTTPLOGGING_RETENTION_DAYS` | App setting | How many days the platform keeps the HTTP logs |
+| `WebPush__Subject` | App setting | Contact of the sender for the push services (`mailto:` of the team) |
+| `WebPush__PublicKey` | App setting | VAPID public key, its own pair per environment (HU_09); the PWA reads it from `GET /api/v1/public/push/public-key` |
+| `WebPush__PrivateKey` | App setting (secret) | VAPID private key of that pair. Without the two keys the "order ready" notices are off and everything else works |
 
 - `Cors:Origins` is a list, so each origin is its own variable (`Cors__Origins__0`, `Cors__Origins__1`, ...). A single `Cors__Origins` is ignored and the API does not start.
 - `ConnectionStrings__Default` must be the **whole** string, not only the password. The shape is in [README: Production settings](../../README.md#production-settings).

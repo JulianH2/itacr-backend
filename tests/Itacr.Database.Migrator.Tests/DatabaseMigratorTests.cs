@@ -19,10 +19,12 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
     private const string PickupConstraintsScript = "V003__add_pickup_order_constraints.sql";
     private const string WebpImagesScript = "V004__use_webp_product_images.sql";
     private const string ProductAvailabilityScript = "V005__add_product_is_available.sql";
+    private const string PushEndpointIndexScript = "V006__add_push_subscription_endpoint_index.sql";
+    private const string PushEndpointIndexQuery = "SELECT COUNT(*) FROM sys.indexes WHERE name = N'UX_PushSubscriptions_Endpoint';";
     private const string LastEfCoreMigration = "20261002130000_AddFnGetProductsByCategory";
 
     private static readonly PasswordHasher<Employee> PasswordHasher = new();
-    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript, PickupConstraintsScript, WebpImagesScript, ProductAvailabilityScript];
+    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript, PickupConstraintsScript, WebpImagesScript, ProductAvailabilityScript, PushEndpointIndexScript];
 
     [Fact]
     public async Task RunAsync_ShouldCreateTheSchemaAndSeedTheTestEmployees_WhenDatabaseDoesNotExist()
@@ -148,7 +150,7 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
     }
 
     [Fact]
-    public async Task RollbackAsync_ShouldReverseTheLastScriptAndTheNextRunShouldApplyItAgain_WhenEnvironmentIsDevelopment()
+    public async Task RollbackAsync_ShouldReverseTheLastScriptsOneByOneAndTheNextRunShouldApplyThemAgain_WhenEnvironmentIsDevelopment()
     {
         // Arrange (ITACR-52)
         var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
@@ -157,18 +159,23 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         await using var connection = new SqlConnection(connectionString);
 
         // Act
-        var reversed = await migrator.RollbackAsync(ProductAvailabilityScript, CancellationToken.None);
+        var indexReversed = await migrator.RollbackAsync(PushEndpointIndexScript, CancellationToken.None);
+        var indexAfterRollback = await connection.ExecuteScalarAsync<int>(PushEndpointIndexQuery);
+        var columnReversed = await migrator.RollbackAsync(ProductAvailabilityScript, CancellationToken.None);
         var columnAfterRollback = await connection.ExecuteScalarAsync<int?>("SELECT COL_LENGTH(N'dbo.Products', N'IsAvailable');");
         var scriptsAfterRollback = await ExecutedScriptsAsync(connection);
         var reapplied = await migrator.RunAsync(CancellationToken.None);
 
         // Assert
-        Assert.True(reversed);
+        Assert.True(indexReversed);
+        Assert.Equal(0, indexAfterRollback);
+        Assert.True(columnReversed);
         Assert.Null(columnAfterRollback);
-        Assert.Equal(AllScripts[..^1], scriptsAfterRollback);
+        Assert.Equal(AllScripts[..^2], scriptsAfterRollback);
         Assert.True(reapplied);
         Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
         Assert.Equal(18, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Products WHERE IsAvailable = 1;"));
+        Assert.Equal(1, await connection.ExecuteScalarAsync<int>(PushEndpointIndexQuery));
     }
 
     [Fact]
@@ -196,12 +203,12 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         Assert.True(await CreateMigrator(connectionString, Environments.Development).RunAsync(CancellationToken.None));
 
         // Act
-        var reversed = await CreateMigrator(connectionString, Environments.Production).RollbackAsync(ProductAvailabilityScript, CancellationToken.None);
+        var reversed = await CreateMigrator(connectionString, Environments.Production).RollbackAsync(PushEndpointIndexScript, CancellationToken.None);
 
         // Assert
         Assert.False(reversed);
         await using var connection = new SqlConnection(connectionString);
-        Assert.NotNull(await connection.ExecuteScalarAsync<int?>("SELECT COL_LENGTH(N'dbo.Products', N'IsAvailable');"));
+        Assert.Equal(1, await connection.ExecuteScalarAsync<int>(PushEndpointIndexQuery));
         Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
     }
 
