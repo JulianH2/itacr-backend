@@ -29,4 +29,11 @@ internal sealed class CatalogRepository(DbSession session) : ICatalogRepository
             session.Procedure("dbo.usp_Product_GetByIds", new { ProductIdsJson = JsonSerializer.Serialize(ids) }, cancellationToken));
         return [.. products];
     }
+
+    public async Task<IReadOnlyList<ComboOption>> GetComboOptionsAsync(CancellationToken cancellationToken)
+    {
+        var connection = await session.GetOpenConnectionAsync(cancellationToken);
+        var options = await connection.QueryAsync<ComboOption>(session.Procedure("dbo.usp_ComboOption_GetAll", null, cancellationToken));
+        return [.. options];
+    }
 }
