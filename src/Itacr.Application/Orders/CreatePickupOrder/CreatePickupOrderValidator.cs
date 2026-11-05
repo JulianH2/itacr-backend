@@ -33,7 +33,7 @@ public sealed class CreatePickupOrderValidator : AbstractValidator<CreatePickupO
             .NotEmpty().WithMessage(OrdersErrors.ItemsRequired)
             .Must(items => items.Count <= limits.MaxProducts)
                 .WithMessage($"Un pedido para recoger admite hasta {limits.MaxProducts} productos.")
-            .Must(items => items.Select(item => item.ProductId).Distinct().Count() == items.Count).WithMessage(OrdersErrors.DuplicatedProduct);
+            .Must(items => items.Select(item => item.LineKey()).Distinct().Count() == items.Count).WithMessage(OrdersErrors.DuplicatedProduct);
 
         // Reported per item ("items[0]"), so the client knows which line to fix.
         RuleForEach(command => command.Items)

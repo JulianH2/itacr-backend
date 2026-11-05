@@ -12,4 +12,7 @@ public interface ICatalogRepository
 
     /// <summary>The products with these ids; ids that do not exist are left out.</summary>
     Task<IReadOnlyList<Product>> GetProductsByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
+
+    /// <summary>Every option a combo can be customized with (sizes, drinks, extras, exclusions), ordered by type, price, and name.</summary>
+    Task<IReadOnlyList<ComboOption>> GetComboOptionsAsync(CancellationToken cancellationToken);
 }

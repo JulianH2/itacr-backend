@@ -123,7 +123,7 @@ Every controller requires a signed-in user (`AuthorizeFilter`) unless it says `[
 | Endpoint | What it does | Policy and limit per client IP | Notes |
 | -------- | ------------ | ------------------------------ | ----- |
 | `GET /api/v1/health` | Health probe of the App Service | global | Reveals no internal details |
-| `GET /api/v1/catalog/categories`, `GET /api/v1/catalog/products` | The menu | global | Read-only, same for everyone |
+| `GET /api/v1/catalog/categories`, `GET /api/v1/catalog/products`, `GET /api/v1/catalog/combo-options` | The menu and the options of a combo | global | Read-only, same for everyone |
 | `GET /api/v1/auth/employees?role=` | The people shown in the PIN picker | global | Returns only `id` and an abbreviated display name of **active** employees |
 | `POST /api/v1/auth/login/pin`, `POST /api/v1/auth/login/password`, `POST /api/v1/auth/pin-reset-requests` | Staff sign-in | `login`: 10 per minute (`LoginSecurity`) | A PIN also locks for 15 minutes after 5 failures |
 | `POST /api/v1/public/orders` | A customer sends a pickup order | `public-order-create`: **10 per 10 minutes** | The first public endpoint that creates data; see [6.2](#62-customer-pickup-orders-hu_06) |

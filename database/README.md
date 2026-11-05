@@ -5,7 +5,7 @@ Everything that reaches the database lives here, and it reaches the database onl
 ```
 database/
 ├── migrations/                 # V001__initial_schema.sql, V002__...: schema and reference data; each runs once, in order
-├── rollbacks/                  # V005__...sql, V006__...sql: the reversal of a migration, same file name; run only by `rollback`
+├── rollbacks/                  # V005__...sql, V006__...sql, V007__...sql: the reversal of a migration, same file name; run only by `rollback`
 ├── functions/<Module>/         # fn_*.sql   Inline table-valued functions       ┐
 ├── views/<Module>/             # vw_*.sql   Views                               │ CREATE OR ALTER, applied again
 ├── procedures/<Module>/        # usp_*.sql  Stored procedures                   │ on every run, in this order
@@ -50,7 +50,7 @@ Run it again after every pull that brings new scripts. To start from an empty da
 
 ```bash
 dotnet run --project database/Itacr.Database.Migrator -- status
-dotnet run --project database/Itacr.Database.Migrator -- rollback V006__add_push_subscription_endpoint_index.sql
+dotnet run --project database/Itacr.Database.Migrator -- rollback V007__add_combo_exclusion_options.sql
 dotnet run --project database/Itacr.Database.Migrator
 ```
 
@@ -82,7 +82,7 @@ Objects are applied in folder order (functions, views, procedures, triggers), an
 
 | What | Where | Environments |
 | ---- | ----- | ------------ |
-| Catalog: 5 categories, 18 products, 9 combo options, dining tables 1 to 10, with fixed IDs | `migrations/V001__initial_schema.sql` | All |
+| Catalog: 5 categories, 18 products, 9 combo options (V007 adds 7 exclusions), dining tables 1 to 10, with fixed IDs | `migrations/V001__initial_schema.sql` | All |
 | 4 test employees (password `Itacr2026!`) | `Itacr.Database.Migrator/Seeding/` | Development, and QA through `Seed__TestEmployees=true`. Never production: their credentials are in this repository |
 | Initial manager from `Seed__ManagerName`, `Seed__ManagerEmail`, `Seed__ManagerPin` | `Itacr.Database.Migrator/Seeding/` | Any other environment, only while no manager exists |
 

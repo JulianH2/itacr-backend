@@ -6,7 +6,19 @@ namespace Itacr.Application.Orders.GetOrderDetail;
 /// <param name="Quantity">Units ordered.</param>
 /// <param name="UnitPrice">Price of one unit when the order was taken.</param>
 /// <param name="Subtotal">Quantity times unit price.</param>
-public sealed record OrderDetailItemResponse(string Name, int Quantity, decimal UnitPrice, decimal Subtotal);
+/// <param name="Size">Chosen size of a combo, or null.</param>
+/// <param name="Drink">Chosen drink of a combo, or null.</param>
+/// <param name="Extras">Extras added to a combo; empty when there are none.</param>
+/// <param name="Exclusions">Ingredients left out of a combo; empty when there are none.</param>
+public sealed record OrderDetailItemResponse(
+    string Name,
+    int Quantity,
+    decimal UnitPrice,
+    decimal Subtotal,
+    string? Size,
+    string? Drink,
+    IReadOnlyList<string> Extras,
+    IReadOnlyList<string> Exclusions);
 
 /// <summary>One step of the order timeline.</summary>
 /// <param name="Status">Status the order reached.</param>

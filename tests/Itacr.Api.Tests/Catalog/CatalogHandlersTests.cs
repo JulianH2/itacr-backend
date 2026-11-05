@@ -48,5 +48,8 @@ public sealed class CatalogHandlersTests
 
         public Task<IReadOnlyList<Product>> GetProductsByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<Product>>([.. products.Where(product => ids.Contains(product.Id))]);
+
+        public Task<IReadOnlyList<ComboOption>> GetComboOptionsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ComboOption>>([]);
     }
 }
