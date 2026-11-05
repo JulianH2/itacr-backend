@@ -2,9 +2,9 @@
 
 What runs in Azure for ITACR, how it is configured, who can reach what, and what to do when it breaks. It is the map of the cloud setup; the step by step procedures live in [CONTRIBUTING.md, section 15](../../CONTRIBUTING.md#15-deployment-to-azure) and are linked from here instead of repeated.
 
-> **This file never contains a secret.** It names settings, secrets, users, and resources, never their values. Passwords, the JWT secret, publish profiles, and connection strings with a password live only in a password manager, in GitHub secrets, and in the App Service settings.
+> **This file never contains a secret.** It names settings, secrets, users, and resources, never their values. Passwords, the JWT secret, the VAPID private key, and connection strings with a password live only in a password manager, in GitHub secrets, and in the App Service settings.
 
-Verified against Azure and GitHub on 2026-10-16 (ITACR-34).
+Verified against Azure and GitHub on 2026-10-16 (ITACR-34). The frontend deploy and startup were updated after Sprint 05: OIDC instead of publish profiles (ITACR-56) and the static server `server.cjs` (ITACR-57).
 
 ## Contents
 
@@ -43,9 +43,9 @@ flowchart LR
         SQL[("SQL server itacr-sql<br/>databases itacr-sql and itacr-qa")]
     end
     Main -->|"OIDC: migrator + deploy"| BP
-    Main -->|"publish profile"| FP
+    Main -->|"OIDC: deploy"| FP
     Release -->|"OIDC: migrator + deploy"| BQ
-    Release -->|"publish profile"| FQ
+    Release -->|"OIDC: deploy"| FQ
     BP --> SQL
     BQ --> SQL
     FP -.->|"HTTPS API calls from the browser"| BP
@@ -82,14 +82,14 @@ Everything is created by hand in the Azure Portal. No repository creates or chan
 | `app-itacr-frontend-qa` | Node 24 | PWA, QA (ITACR-43) | `https://app-itacr-frontend-qa.azurewebsites.net` |
 
 - The two production URLs have a unique suffix that Azure generated; each one is in the app's **Overview** > **Default domain**. The API answers under `/api/v1` and the health check is `GET /api/v1/health`.
-- **Every app:** HTTPS only, minimum TLS 1.2, FTP disabled. The backend of production also has WebSockets on, for the real-time channel planned for later sprints.
-- **Frontends** have no application settings. Their startup command serves the built PWA as a single page app:
+- **Every app:** HTTPS only, minimum TLS 1.2, FTP disabled, and SCM and FTP basic authentication off (every deploy signs in with OIDC). The backend of production also has WebSockets on, for the real-time channel planned for later sprints.
+- **Frontends** have no application settings. Their startup command runs the static server that the deploy copies next to `index.html` (`server/server.cjs` of itacr-frontend, ITACR-57):
 
   ```
-  pm2 serve /home/site/wwwroot --no-daemon --spa
+  node /home/site/wwwroot/server.cjs
   ```
 
-  `--spa` sends every unknown path to `index.html`, so a refresh on `/kitchen` or `/pickup/orders` works.
+  It sends every unknown path without an extension to `index.html`, so a refresh on `/kitchen` or `/pickup/orders` works, and adds `Content-Security-Policy: frame-ancestors 'none'`, `X-Frame-Options: DENY`, `X-Content-Type-Options`, and `Referrer-Policy` to every answer. A change of the startup command takes about 3 minutes to apply. If the server ever fails to start, the previous command `pm2 serve /home/site/wwwroot --no-daemon --spa` serves the app again, without those headers.
 
 ### 2.2 What the free tier means
 
@@ -162,34 +162,37 @@ Set in each repository: **Settings** > **Secrets and variables** > **Actions**. 
 | `SQL_MIGRATOR_CONNECTION_STRING` | `migrate` on `main` | Connection string of `itacr_migrator` for the production database |
 | `SQL_MIGRATOR_QA_CONNECTION_STRING` | `migrate` on `release` | The same for `itacr-qa`, with its own password |
 | `RELEASE_PLEASE_TOKEN` | `release-please.yml` | Token that lets release-please open its release PR |
+| `XYGENI_TOKEN` | `xygeni-scan.yml` | Token of the Xygeni scanner |
 
 ### 5.2 itacr-frontend
 
 | Secret | Used by | What it is |
 | ------ | ------- | ---------- |
-| `AZURE_FRONTEND_PUBLISH_PROFILE` | `deploy` on `main` | Publish profile of `app-itacr-frontend-prod` |
-| `AZURE_FRONTEND_QA_PUBLISH_PROFILE` | `deploy` on `release` | Publish profile of `app-itacr-frontend-qa` |
+| `AZURE_CLIENT_ID` | `deploy` job | Application (client) ID of the app registration `github-itacr-frontend-deploy` |
+| `AZURE_TENANT_ID` | `deploy` job | Directory (tenant) ID |
+| `AZURE_SUBSCRIPTION_ID` | `deploy` job | Subscription ID |
 | `RELEASE_PLEASE_TOKEN` | `release-please.yml` | Same purpose as in the backend |
+| `XYGENI_TOKEN` | `xygeni-scan.yml` | Token of the Xygeni scanner (the backend has its own) |
 
-The frontend needs no Azure sign-in and no database secret: it only uploads files with a publish profile.
+The frontend needs no database secret. The publish profiles it used until Sprint 05 were deleted (ITACR-56).
 
 ## 6. Signing in from GitHub Actions (OIDC)
 
-The `migrate` job needs to open and close a firewall rule on the SQL server, and the `deploy` job needs to upload the API to its App Service. Both do it with **OpenID Connect**, so GitHub never stores an Azure password or a publish profile (ITACR-45).
+In the backend, the `migrate` job needs to open and close a firewall rule on the SQL server, and the `deploy` job needs to upload the API to its App Service. In the frontend, the `deploy` job uploads the PWA. All of them do it with **OpenID Connect**, so GitHub never stores an Azure password or a publish profile (ITACR-45, ITACR-56). Each repository has its own app registration, with access only to its own apps.
 
-| Item | Value |
-| ---- | ----- |
-| App registration | `github-itacr-backend-deploy` |
-| Roles | **SQL Server Contributor** on the server `itacr-sql` (the temporary firewall rule), and **Website Contributor** on `app-itacr-backend-prod` and on `app-itacr-backend-qa` (the deploy). Nothing else |
-| Federated credentials | `itacr-backend-main-ids` for the branch `main` and `itacr-backend-release-ids` for the branch `release` |
-| Legacy credential | `itacr-backend-main`, kept in case GitHub goes back to the old subject format |
+| Item | Backend | Frontend |
+| ---- | ------- | -------- |
+| App registration | `github-itacr-backend-deploy` | `github-itacr-frontend-deploy` |
+| Roles | **SQL Server Contributor** on the server `itacr-sql` (the temporary firewall rule), and **Website Contributor** on `app-itacr-backend-prod` and on `app-itacr-backend-qa` (the deploy). Nothing else | **Website Contributor** on `app-itacr-frontend-prod` and on `app-itacr-frontend-qa`. Nothing else |
+| Federated credentials | `itacr-backend-main-ids` for the branch `main` and `itacr-backend-release-ids` for the branch `release` | `itacr-frontend-main-ids` and `itacr-frontend-release-ids` |
+| Legacy credential | `itacr-backend-main`, kept in case GitHub goes back to the old subject format | None |
 
 Because there is one credential per branch, only a run on `main` or on `release` can sign in; a run on any other branch cannot.
 
 **Subject format.** GitHub changed the subject of the token to include the numeric IDs of the owner and the repository. The credentials use the new format:
 
 ```
-repo:JulianH2@<owner id>/itacr-backend@<repository id>:ref:refs/heads/<branch>
+repo:JulianH2@<owner id>/<repository>@<repository id>:ref:refs/heads/<branch>
 ```
 
 The old format, `repo:JulianH2/itacr-backend:ref:refs/heads/<branch>`, no longer matches; that mismatch is the error described in section 9.
@@ -199,7 +202,7 @@ The old format, `repo:JulianH2/itacr-backend:ref:refs/heads/<branch>`, no longer
 | | Backend (`deploy.yml`) | Frontend (`deploy.yml`) |
 | - | ---------------------- | ----------------------- |
 | Trigger | Push to `main` (production) or `release` (QA), or **Run workflow** by hand from either branch | Same |
-| Steps | `build` (restore, build, tests) → `migrate` (OIDC, temporary firewall rule, DbUp as `itacr_migrator`) → `deploy` (OIDC) | `test` → `build` (`npm run build` on `main`, `npm run build:qa` on `release`) → `deploy` (publish profile) |
+| Steps | `build` (restore, build, tests) → `migrate` (OIDC, temporary firewall rule, DbUp as `itacr_migrator`) → `deploy` (OIDC) | `build` (tests, `npm run build` on `main` or `npm run build:qa` on `release`, static server tests, `server.cjs` copied into the build) → `deploy` (OIDC) |
 | If a step fails | The next one does not start: a failed migration means the API is **not** deployed | The same |
 | Runs every PR | `ci.yml`: format, build, tests, commit and branch name checks | `ci.yml`: lint, format, tests, build, and the same checks |
 
@@ -216,7 +219,7 @@ The database is migrated **before** the new API starts, so every migration scrip
 | Add or change an app setting | App Service > **Settings** > **Environment variables**. Saving restarts the app. Check the health check afterwards |
 | Rotate `Jwt__Secret` | Generate a new random value of 64 or more characters and save it in the App Service of that environment only. **Every session ends**, so everyone signs in again |
 | Rotate a database password | Change it in SQL (`ALTER USER ... WITH PASSWORD`), then update the secret or the App Service connection string that uses it right away. Expect a short interruption in the API while it restarts. Never reuse a password between `itacr-sql` and `itacr-qa` |
-| Renew a frontend publish profile | App Service > **Overview** > **Download publish profile** (reset it first if it leaked), paste the whole file into the GitHub secret, and delete the downloaded file. The backend has no publish profile: it deploys with OIDC |
+| Give a deploy access to a new App Service | Add the role **Website Contributor** on that app to the app registration of its repository (section 6). No repository uses a publish profile, and basic authentication stays off |
 | Run the migrator by hand | Only if the workflow cannot: [CONTRIBUTING.md, section 15.4](../../CONTRIBUTING.md#154-run-the-migrator-against-azure-sql-by-hand) |
 | Create the database users | [CONTRIBUTING.md, section 15.3](../../CONTRIBUTING.md#153-database-access-from-the-workflow) |
 | Add the QA test employees | They come from the deploy of `release` (`Seed__TestEmployees=true`); nothing to do by hand |
