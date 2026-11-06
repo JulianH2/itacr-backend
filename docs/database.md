@@ -153,7 +153,7 @@ The table was added in `database/migrations/V002__add_order_status_history.sql` 
 
 An order synced late after being taken offline keeps its original `CreatedAt`, so it sits where that time puts it. `CreatedAt` is stored in UTC and the API writes it with a `Z`; the response also carries `serverTime`, so the board measures elapsed time with the server clock instead of the clock of the device.
 
-The board polls this endpoint every 5 seconds. Real-time updates (SignalR) come with HU_09.
+The board polls this endpoint every 5 seconds. Real-time updates with SignalR are still planned; HU_09 notifies the waiter or the customer with a push notification instead (below).
 
 ## Kitchen status changes and undo
 
