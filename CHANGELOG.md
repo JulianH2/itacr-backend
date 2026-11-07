@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.6.0](https://github.com/JulianH2/itacr-backend/compare/v0.5.0...v0.6.0) (2026-11-07)
+
+
+### Added
+
+* **catalog:** list the options a combo can be customized with (ITACR-18) ([9d2d112](https://github.com/JulianH2/itacr-backend/commit/9d2d11200b88b7294ab4c4b06a6c91372720ac2d))
+* **db:** add the combo exclusion options and keep the customization of pickup orders (ITACR-18) ([57a1ae8](https://github.com/JulianH2/itacr-backend/commit/57a1ae82d2340513e6f7f9af806963ed6ddfaf1a))
+* **orders:** customize a combo with size, drink, extras and exclusions (ITACR-18) ([7f86399](https://github.com/JulianH2/itacr-backend/commit/7f86399b2790c4439fb685b96afe507ad53221e8))
+* **orders:** price and save the size, drink, extras and exclusions of a combo (ITACR-18) ([b133737](https://github.com/JulianH2/itacr-backend/commit/b1337374711c278eafb5e105502522e168a81991))
+
+
+### Documentation
+
+* **orders:** document the customization of a combo (ITACR-18) ([70043d3](https://github.com/JulianH2/itacr-backend/commit/70043d3dc715c355cda48b793c08a96cb79eccb5))
+* **repo:** document the test coverage (ITACR-62) ([2168145](https://github.com/JulianH2/itacr-backend/commit/2168145c2dbf5ad03f259f8f83c20e8e26d99a0a))
+* **repo:** record that the rate limiter sees the real client address (ITACR-63) ([cbbf52f](https://github.com/JulianH2/itacr-backend/commit/cbbf52fd5fc21a622b6deefde38836d2dc2deb4a))
+* **repo:** record that the rate limiter sees the real client address (ITACR-63) ([bdbd699](https://github.com/JulianH2/itacr-backend/commit/bdbd6996b7ad0be7bac240b15410591767f353ad))
+* **repo:** update the docs that no longer match the code (ITACR-60) ([1cdf4fc](https://github.com/JulianH2/itacr-backend/commit/1cdf4fc686ff7fd75ba23dec0a19959f053f2c61))
+* **repo:** update the docs that no longer match the code (ITACR-60) ([4adef99](https://github.com/JulianH2/itacr-backend/commit/4adef9986969d36c83fb952b78b07b7344e73ea5))
+
 ## [0.5.0](https://github.com/JulianH2/itacr-backend/compare/v0.4.0...v0.5.0) (2026-10-29)
 
 
