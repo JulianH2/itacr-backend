@@ -20,11 +20,12 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
     private const string WebpImagesScript = "V004__use_webp_product_images.sql";
     private const string ProductAvailabilityScript = "V005__add_product_is_available.sql";
     private const string PushEndpointIndexScript = "V006__add_push_subscription_endpoint_index.sql";
+    private const string ExclusionOptionsScript = "V007__add_combo_exclusion_options.sql";
     private const string PushEndpointIndexQuery = "SELECT COUNT(*) FROM sys.indexes WHERE name = N'UX_PushSubscriptions_Endpoint';";
     private const string LastEfCoreMigration = "20261002130000_AddFnGetProductsByCategory";
 
     private static readonly PasswordHasher<Employee> PasswordHasher = new();
-    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript, PickupConstraintsScript, WebpImagesScript, ProductAvailabilityScript, PushEndpointIndexScript];
+    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript, PickupConstraintsScript, WebpImagesScript, ProductAvailabilityScript, PushEndpointIndexScript, ExclusionOptionsScript];
 
     [Fact]
     public async Task RunAsync_ShouldCreateTheSchemaAndSeedTheTestEmployees_WhenDatabaseDoesNotExist()
@@ -159,6 +160,8 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         await using var connection = new SqlConnection(connectionString);
 
         // Act
+        var exclusionsReversed = await migrator.RollbackAsync(ExclusionOptionsScript, CancellationToken.None);
+        var exclusionsAfterRollback = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.ComboOptions WHERE [Type] = N'Exclusion';");
         var indexReversed = await migrator.RollbackAsync(PushEndpointIndexScript, CancellationToken.None);
         var indexAfterRollback = await connection.ExecuteScalarAsync<int>(PushEndpointIndexQuery);
         var columnReversed = await migrator.RollbackAsync(ProductAvailabilityScript, CancellationToken.None);
@@ -167,15 +170,18 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         var reapplied = await migrator.RunAsync(CancellationToken.None);
 
         // Assert
+        Assert.True(exclusionsReversed);
+        Assert.Equal(0, exclusionsAfterRollback);
         Assert.True(indexReversed);
         Assert.Equal(0, indexAfterRollback);
         Assert.True(columnReversed);
         Assert.Null(columnAfterRollback);
-        Assert.Equal(AllScripts[..^2], scriptsAfterRollback);
+        Assert.Equal(AllScripts[..^3], scriptsAfterRollback);
         Assert.True(reapplied);
         Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
         Assert.Equal(18, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Products WHERE IsAvailable = 1;"));
         Assert.Equal(1, await connection.ExecuteScalarAsync<int>(PushEndpointIndexQuery));
+        Assert.Equal(7, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.ComboOptions WHERE [Type] = N'Exclusion';"));
     }
 
     [Fact]
@@ -203,7 +209,7 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         Assert.True(await CreateMigrator(connectionString, Environments.Development).RunAsync(CancellationToken.None));
 
         // Act
-        var reversed = await CreateMigrator(connectionString, Environments.Production).RollbackAsync(PushEndpointIndexScript, CancellationToken.None);
+        var reversed = await CreateMigrator(connectionString, Environments.Production).RollbackAsync(ExclusionOptionsScript, CancellationToken.None);
 
         // Assert
         Assert.False(reversed);
@@ -268,6 +274,8 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         Assert.Equal(3, options.Count(option => option.Type == "Size"));
         Assert.Equal(3, options.Count(option => option.Type == "Drink"));
         Assert.Equal(3, options.Count(option => option.Type == "Extra"));
+        Assert.Equal(7, options.Count(option => option.Type == "Exclusion"));
+        Assert.All(options.Where(option => option.Type == "Exclusion"), option => Assert.Equal(0m, option.PriceAdjustment));
         Assert.Equal(25m, options.Single(option => option.Name == "Grande").PriceAdjustment);
         var productsPerCategory = await connection.QueryAsync<int>("SELECT COUNT(*) FROM dbo.Products GROUP BY CategoryId;");
         Assert.Equal(5, productsPerCategory.Count());

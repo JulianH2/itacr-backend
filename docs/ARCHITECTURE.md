@@ -123,7 +123,7 @@ Every controller requires a signed-in user (`AuthorizeFilter`) unless it says `[
 | Endpoint | What it does | Policy and limit per client IP | Notes |
 | -------- | ------------ | ------------------------------ | ----- |
 | `GET /api/v1/health` | Health probe of the App Service | global | Reveals no internal details |
-| `GET /api/v1/catalog/categories`, `GET /api/v1/catalog/products` | The menu | global | Read-only, same for everyone |
+| `GET /api/v1/catalog/categories`, `GET /api/v1/catalog/products`, `GET /api/v1/catalog/combo-options` | The menu and the options of a combo | global | Read-only, same for everyone |
 | `GET /api/v1/auth/employees?role=` | The people shown in the PIN picker | global | Returns only `id` and an abbreviated display name of **active** employees |
 | `POST /api/v1/auth/login/pin`, `POST /api/v1/auth/login/password`, `POST /api/v1/auth/pin-reset-requests` | Staff sign-in | `login`: 10 per minute (`LoginSecurity`) | A PIN also locks for 15 minutes after 5 failures |
 | `POST /api/v1/public/orders` | A customer sends a pickup order | `public-order-create`: **10 per 10 minutes** | The first public endpoint that creates data; see [6.2](#62-customer-pickup-orders-hu_06) |
@@ -137,7 +137,21 @@ Rules for any public endpoint, today and later:
 - Limits are options validated at startup (`PublicOrders` section, same pattern as `LoginSecurity`), never constants in code.
 - It never returns an employee id, a customer phone, or an id that another endpoint accepts as a credential.
 
-**To verify in HU_06:** the limits are per client IP, so the limiter must see the customer's real address. Behind the App Service front end `RemoteIpAddress` can be the proxy's address, which would put every customer in one bucket. The API does not configure forwarded headers in code. Before adding `UseForwardedHeaders`, check in QA whether the App Service already sets `ASPNETCORE_FORWARDEDHEADERS_ENABLED` (on Linux it usually does), because that decides whether anything is needed and which proxies must be trusted. Log the address the limiter sees from a QA request to confirm it is the client's.
+**Verified in QA (ITACR-63, 5 November 2026): the limiter sees the client's own address.** The limits are per client IP (`context.Connection.RemoteIpAddress` in `ApiServiceCollectionExtensions`, `AuthServiceCollectionExtensions`, and `PublicOrdersServiceCollectionExtensions`), so behind the App Service front end every customer would share one bucket if the API saw the proxy's address. The API does not call `UseForwardedHeaders` in code, and it does not need to: the test below shows the limiter already separates clients.
+
+The test used `POST /api/v1/public/orders` on `app-itacr-backend-qa` with an empty body. It answers `400`, creates nothing, and still counts against the limit of 10 per 10 minutes, because the limiter runs before the endpoint.
+
+| Step (UTC) | From | Request | Answer |
+| ---------- | ---- | ------- | ------ |
+| 18:46 | Network A (the development machine) | Requests 1 to 10 | `400` |
+| 18:46 | Network A | Requests 11 and 12 | `429`: the limit works |
+| 18:47 | Network B (a GitHub Actions runner, `4.242.29.253`) | Requests 1 to 3, while A was blocked | `400` |
+| 18:48 | Network A | Another request, then two with a made-up `X-Forwarded-For` | `429` all three |
+
+- **Two networks do not share a bucket:** B was served while A was blocked, so the key is not the address of the App Service front end.
+- **The header cannot be used to get around the limit:** A kept getting `429` when it sent `X-Forwarded-For: 9.9.9.9` or `9.9.9.8`, so the address the limiter uses is not the one the client writes.
+- **What was not checked:** the evidence is behavioral. I did not read the settings of the App Service (no Azure access from the machine that ran the test), so whether `ASPNETCORE_FORWARDEDHEADERS_ENABLED` is what makes it work is still to confirm in the portal. The address was not logged on purpose, because an IP is personal data. Production runs the same stack, but the test was only run in QA: repeat it there after the next release.
+- **If it ever stops working** (every request from the restaurant answers `429` after 10 orders, whoever sends them), add `UseForwardedHeaders` with `ForwardedHeaders.XForwardedFor` first in the pipeline and keep `ForwardLimit` at 1, so only the address the front end appended is used.
 
 ### 6.2 Customer pickup orders (HU_06)
 

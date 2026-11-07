@@ -7,10 +7,11 @@
 -- Returns:     0 or 1 row: Id, OrderNumber, Channel, Status, TableNumber, WaiterId (null for a pickup order; the API uses it
 --              to show a waiter only their own orders and the pickup ones, and never returns it), Total, CreatedAt, LastStatusChangeAt, ReadyAt,
 --              DeliveredAt,
---              ItemsJson (array of Name, Quantity, UnitPrice, Subtotal, in the order they were added),
+--              ItemsJson (array of Name, Quantity, UnitPrice, Subtotal, Size, Drink, Extras, Exclusions, in the order they were
+--              added; Size and Drink are left out when null, Extras and Exclusions are arrays),
 --              HistoryJson (array of FromStatus, ToStatus, ChangedById, ChangedAt, oldest first)
 -- Author:      JulianH2
--- Jira:        ITACR-11, ITACR-14, ITACR-16
+-- Jira:        ITACR-11, ITACR-14, ITACR-16, ITACR-18
 -- =============================================================================
 CREATE OR ALTER PROCEDURE dbo.usp_Order_GetById
     @Id uniqueidentifier
@@ -20,7 +21,9 @@ BEGIN
 
     SELECT o.Id, o.OrderNumber, o.Channel, o.Status, t.Number AS TableNumber, o.WaiterId, o.Total, o.CreatedAt, o.LastStatusChangeAt, o.ReadyAt, o.DeliveredAt,
         (
-            SELECT p.Name, i.Quantity, i.UnitPrice, i.Subtotal
+            SELECT p.Name, i.Quantity, i.UnitPrice, i.Subtotal, i.Size, i.Drink,
+                JSON_QUERY(COALESCE(CAST(i.Extras AS nvarchar(max)), N'[]')) AS Extras,
+                JSON_QUERY(COALESCE(CAST(i.Exclusions AS nvarchar(max)), N'[]')) AS Exclusions
             FROM dbo.OrderItems AS i
             JOIN dbo.Products AS p ON p.Id = i.ProductId
             WHERE i.OrderId = o.Id

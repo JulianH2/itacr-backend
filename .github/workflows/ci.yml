@@ -135,8 +135,16 @@ jobs:
 
       # The database tests start SQL Server containers with Testcontainers (Docker is preinstalled on the runner).
       # One test project at a time (-m:1), so at most two SQL Server containers share the 8 GB of the runner.
+      # The same run collects the coverage (ITACR-62), so the tests do not run twice. There is no minimum yet.
       - name: Run tests
         if: steps.project.outputs.solution != ''
         env:
           SOLUTION: ${{ steps.project.outputs.solution }}
-        run: dotnet test "$SOLUTION" --configuration Release --no-build -m:1
+        run: >
+          dotnet test "$SOLUTION" --configuration Release --no-build -m:1
+          --collect "XPlat Code Coverage" --settings coverage.runsettings --results-directory TestResults
+
+      # Shows the percentage of covered lines in the summary of the job, also when a test failed.
+      - name: Coverage summary
+        if: ${{ !cancelled() && steps.project.outputs.solution != '' }}
+        run: python3 .github/scripts/coverage-summary.py TestResults

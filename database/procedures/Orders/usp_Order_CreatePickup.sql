@@ -13,12 +13,12 @@
 --              @Total decimal(10,2) - sum of the item subtotals, computed by the API
 --              @Now datetime2 - current time (UTC)
 --              @MaxActiveOrders int - active orders (New, InPreparation, Ready) a phone may have
---              @ItemsJson nvarchar(max) - [{ Id, ProductId, Quantity, UnitPrice, Subtotal }]
+--              @ItemsJson nvarchar(max) - [{ Id, ProductId, Quantity, UnitPrice, Subtotal, Size, Drink, Extras, Exclusions }]
 --              @HistoryJson nvarchar(max) - [{ Id, FromStatus, ToStatus, ChangedById, CreatedAt }]
 -- Returns:     Outcome nvarchar(20): Created, AlreadyExists (the ClientOrderId was already saved), or LimitReached;
 --              OrderNumber int (null unless Created)
 -- Author:      GuillermoRH19
--- Jira:        ITACR-12
+-- Jira:        ITACR-12, ITACR-18
 -- =============================================================================
 CREATE OR ALTER PROCEDURE dbo.usp_Order_CreatePickup
     @Id uniqueidentifier,
@@ -76,13 +76,18 @@ BEGIN
         VALUES (@Id, @ClientOrderId, N'MobileApp', N'New', NULL, NULL, @ExistingCustomerId, @Total, @Now, @Now, @Now);
 
         INSERT INTO dbo.OrderItems (Id, OrderId, ProductId, Quantity, UnitPrice, Subtotal, Size, Drink, Extras, Exclusions, CreatedAt, UpdatedAt)
-        SELECT item.Id, @Id, item.ProductId, item.Quantity, item.UnitPrice, item.Subtotal, NULL, NULL, N'[]', N'[]', @Now, @Now
+        SELECT item.Id, @Id, item.ProductId, item.Quantity, item.UnitPrice, item.Subtotal, item.Size, item.Drink,
+            COALESCE(item.Extras, N'[]'), COALESCE(item.Exclusions, N'[]'), @Now, @Now
         FROM OPENJSON(@ItemsJson) WITH (
             Id uniqueidentifier,
             ProductId uniqueidentifier,
             Quantity int,
             UnitPrice decimal(10, 2),
-            Subtotal decimal(10, 2)
+            Subtotal decimal(10, 2),
+            Size nvarchar(60),
+            Drink nvarchar(60),
+            Extras nvarchar(max) AS JSON,
+            Exclusions nvarchar(max) AS JSON
         ) AS item;
 
         INSERT INTO dbo.OrderStatusHistory (Id, OrderId, FromStatus, ToStatus, ChangedById, CreatedAt, UpdatedAt)
