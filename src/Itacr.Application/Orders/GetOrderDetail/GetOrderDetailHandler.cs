@@ -29,7 +29,7 @@ public sealed class GetOrderDetailHandler(IOrderRepository orderRepository)
             order.CreatedAt,
             order.ReadyAt,
             order.DeliveredAt,
-            [.. order.Items.Select(item => new OrderDetailItemResponse(item.Name, item.Quantity, item.UnitPrice, item.Subtotal))],
+            [.. order.Items.Select(item => new OrderDetailItemResponse(item.Name, item.Quantity, item.UnitPrice, item.Subtotal, item.Size, item.Drink, item.Extras, item.Exclusions))],
             [.. order.History.Select(change => new OrderTimelineEntryResponse(change.ToStatus, change.ChangedAt, change.FromStatus > change.ToStatus))]);
     }
 }

@@ -20,6 +20,9 @@ internal sealed class FakeCatalogRepository(
     public Task<IReadOnlyList<Product>> GetProductsByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<Product>>([.. products.Where(product => ids.Contains(product.Id)).Select(ToProduct)]);
 
+    public Task<IReadOnlyList<ComboOption>> GetComboOptionsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ComboOption>>([]);
+
     private static Product ToProduct(ProductResponse product) => new()
     {
         Id = product.Id,

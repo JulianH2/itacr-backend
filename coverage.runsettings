@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Settings of the coverage collector (ITACR-62). Used by CI and by anyone who wants the numbers.
+  The command is in the README, section "Test coverage".
+  It measures the code of the product only (the four projects of src/ and the migrator), not the tests.
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Include>[Itacr.Domain]*,[Itacr.Application]*,[Itacr.Infrastructure]*,[Itacr.Api]*,[Itacr.Database.Migrator]*</Include>
+          <ExcludeByAttribute>GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

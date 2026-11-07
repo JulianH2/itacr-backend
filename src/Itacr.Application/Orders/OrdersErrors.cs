@@ -9,7 +9,12 @@ public static class OrdersErrors
     public const string ItemsRequired = "Agrega al menos un producto al pedido.";
     public const string TooManyItems = "El pedido no puede tener más de 50 productos distintos.";
     public const string QuantityOutOfRange = "La cantidad de cada producto debe estar entre 1 y 99.";
-    public const string DuplicatedProduct = "Cada producto debe aparecer una sola vez en el pedido.";
+    public const string DuplicatedProduct = "Un producto con las mismas opciones solo puede aparecer una vez; suma la cantidad.";
+    public const string SizeRequiredMessage = "Selecciona el tamaño para continuar.";
+    public const string DrinkRequiredMessage = "Selecciona la bebida para continuar.";
+    public const string NotCustomizableMessage = "Este producto no se puede personalizar.";
+    public const string UnknownOptionMessage = "Una de las opciones elegidas ya no está en el menú.";
+    public const string DuplicatedOptionMessage = "Cada extra o ingrediente solo se puede elegir una vez.";
     public const string ClientOrderIdRequired = "Falta el identificador del pedido.";
     public const string TableNotFound = "La mesa seleccionada no existe.";
     public const string ProductsNotFound = "Uno o más productos ya no están en el menú.";
