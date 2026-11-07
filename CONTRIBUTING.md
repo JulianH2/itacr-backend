@@ -464,7 +464,7 @@ An issue is **Done** only when all of the following are true:
 
 - [ ] The acceptance criteria in Jira are met and were tested by the other team member.
 - [ ] The code was reviewed and approved in a PR into `sprint-XX`, and the personal branch was deleted.
-- [ ] CI is green (`branch-name`, `commit-messages`, and `ci`: format check, Release build with no warnings, tests, pending migrations check).
+- [ ] CI is green (`branch-name`, `commit-messages`, and `ci`: format check, Release build with no warnings, tests). The migration scripts are applied by the tests, which run the migrator on a new database.
 - [ ] It follows [docs/CODING_STANDARDS.md](docs/CODING_STANDARDS.md), with at least one test per acceptance criterion when feasible.
 - [ ] Every new endpoint validates its input and is documented in OpenAPI (status codes and response types).
 - [ ] Database changes are scripts in `database/` (never an edit of a merged migration script), and the migrator still runs twice without errors.

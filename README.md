@@ -75,6 +75,17 @@ The API listens on `http://localhost:3000`:
 | `docker compose down`                                   | Stop SQL Server (data is kept)                                            |
 | `docker compose down -v`                                | Stop SQL Server and delete all local data                                 |
 
+### Test coverage
+
+CI measures the coverage in the same run as the tests and shows the percentage of covered lines in the **summary of the `ci` job**, in total and per project. There is no minimum yet: the number is for information (ITACR-62). To get it on your machine:
+
+```bash
+dotnet test --collect "XPlat Code Coverage" --settings coverage.runsettings --results-directory TestResults
+python3 .github/scripts/coverage-summary.py TestResults
+```
+
+`coverage.runsettings` measures the code of the product (`src/` and the migrator), not the tests. Each test project writes its own report under `TestResults/` (ignored by git); the script merges them, so a line counts as covered when any project ran it.
+
 ## Local development
 
 `dotnet run --project database/Itacr.Database.Migrator` creates the database, applies every script in `database/` (schema and catalog: categories, products, combo options, and tables 1 to 10), and, because `dotnet run` uses the `Development` environment, creates four test employees, all with the password `Itacr2026!` (a local database from before 2 October 2026 gets the password on the next run, ITACR-47). Run it again after every pull that brings new scripts; it only applies what is missing.

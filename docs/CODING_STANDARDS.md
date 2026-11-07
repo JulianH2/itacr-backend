@@ -229,7 +229,7 @@ builder.Services
 }
 ```
 
-- Paginate every list: `?page=1&limit=20`, and return `{ data, meta: { page, limit, total } }`.
+- Lists are bounded. Today every list has a fixed limit in its use case (for example the last 10 orders of a waiter in `GET /orders/recent`) and none is paginated. A list that can grow without limit is paginated with `?page=1&limit=20` and returns `{ data, meta: { page, limit, total } }`.
 - JSON uses camelCase property names (the ASP.NET Core default) and enums as strings (`JsonStringEnumConverter`).
 - Dates in **ISO 8601 UTC** (`2026-09-28T18:30:00.000Z`): store and return `DateTime` values with `DateTimeKind.Utc`, taken from the injected `TimeProvider`. The frontend converts to local time.
 - Order creation accepts the client UUID (`clientOrderId`) as an **idempotency key**. The first request returns `201` with the new order; repeating it returns the original order with `200` instead of creating a duplicate, and `409` when the key belongs to another waiter's order. The unique index on `ClientOrderId` guarantees it even when two requests race (`POST /api/v1/orders`, ITACR-9).
@@ -245,7 +245,7 @@ builder.Services
 - Structured logging with message templates (`_logger.LogInformation("Order {OrderId} created", order.Id)`), never string interpolation in log calls. JSON console logs outside Development. Every log and Problem Details response includes the trace id.
 - `GET /api/v1/health` checks the API and the database by running `dbo.usp_Health_Ping` (`DatabaseHealthCheck`), so it also proves the `EXECUTE` permission. It is anonymous and returns no internal details.
 - Document every endpoint in OpenAPI: `[ProducesResponseType]` for each status code, XML comments on actions and DTOs. The Scalar UI (`/scalar/v1`) is enabled in Development only.
-- Real time with **SignalR**: one hub per use case (`KitchenHub` at `/hubs/kitchen`), authenticated with the same JWT, and clients grouped by role or order. Hubs only push events; changes still go through the REST API. Azure App Service must have WebSockets enabled.
+- Real time with **SignalR** is planned, not implemented: the kitchen board polls `GET /kitchen/queue` every 5 seconds, and the "order ready" notice is a Web Push notification (HU_09). When it is added: one hub per use case (`KitchenHub` at `/hubs/kitchen`), authenticated with the same JWT, and clients grouped by role or order. Hubs only push events; changes still go through the REST API. Azure App Service must have WebSockets enabled.
 
 ---
 

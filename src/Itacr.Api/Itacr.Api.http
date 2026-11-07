@@ -9,6 +9,9 @@ GET {{baseUrl}}/api/v1/catalog/categories
 ### Catalog products of "Combos" (seed id): 200 with 4 products
 GET {{baseUrl}}/api/v1/catalog/products?categoryId=10000000-0000-0000-0000-000000000001
 
+### Combo options (sizes, drinks, extras, exclusions): 200 with 16 options, no login needed
+GET {{baseUrl}}/api/v1/catalog/combo-options
+
 ### Catalog products without categoryId: 400 problem details
 GET {{baseUrl}}/api/v1/catalog/products
 

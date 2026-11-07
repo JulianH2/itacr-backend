@@ -153,7 +153,7 @@ The table was added in `database/migrations/V002__add_order_status_history.sql` 
 
 An order synced late after being taken offline keeps its original `CreatedAt`, so it sits where that time puts it. `CreatedAt` is stored in UTC and the API writes it with a `Z`; the response also carries `serverTime`, so the board measures elapsed time with the server clock instead of the clock of the device.
 
-The board polls this endpoint every 5 seconds. Real-time updates (SignalR) come with HU_09.
+The board polls this endpoint every 5 seconds. Real-time updates with SignalR are still planned; HU_09 notifies the waiter or the customer with a push notification instead (below).
 
 ## Kitchen status changes and undo
 
@@ -180,7 +180,24 @@ When the kitchen marks an order as `Ready`, its waiter, or the customer of a pic
 - **One notice per order:** `usp_Notification_CreateOrderReady` records a `Notifications` row of type `OrderReady` (recipient, `SentAt`) only while the order is `Ready` and only the first time; an undo and a new `Ready` record nothing more. It returns the order number, table, waiter, and customer to build the message. The text has the order number and the table for the waiter, and only the order number for the customer, never their name or phone.
 - **Sending:** the kitchen's request only puts the order id in an in-memory queue; a background service records the notice and sends it, so a slow push service never delays the tap. A restart can lose a queued notice; the order is still shown as `Ready` in the app (CA4). A browser the push service reports as gone (404 or 410) is deleted with `usp_PushSubscription_Delete`.
 - **Read:** the notification's link carries its id (`?notification=<id>`), so the PWA reports it even when the tap is what opens the app; it calls `POST /api/v1/public/notifications/{id}/read`, and `usp_Notification_MarkRead` sets `ReadAt` the first time only.
-- `V006` has its reversal in `database/rollbacks/`, so it is now the script the development `rollback` command reverses first.
+- `V006` has its reversal in `database/rollbacks/`; `V007` (HU_12) is now the first one the development `rollback` command reverses.
+
+## Customizing a combo (HU_12)
+
+A combo is ordered with a **size** and a **drink** (both required) and, optionally, **extras** and **exclusions** (ingredients to leave out). The options are rows of `ComboOptions`, listed by the public `GET /api/v1/catalog/combo-options` (`usp_ComboOption_GetAll`):
+
+| Type | Seeded options | Changes the price |
+| ---- | -------------- | ----------------- |
+| `Size` | Chico (+0), Mediano (+15), Grande (+25) | Yes |
+| `Drink` | Refresco de cola, Refresco de lima-limón, Agua natural | No (all 0) |
+| `Extra` | Queso extra (+12), Tocino (+18), Jalapeños (+8) | Yes |
+| `Exclusion` | Cebolla, Jitomate, Lechuga, Pepinillos, Mayonesa, Catsup, Mostaza (V007) | No |
+
+- **The request carries ids, never prices.** Each line of `POST /api/v1/orders` and of `POST /api/v1/public/orders` is `{ productId, quantity, sizeId, drinkId, extraIds, exclusionIds }`. The API looks the ids up in `ComboOptions`, checks each one is of the right type, and answers `400` on `items[<index>]` with a Spanish message: "Selecciona el tamaño para continuar." (no size), "Selecciona la bebida para continuar.", "Este producto no se puede personalizar." (options on a product that is not a combo), "Una de las opciones elegidas ya no está en el menú.", or "Cada extra o ingrediente solo se puede elegir una vez.".
+- **Price.** `UnitPrice = Product.Price + size adjustment + the price of each extra`; the drink and the exclusions do not change it. `Subtotal = UnitPrice x Quantity`, and the rule lives in `Application/Orders/OrderItemCustomization.cs`, shared by the waiter order and the customer pickup order.
+- **What is saved.** `OrderItems.Size`, `Drink`, `Extras`, and `Exclusions` keep the **names** (see "Why `UnitPrice` is copied into `OrderItem`"), so renaming or deleting an option never changes an old order. The kitchen queue (`usp_Order_GetActive`) and the order detail (`usp_Order_GetById`) return them.
+- **Lines.** The same combo can be on several lines when its options differ (one without onion, one with extra cheese). Two lines with the same product and the same options are rejected, whatever the order of their extras and exclusions: the app adds the quantity instead.
+- `V007` adds the exclusions and has its reversal in `database/rollbacks/`, so it is now the script the development `rollback` command reverses first.
 
 ## Delivering an order (HU_10)
 
@@ -247,7 +264,7 @@ Seed data is split in two because the two kinds of data have different needs.
 
 | Data | Where | Environments |
 | ---- | ----- | ------------ |
-| 5 categories (Combos, Hamburguesas, Complementos, Bebidas, Postres), 18 products, 9 combo options (sizes, drinks, extras), and dining tables 1 to 10 | `database/migrations/V001__initial_schema.sql` (generated in ITACR-37 from the sprint 1 EF Core seed, with the same fixed IDs as production) | All, including production |
+| 5 categories (Combos, Hamburguesas, Complementos, Bebidas, Postres), 18 products, 9 combo options (sizes, drinks, extras) and the 7 exclusions that `V007` adds, and dining tables 1 to 10 | `database/migrations/V001__initial_schema.sql` (generated in ITACR-37 from the sprint 1 EF Core seed, with the same fixed IDs as production) | All, including production |
 | 4 test employees: active waiter, kitchen, and manager, plus a waiter pending approval | `database/Itacr.Database.Migrator/Seeding/` | Development only |
 | 1 initial manager | `database/Itacr.Database.Migrator/Seeding/`, from the `Seed` settings | Any environment other than Development |
 
@@ -299,7 +316,7 @@ If any setting is missing or the PIN is not 4 digits, the seeder skips the manag
 ```sql
 SELECT COUNT(*) FROM dbo.Categories;     -- 5
 SELECT COUNT(*) FROM dbo.Products;       -- 18
-SELECT COUNT(*) FROM dbo.ComboOptions;   -- 9
+SELECT COUNT(*) FROM dbo.ComboOptions;   -- 16 (9 from V001 and 7 exclusions from V007)
 SELECT COUNT(*) FROM dbo.DiningTables;   -- 10
 SELECT FullName, Email, Role, Status FROM dbo.Employees;
 ```

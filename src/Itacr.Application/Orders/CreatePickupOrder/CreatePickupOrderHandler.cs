@@ -36,18 +36,33 @@ public sealed class CreatePickupOrderHandler(
             return new CreatePickupOrderOutcome(PickupOrderResponse.From(existing), Created: false);
         }
 
-        var products = (await catalogRepository.GetProductsByIdsAsync([.. command.Items.Select(item => item.ProductId)], cancellationToken))
-            .ToDictionary(product => product.Id);
-        if (products.Count != command.Items.Count)
+        var productIds = command.Items.Select(item => item.ProductId).Distinct().ToList();
+        var products = (await catalogRepository.GetProductsByIdsAsync(productIds, cancellationToken)).ToDictionary(product => product.Id);
+        if (products.Count != productIds.Count)
         {
             return OrdersErrors.UnknownProducts;
         }
 
+        var customized = new List<CustomizedItem>(command.Items.Count);
+        var comboOptions = await OrderItemCustomization.LoadOptionsAsync(catalogRepository, command.Items, cancellationToken);
+        for (var index = 0; index < command.Items.Count; index++)
+        {
+            var resolved = OrderItemCustomization.Resolve(products[command.Items[index].ProductId], command.Items[index], index, comboOptions);
+            if (!resolved.IsSuccess)
+            {
+                return resolved.Error!;
+            }
+
+            customized.Add(resolved.Value);
+        }
+
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var order = Order.CreatePickup(command.ClientOrderId, now);
-        foreach (var item in command.Items)
+        for (var index = 0; index < command.Items.Count; index++)
         {
-            order.AddItem(item.ProductId, item.Quantity, products[item.ProductId].Price, size: null, drink: null, extras: [], exclusions: [], now);
+            var item = command.Items[index];
+            var line = customized[index];
+            order.AddItem(item.ProductId, item.Quantity, line.UnitPrice, line.Size, line.Drink, line.Extras, line.Exclusions, now);
         }
 
         var customer = new Customer { Name = command.Name!.Trim(), Phone = command.Phone!, CreatedAt = now, UpdatedAt = now };

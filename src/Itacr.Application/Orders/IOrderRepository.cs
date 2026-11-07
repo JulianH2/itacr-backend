@@ -23,7 +23,15 @@ public sealed record OrderStatusChange(OrderStatus? FromStatus, OrderStatus ToSt
 /// <summary>The current status of an order and its last change, to validate the next one. <see cref="WaiterId"/> is null for a pickup order.</summary>
 public sealed record OrderStatusState(Guid Id, OrderStatus Status, Guid? WaiterId, OrderStatusChange LastChange);
 
-public sealed record OrderDetailItem(string Name, int Quantity, decimal UnitPrice, decimal Subtotal);
+public sealed record OrderDetailItem(
+    string Name,
+    int Quantity,
+    decimal UnitPrice,
+    decimal Subtotal,
+    string? Size,
+    string? Drink,
+    IReadOnlyList<string> Extras,
+    IReadOnlyList<string> Exclusions);
 
 /// <summary><see cref="WaiterId"/> (null for a pickup order) is only to decide who may read the order; it is never part of a response.</summary>
 public sealed record OrderDetail(
