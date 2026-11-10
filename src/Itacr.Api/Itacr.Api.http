@@ -49,3 +49,11 @@ Content-Type: application/json
 
 ### Follow a pickup order with the clientOrderId the phone kept: 200, or 404 when it is not a pickup order
 GET {{baseUrl}}/api/v1/public/orders/3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b
+
+### Manager dashboard (HU_16): 200 with the orders, sales and preparation time by channel. Manager only: 403 for others, 401 without a token
+GET {{baseUrl}}/api/v1/manager/dashboard?from=2026-11-10T06:00:00Z&to=2026-11-11T06:00:00Z
+Authorization: Bearer {{managerToken}}
+
+### Manager orders, only the pickup ones that were delivered: 200
+GET {{baseUrl}}/api/v1/manager/orders?from=2026-11-10T06:00:00Z&to=2026-11-11T06:00:00Z&channel=Pickup&status=Delivered&page=1&pageSize=20
+Authorization: Bearer {{managerToken}}
