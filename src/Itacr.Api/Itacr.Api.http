@@ -49,3 +49,31 @@ Content-Type: application/json
 
 ### Follow a pickup order with the clientOrderId the phone kept: 200, or 404 when it is not a pickup order
 GET {{baseUrl}}/api/v1/public/orders/3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b
+
+### Ask for an account (HU_14): 202, the account waits for the manager. No login needed
+POST {{baseUrl}}/api/v1/auth/registration-requests
+Content-Type: application/json
+
+{
+  "fullName": "Ana López",
+  "email": "ana.lopez",
+  "phone": "7711234567",
+  "role": "Waiter",
+  "pin": "4821",
+  "pinConfirmation": "4821",
+  "acceptedPrivacyNotice": true
+}
+
+### The same request with another confirmation: 400 "Los PIN no coinciden." on pinConfirmation
+POST {{baseUrl}}/api/v1/auth/registration-requests
+Content-Type: application/json
+
+{
+  "fullName": "Ana López",
+  "email": "ana.lopez2",
+  "phone": "7711234567",
+  "role": "Waiter",
+  "pin": "4821",
+  "pinConfirmation": "4822",
+  "acceptedPrivacyNotice": true
+}
