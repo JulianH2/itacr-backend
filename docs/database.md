@@ -208,9 +208,30 @@ A new employee asks for an account from the login screen with `POST /api/v1/auth
 - **The manager role cannot be requested.** A public form must not be a way to become a manager, so the API only accepts `Waiter` and `Kitchen`; manager accounts come from the seed or from another manager.
 - **What is saved:** `Status = PendingApproval`, `PasswordHash = NULL`, `ApprovedById = NULL`, the hash of the PIN (never the PIN), and `PrivacyNoticeAcceptedAt`, the time the privacy notice was accepted, as the proof the data protection law asks for. `V008` adds that column; it is `NULL` for the employees that existed before.
 - **Unique email or user:** the unique index `IX_Employees_Email` (case-insensitive, by the collation of the database) is the guard. The procedure checks first under a range lock and also treats error 2601/2627 as "already taken", so two requests for the same email at the same moment cannot both succeed. A taken value answers `409` with "Ya existe una cuenta o una solicitud con ese correo o usuario." and saves nothing.
-- **Nobody can sign in with it yet:** the PIN and the password logins answer "pending approval" (`403`) until a manager approves the account. The screen where the manager approves it is another story.
+- **Nobody can sign in with it yet:** the PIN and the password logins answer "pending approval" (`403`) until a manager approves the account (HU_15, the section "Staff access requests").
 - **Limit:** one client IP can send 10 requests per hour (`Registration` options, `registration` policy), because several new employees share the restaurant's connection.
 - **Known gap:** the endpoint is public, so a script could fill the list of pending accounts of the manager within that limit. There is no CAPTCHA, as with the public orders; it would go in front of this endpoint if real abuse appears.
+
+## Staff access requests (HU_15)
+
+The manager attends two kinds of request from the dashboard. All the endpoints are only for the role **Manager** (`401` without a session, `403` for a waiter or the kitchen) and their procedures are in `database/procedures/Manager/`.
+
+| Endpoint | What it does | Procedure |
+| -------- | ------------ | --------- |
+| `GET /api/v1/manager/access-requests` | Lists the pending accounts (name, role, when) and the pending PIN resets, oldest first; both lists are empty when there is nothing to attend | `usp_AccessRequest_GetPending` (two result sets) |
+| `POST /api/v1/manager/access-requests/{employeeId}/approve` | `PendingApproval` to `Active`; saves the manager in `ApprovedById` | `usp_Employee_ReviewAccess` |
+| `POST /api/v1/manager/access-requests/{employeeId}/reject` | `PendingApproval` to `Rejected` | `usp_Employee_ReviewAccess` |
+| `POST /api/v1/manager/pin-reset-requests/{employeeId}/temporary-pin` with `{ "pin": "1234" }` | Replaces the PIN, clears the lockout, and resolves the request | `usp_Employee_AssignTemporaryPin` |
+
+The three writes answer `204`; `404` when the employee does not exist (or is not active, for the PIN) and `409` when the request was already handled.
+
+- **Approving and rejecting.** `usp_Employee_ReviewAccess` runs one `UPDATE ... WHERE Id = @Id AND Status = N'PendingApproval'` in a transaction and returns `Outcome`: `1` changed, `2` the account was not pending (`409`), `0` it does not exist (`404`). Two managers acting at once cannot both win, and an approved account cannot be rejected afterwards, or the other way round. Editing the role or deleting an active employee is out of scope. The sign-in already treated the statuses: `PendingApproval` answers "pending approval" and `Rejected` answers "account not active", both `403`, with the PIN and with the password.
+- **`ApprovedById`** is the manager who approved the account. A rejection leaves it empty: the column says who approved, and `UpdatedAt` is the only trace of the rejection.
+- **What a rejection does with the email.** The account is kept as `Rejected`, so its unique email stays taken: that person gets `409` if they ask again with the same email, and the manager cannot undo the rejection from the app. This avoids deleting data, keeps the audit trail, and stops someone rejected from asking over and over. Releasing the email (for example, letting a rejected account ask again) would be a new story.
+- **What a pending PIN reset is.** `POST /api/v1/auth/pin-reset-requests` (HU_01) writes one `PinReset` notification per active manager (a `NULL` recipient when there is none). A request is pending while any `PinReset` notification of an **active** employee has `ResolvedAt IS NULL`; the list shows one row per employee, with the time of the last request. `ReadAt` is not used for this: it says that one recipient opened the notice (HU_09), not that the request was attended. `V010` adds `Notifications.ResolvedAt` (nullable; the reversal is in `database/rollbacks/`), so the PIN resets asked before it stay pending.
+- **Assigning the PIN.** `usp_Employee_AssignTemporaryPin` checks that the employee is active (`Outcome` `0` otherwise), sets `ResolvedAt` on **every** unresolved `PinReset` notification of that employee (all the managers' copies), and only if it resolved at least one it stores the new `PinHash`, sets `FailedLoginAttempts = 0` and `LockoutEndAt = NULL`, all in one transaction. When there was nothing to resolve the answer is `409` and the PIN is untouched, so two managers answering at once cannot both change it, and nobody can set the PIN of an employee who did not ask.
+- **The PIN is never stored or returned.** The API hashes it with `ICredentialHasher` (PBKDF2) before the procedure and no response carries a hash. The temporary PIN is a normal PIN: it is 4 digits, works as any other, and the app does not force a change; the manager tells it to the employee in person.
+- **Times** come from `TimeProvider` and travel as `@Now`.
 
 ## Manager dashboard (HU_16)
 

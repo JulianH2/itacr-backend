@@ -99,3 +99,24 @@ Authorization: Bearer {{accessToken}}
 ### Manager orders, only the pickup ones that were delivered: 200
 GET {{baseUrl}}/api/v1/manager/orders?from=2026-11-10T06:00:00Z&to=2026-11-11T06:00:00Z&channel=Pickup&status=Delivered&page=1&pageSize=20
 Authorization: Bearer {{accessToken}}
+
+### Pending access requests (HU_15): 200 with the accounts to approve and the PIN resets to answer. Manager only: 403 for others, 401 without a token
+GET {{baseUrl}}/api/v1/manager/access-requests
+Authorization: Bearer {{accessToken}}
+
+### Approve an account: 204 and the employee can sign in; 404 unknown id; 409 already handled
+POST {{baseUrl}}/api/v1/manager/access-requests/00000000-0000-0000-0000-000000000000/approve
+Authorization: Bearer {{accessToken}}
+
+### Reject an account: 204 and the employee cannot sign in; 404 unknown id; 409 already handled
+POST {{baseUrl}}/api/v1/manager/access-requests/00000000-0000-0000-0000-000000000000/reject
+Authorization: Bearer {{accessToken}}
+
+### Assign a temporary PIN to an employee who asked to reset theirs: 204; 400 not 4 digits; 404 unknown id; 409 already handled
+POST {{baseUrl}}/api/v1/manager/pin-reset-requests/00000000-0000-0000-0000-000000000000/temporary-pin
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "pin": "9087"
+}
