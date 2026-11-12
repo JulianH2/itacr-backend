@@ -15,5 +15,7 @@ public static class IdentityErrors
 
     public static readonly Error Locked = new(ErrorKind.Locked, "Account locked", AuthProblems.Locked, AuthProblems.LockedType);
 
+    public static readonly Error AccountAlreadyExists = new(ErrorKind.Conflict, "Account already exists", AuthProblems.AccountAlreadyExists, AuthProblems.AccountAlreadyExistsType);
+
     public static readonly Error EmployeeNotFound = new(ErrorKind.NotFound, "Employee not found", AuthProblems.EmployeeNotFound);
 }

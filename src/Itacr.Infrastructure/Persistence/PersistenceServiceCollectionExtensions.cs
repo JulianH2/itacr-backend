@@ -4,12 +4,14 @@ using Itacr.Application.Catalog;
 using Itacr.Application.Common.Persistence;
 using Itacr.Application.Identity;
 using Itacr.Application.Kitchen;
+using Itacr.Application.Manager;
 using Itacr.Application.Notifications;
 using Itacr.Application.Orders;
 using Itacr.Domain.Identity;
 using Itacr.Infrastructure.Persistence.Catalog;
 using Itacr.Infrastructure.Persistence.Identity;
 using Itacr.Infrastructure.Persistence.Kitchen;
+using Itacr.Infrastructure.Persistence.Manager;
 using Itacr.Infrastructure.Persistence.Notifications;
 using Itacr.Infrastructure.Persistence.Orders;
 using Microsoft.AspNetCore.Identity;
@@ -47,6 +49,8 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IDiningTableRepository, DiningTableRepository>();
         services.AddScoped<IKitchenRepository, KitchenRepository>();
+        services.AddScoped<IManagerRepository, ManagerRepository>();
+        services.AddScoped<IStaffAccessRepository, StaffAccessRepository>();
         services.AddScoped<IPickupOrderRepository, PickupOrderRepository>();
         services.AddSingleton<IPasswordHasher<Employee>, PasswordHasher<Employee>>();
 

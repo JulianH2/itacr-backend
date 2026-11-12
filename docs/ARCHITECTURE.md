@@ -126,6 +126,7 @@ Every controller requires a signed-in user (`AuthorizeFilter`) unless it says `[
 | `GET /api/v1/catalog/categories`, `GET /api/v1/catalog/products`, `GET /api/v1/catalog/combo-options` | The menu and the options of a combo | global | Read-only, same for everyone |
 | `GET /api/v1/auth/employees?role=` | The people shown in the PIN picker | global | Returns only `id` and an abbreviated display name of **active** employees |
 | `POST /api/v1/auth/login/pin`, `POST /api/v1/auth/login/password`, `POST /api/v1/auth/pin-reset-requests` | Staff sign-in | `login`: 10 per minute (`LoginSecurity`) | A PIN also locks for 15 minutes after 5 failures |
+| `POST /api/v1/auth/registration-requests` | A new employee asks for an account (HU_14) | `registration`: **10 per hour** (`Registration`) | Creates a pending account that cannot sign in; only the roles Waiter and Kitchen; an email or user that is taken answers `409`, so it shows that the value exists. See the section "Asking for an account" of `database.md` |
 | `POST /api/v1/public/orders` | A customer sends a pickup order | `public-order-create`: **10 per 10 minutes** | The first public endpoint that creates data; see [6.2](#62-customer-pickup-orders-hu_06) |
 | `GET /api/v1/public/orders/{clientOrderId}` | A customer follows their order | `public-order-status`: **60 per minute** | Read-only, answers with the minimum, and only for `MobileApp` orders; see [6.2](#62-customer-pickup-orders-hu_06) |
 | OpenAPI and Scalar | API docs | Development only | Not mapped in QA or production |
@@ -196,6 +197,10 @@ Known limit: if the customer clears the browser data, the phone forgets the rece
 1. How long are customers kept? (Proposal: delete customers with no order in the last 90 days.)
 2. Does the kitchen need to see the customer's name to call out a pickup order? The kitchen queue does not return it today.
 3. Should an existing customer keep the **first** name instead of the last one, given that the phone is not verified? It would stop a stranger from renaming a customer, at the cost of a stale name.
+
+### 6.3 Staff access requests (HU_15)
+
+Who gets in is decided by the manager, never by the employee: the endpoints under `/api/v1/manager/access-requests` and `/api/v1/manager/pin-reset-requests` use `[Authorize(Roles = Manager)]` (`401` without a session, `403` for a waiter or the kitchen). A manager approves or rejects an account that asked for access (HU_14) and answers a PIN reset (HU_01) with a temporary PIN of 4 digits, stored only as a hash. Each decision is one guarded `UPDATE` in a stored procedure, so two managers acting on the same request at once cannot both succeed: the second one gets `409`. The rules and the procedures are in the section "Staff access requests" of `database.md`.
 
 ## 7. Testing strategy
 

@@ -58,4 +58,24 @@ internal sealed class EmployeeRepository(DbSession session) : IEmployeeRepositor
             session.Procedure("dbo.usp_Employee_GetActiveManagerIds", new { ExcludedEmployeeId = excludedEmployeeId }, cancellationToken));
         return [.. ids];
     }
+
+    public async Task<bool> RegisterAsync(Employee employee, CancellationToken cancellationToken)
+    {
+        employee.Id = SequentialGuid.Create();
+        var connection = await session.GetOpenConnectionAsync(cancellationToken);
+        return await connection.QuerySingleAsync<bool>(session.Procedure(
+            "dbo.usp_Employee_Register",
+            new
+            {
+                employee.Id,
+                employee.FullName,
+                employee.Email,
+                employee.Phone,
+                Role = employee.Role.ToString(),
+                employee.PinHash,
+                PrivacyNoticeAcceptedAt = employee.PrivacyNoticeAcceptedAt ?? employee.CreatedAt,
+                Now = employee.CreatedAt,
+            },
+            cancellationToken));
+    }
 }
