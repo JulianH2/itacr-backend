@@ -198,6 +198,10 @@ Known limit: if the customer clears the browser data, the phone forgets the rece
 2. Does the kitchen need to see the customer's name to call out a pickup order? The kitchen queue does not return it today.
 3. Should an existing customer keep the **first** name instead of the last one, given that the phone is not verified? It would stop a stranger from renaming a customer, at the cost of a stale name.
 
+### 6.3 Staff access requests (HU_15)
+
+Who gets in is decided by the manager, never by the employee: the endpoints under `/api/v1/manager/access-requests` and `/api/v1/manager/pin-reset-requests` use `[Authorize(Roles = Manager)]` (`401` without a session, `403` for a waiter or the kitchen). A manager approves or rejects an account that asked for access (HU_14) and answers a PIN reset (HU_01) with a temporary PIN of 4 digits, stored only as a hash. Each decision is one guarded `UPDATE` in a stored procedure, so two managers acting on the same request at once cannot both succeed: the second one gets `409`. The rules and the procedures are in the section "Staff access requests" of `database.md`.
+
 ## 7. Testing strategy
 
 | Project                         | Scope                                                              | Infrastructure                                                                                        |

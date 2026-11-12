@@ -22,11 +22,12 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
     private const string PushEndpointIndexScript = "V006__add_push_subscription_endpoint_index.sql";
     private const string ExclusionOptionsScript = "V007__add_combo_exclusion_options.sql";
     private const string PrivacyNoticeScript = "V008__add_employee_privacy_notice_date.sql";
+    private const string ResolvedAtScript = "V010__add_notification_resolved_at.sql";
     private const string PushEndpointIndexQuery = "SELECT COUNT(*) FROM sys.indexes WHERE name = N'UX_PushSubscriptions_Endpoint';";
     private const string LastEfCoreMigration = "20261002130000_AddFnGetProductsByCategory";
 
     private static readonly PasswordHasher<Employee> PasswordHasher = new();
-    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript, PickupConstraintsScript, WebpImagesScript, ProductAvailabilityScript, PushEndpointIndexScript, ExclusionOptionsScript, PrivacyNoticeScript];
+    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript, PickupConstraintsScript, WebpImagesScript, ProductAvailabilityScript, PushEndpointIndexScript, ExclusionOptionsScript, PrivacyNoticeScript, ResolvedAtScript];
 
     [Fact]
     public async Task RunAsync_ShouldCreateTheSchemaAndSeedTheTestEmployees_WhenDatabaseDoesNotExist()
@@ -161,6 +162,8 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         await using var connection = new SqlConnection(connectionString);
 
         // Act
+        var resolvedAtReversed = await migrator.RollbackAsync(ResolvedAtScript, CancellationToken.None);
+        var resolvedAtAfterRollback = await connection.ExecuteScalarAsync<int?>("SELECT COL_LENGTH(N'dbo.Notifications', N'ResolvedAt');");
         var privacyReversed = await migrator.RollbackAsync(PrivacyNoticeScript, CancellationToken.None);
         var privacyAfterRollback = await connection.ExecuteScalarAsync<int?>("SELECT COL_LENGTH(N'dbo.Employees', N'PrivacyNoticeAcceptedAt');");
         var exclusionsReversed = await migrator.RollbackAsync(ExclusionOptionsScript, CancellationToken.None);
@@ -173,6 +176,8 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         var reapplied = await migrator.RunAsync(CancellationToken.None);
 
         // Assert
+        Assert.True(resolvedAtReversed);
+        Assert.Null(resolvedAtAfterRollback);
         Assert.True(privacyReversed);
         Assert.Null(privacyAfterRollback);
         Assert.True(exclusionsReversed);
@@ -181,7 +186,7 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         Assert.Equal(0, indexAfterRollback);
         Assert.True(columnReversed);
         Assert.Null(columnAfterRollback);
-        Assert.Equal(AllScripts[..^4], scriptsAfterRollback);
+        Assert.Equal(AllScripts[..^5], scriptsAfterRollback);
         Assert.True(reapplied);
         Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
         Assert.Equal(18, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Products WHERE IsAvailable = 1;"));
@@ -214,7 +219,7 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         Assert.True(await CreateMigrator(connectionString, Environments.Development).RunAsync(CancellationToken.None));
 
         // Act
-        var reversed = await CreateMigrator(connectionString, Environments.Production).RollbackAsync(PrivacyNoticeScript, CancellationToken.None);
+        var reversed = await CreateMigrator(connectionString, Environments.Production).RollbackAsync(ResolvedAtScript, CancellationToken.None);
 
         // Assert
         Assert.False(reversed);

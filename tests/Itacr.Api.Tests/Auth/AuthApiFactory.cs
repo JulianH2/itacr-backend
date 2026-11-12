@@ -102,7 +102,7 @@ public sealed class AuthApiFactory(DatabaseFixture database, IReadOnlyDictionary
     {
         await using var connection = new SqlConnection(database.ConnectionString);
         var notifications = await connection.QueryAsync<Notification>(
-            "SELECT Id, Type, RecipientEmployeeId, SubjectEmployeeId, RecipientCustomerId, OrderId, SentAt, ReadAt, CreatedAt, UpdatedAt FROM dbo.Notifications;");
+            "SELECT Id, Type, RecipientEmployeeId, SubjectEmployeeId, RecipientCustomerId, OrderId, SentAt, ReadAt, ResolvedAt, CreatedAt, UpdatedAt FROM dbo.Notifications;");
         return [.. notifications];
     }
 
