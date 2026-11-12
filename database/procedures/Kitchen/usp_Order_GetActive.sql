@@ -6,17 +6,18 @@
 --              and its items are always read together.
 -- Parameters:  none
 -- Returns:     0..n rows ordered by CreatedAt, then OrderNumber: Id, OrderNumber, Channel, Status, TableNumber (null
---              when the order has no table), CreatedAt, ItemsJson (array of ProductName, Quantity, Size, Drink,
+--              when the order has no table), CreatedAt, ModifiedAt (null when the waiter never modified it; the board shows the
+--              Modificado mark), NotesJson (array of Text, oldest first; null when there are none), ItemsJson (array of ProductName, Quantity, Size, Drink,
 --              Extras, Exclusions; Size and Drink are left out when null)
 -- Author:      GuillermoRH19
--- Jira:        ITACR-10
+-- Jira:        ITACR-10, ITACR-19
 -- =============================================================================
 CREATE OR ALTER PROCEDURE dbo.usp_Order_GetActive
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT o.Id, o.OrderNumber, o.Channel, o.Status, t.Number AS TableNumber, o.CreatedAt,
+    SELECT o.Id, o.OrderNumber, o.Channel, o.Status, t.Number AS TableNumber, o.CreatedAt, o.ModifiedAt,
         (
             SELECT p.Name AS ProductName, i.Quantity, i.Size, i.Drink,
                 JSON_QUERY(CAST(i.Extras AS nvarchar(max))) AS Extras,
@@ -26,7 +27,14 @@ BEGIN
             WHERE i.OrderId = o.Id
             ORDER BY i.Id
             FOR JSON PATH
-        ) AS ItemsJson
+        ) AS ItemsJson,
+        (
+            SELECT n.[Text] AS Text
+            FROM dbo.OrderNotes AS n
+            WHERE n.OrderId = o.Id
+            ORDER BY n.CreatedAt, n.Id
+            FOR JSON PATH
+        ) AS NotesJson
     FROM dbo.Orders AS o
     LEFT JOIN dbo.DiningTables AS t ON t.Id = o.TableId
     WHERE o.Status IN (N'New', N'InPreparation', N'Ready')
