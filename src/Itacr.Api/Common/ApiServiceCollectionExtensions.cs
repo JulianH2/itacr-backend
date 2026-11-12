@@ -23,7 +23,11 @@ public static class ApiServiceCollectionExtensions
                 // Required values are checked by the use case validators, with Spanish messages.
                 options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
             })
-            .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()))
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+                options.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
+            })
             .ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = InvalidRequestResponse.Create);
 
         services.AddProblemDetails();
