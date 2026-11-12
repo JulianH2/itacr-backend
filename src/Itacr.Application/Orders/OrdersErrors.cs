@@ -6,6 +6,10 @@ public static class OrdersErrors
 {
     public const string DestinationRequired = "Asigna una mesa o marca 'Para llevar' antes de enviar.";
     public const string DestinationAmbiguous = "Elige una mesa o 'Para llevar', no las dos.";
+    public const string OrderCannotBeEmpty = "Un pedido no puede quedarse sin productos. Para anularlo, pide ayuda al gerente.";
+    public const string NoteTooLong = "La nota no puede tener más de 500 caracteres.";
+    public const string TableRequiredMessage = "Un pedido en mesa necesita una mesa.";
+    public const string TakeAwayHasNoTableMessage = "Un pedido para llevar no tiene mesa.";
     public const string ItemsRequired = "Agrega al menos un producto al pedido.";
     public const string TooManyItems = "El pedido no puede tener más de 50 productos distintos.";
     public const string QuantityOutOfRange = "La cantidad de cada producto debe estar entre 1 y 99.";
@@ -63,6 +67,22 @@ public static class OrdersErrors
         "Undo by another employee",
         "Solo quien hizo el cambio puede deshacerlo.",
         StatusConflictType);
+
+    public static readonly Error OrderNotModifiable = new(
+        ErrorKind.Conflict,
+        "Order not modifiable",
+        "El pedido ya no se puede modificar porque cocina lo marcó como listo o ya se entregó.",
+        StatusConflictType);
+
+    public static readonly Error OrderChangedMeanwhile = new(
+        ErrorKind.Conflict,
+        "Order changed",
+        "El pedido cambió de estado mientras lo modificabas y ya no se puede guardar. Revisa su estado.",
+        StatusConflictType);
+
+    public static readonly Error TableRequired = Error.Validation(new Dictionary<string, string[]> { ["tableId"] = [TableRequiredMessage] });
+
+    public static readonly Error TakeAwayHasNoTable = Error.Validation(new Dictionary<string, string[]> { ["tableId"] = [TakeAwayHasNoTableMessage] });
 
     public static readonly Error UnknownTable = Error.Validation(new Dictionary<string, string[]> { ["tableId"] = [TableNotFound] });
 
