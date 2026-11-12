@@ -211,6 +211,25 @@ A new employee asks for an account from the login screen with `POST /api/v1/auth
 - **Limit:** one client IP can send 10 requests per hour (`Registration` options, `registration` policy), because several new employees share the restaurant's connection.
 - **Known gap:** the endpoint is public, so a script could fill the list of pending accounts of the manager within that limit. There is no CAPTCHA, as with the public orders; it would go in front of this endpoint if real abuse appears.
 
+## Manager dashboard (HU_16)
+
+The manager sees the shift in two read-only endpoints, both only for the role **Manager** (`401` without a session, `403` for a waiter or the kitchen). Every number is added up from `dbo.Orders` by aggregate queries (`database/procedures/Manager/`); there is no table of metrics and nothing is typed by hand.
+
+| Endpoint | What it answers | Procedures |
+| -------- | --------------- | ---------- |
+| `GET /api/v1/manager/dashboard?from=&to=` | The orders, the sales, the average preparation time of each channel, the slowest channel, and the trend by hour | `usp_Manager_GetChannelSummary`, `usp_Manager_GetSalesTrend` |
+| `GET /api/v1/manager/orders?from=&to=&channel=&status=&page=&pageSize=` | The table of recent orders, newest first, one page at a time | `usp_Manager_GetOrders` |
+
+The detail of a row is the existing `GET /api/v1/orders/{id}`, which a manager can read for any order: its products, the total, and the time of each stage.
+
+- **Range.** `from` (inclusive) and `to` (exclusive) are UTC instants, for example the start and the end of the day of the restaurant (in Mexico City, `06:00Z` to `06:00Z`), and are required. The range cannot be longer than 31 days. The API keeps no time zone: the client decides what "today" is.
+- **Channels.** There are two: **Waiter** (`DineIn` and `TakeAway`, the orders a waiter took) and **Pickup** (`MobileApp`, the orders of customers). The dashboard always answers both, with zeros when a channel has no orders.
+- **Total orders** are the orders created in the range. **Sales** are the total of the orders **delivered** in the range, by the time they were delivered (`DeliveredAt`), so an order created before the range and delivered inside it counts as a sale and not as an order of the range.
+- **Preparation time** is the time between the creation of the order and the moment it became Ready (`ReadyAt - CreatedAt`). An order that is not Ready yet, one that went back from Ready (its `ReadyAt` is cleared), and one with a negative time (a device clock ahead of the server) are left out of the average. An order a waiter sent after being offline keeps the time of the device as `CreatedAt`, so the time it waited without a connection counts in its preparation time.
+- **Slowest channel** is the one with the longer average, only when both channels have prepared orders and the averages differ; otherwise it is `null`.
+- **Trend.** One point per whole hour of UTC that had orders created or sales. The hours of UTC are whole hours of Mexico City, so the client writes them in its own time zone and adds them up into days for a long range.
+- **Table.** The orders created in the range, filtered by `channel` (`Waiter` or `Pickup`) and `status` (`New`, `InPreparation`, `Ready`, `Delivered`). `page` starts at 1 and `pageSize` is 20 by default and at most 100. `totalCount` is every order that matches, not only the page. The index `IX_Orders_CreatedAt` serves the range.
+
 ## Delivering an order (HU_10)
 
 A waiter closes an order when they hand it over, at the table or when the customer arrives (ITACR-16):
