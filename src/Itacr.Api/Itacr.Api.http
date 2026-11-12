@@ -31,6 +31,20 @@ Authorization: Bearer {{accessToken}}
 POST {{baseUrl}}/api/v1/orders/00000000-0000-0000-0000-000000000000/deliver
 Authorization: Bearer {{accessToken}}
 
+### Modify an order that is New or InPreparation: 200 with the new total, 400 with no products, 404 for another waiter's order, 409 when it is Ready or Delivered
+# Sign in as the waiter who took the order (POST /api/v1/auth/login/pin); the request replaces every product, prices come from the menu, note is optional
+PUT {{baseUrl}}/api/v1/orders/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "tableId": "40000000-0000-0000-0000-000000000005",
+  "items": [
+    { "productId": "20000000-0000-0000-0000-000000000005", "quantity": 2 }
+  ],
+  "note": "Sin sal"
+}
+
 ### Pickup orders of customers that are Ready and wait to be handed over: 200 for a waiter, 403 for kitchen or manager
 GET {{baseUrl}}/api/v1/orders/pickups/ready
 Authorization: Bearer {{accessToken}}

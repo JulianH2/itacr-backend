@@ -19,17 +19,6 @@ public sealed class GetOrderDetailHandler(IOrderRepository orderRepository)
             return OrdersErrors.OrderNotFound;
         }
 
-        return new OrderDetailResponse(
-            order.Id,
-            order.OrderNumber,
-            order.Channel,
-            order.Status,
-            order.TableNumber,
-            order.Total,
-            order.CreatedAt,
-            order.ReadyAt,
-            order.DeliveredAt,
-            [.. order.Items.Select(item => new OrderDetailItemResponse(item.Name, item.Quantity, item.UnitPrice, item.Subtotal, item.Size, item.Drink, item.Extras, item.Exclusions))],
-            [.. order.History.Select(change => new OrderTimelineEntryResponse(change.ToStatus, change.ChangedAt, change.FromStatus > change.ToStatus))]);
+        return OrderDetailResponse.From(order);
     }
 }

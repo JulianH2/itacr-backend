@@ -36,7 +36,9 @@ public sealed record OrderTimelineEntryResponse(OrderStatus Status, DateTime Cha
 /// <param name="CreatedAt">UTC instant when the order was created.</param>
 /// <param name="ReadyAt">UTC instant when it was last marked Ready, or null.</param>
 /// <param name="DeliveredAt">UTC instant when it was delivered, or null.</param>
+/// <param name="ModifiedAt">UTC instant when the waiter last modified the order, or null when it never was.</param>
 /// <param name="Items">The products of the order, in the order they were added.</param>
+/// <param name="Notes">The notes the waiter added when modifying the order, oldest first.</param>
 /// <param name="Timeline">Every status change, oldest first, starting with New.</param>
 public sealed record OrderDetailResponse(
     Guid Id,
@@ -48,5 +50,23 @@ public sealed record OrderDetailResponse(
     DateTime CreatedAt,
     DateTime? ReadyAt,
     DateTime? DeliveredAt,
+    DateTime? ModifiedAt,
     IReadOnlyList<OrderDetailItemResponse> Items,
-    IReadOnlyList<OrderTimelineEntryResponse> Timeline);
+    IReadOnlyList<string> Notes,
+    IReadOnlyList<OrderTimelineEntryResponse> Timeline)
+{
+    internal static OrderDetailResponse From(OrderDetail order) => new(
+        order.Id,
+        order.OrderNumber,
+        order.Channel,
+        order.Status,
+        order.TableNumber,
+        order.Total,
+        order.CreatedAt,
+        order.ReadyAt,
+        order.DeliveredAt,
+        order.ModifiedAt,
+        [.. order.Items.Select(item => new OrderDetailItemResponse(item.Name, item.Quantity, item.UnitPrice, item.Subtotal, item.Size, item.Drink, item.Extras, item.Exclusions))],
+        order.Notes,
+        [.. order.History.Select(change => new OrderTimelineEntryResponse(change.ToStatus, change.ChangedAt, change.FromStatus > change.ToStatus))]);
+}

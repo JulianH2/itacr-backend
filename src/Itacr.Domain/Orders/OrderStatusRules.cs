@@ -21,6 +21,9 @@ public static class OrderStatusRules
         _ => null,
     };
 
+    /// <summary>A waiter can still modify an order until the kitchen has it Ready.</summary>
+    public static bool CanModify(OrderStatus status) => status is OrderStatus.New or OrderStatus.InPreparation;
+
     public static bool CanChange(OrderStatus from, OrderStatus to) => NextOf(from) == to;
 
     /// <summary>

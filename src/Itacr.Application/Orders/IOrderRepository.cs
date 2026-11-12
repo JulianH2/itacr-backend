@@ -46,8 +46,29 @@ public sealed record OrderDetail(
     DateTime LastStatusChangeAt,
     DateTime? ReadyAt,
     DateTime? DeliveredAt,
+    DateTime? ModifiedAt,
     IReadOnlyList<OrderDetailItem> Items,
+    IReadOnlyList<string> Notes,
     IReadOnlyList<OrderStatusChange> History);
+
+/// <summary>A line of a modified order, priced from the menu.</summary>
+public sealed record ModifiedOrderItem(
+    Guid ProductId,
+    int Quantity,
+    decimal UnitPrice,
+    string? Size,
+    string? Drink,
+    IReadOnlyList<string> Extras,
+    IReadOnlyList<string> Exclusions)
+{
+    public decimal Subtotal => UnitPrice * Quantity;
+}
+
+/// <summary>The new content of an order: the table of a dine-in order, every line it keeps, and the note to add, if any.</summary>
+public sealed record OrderModification(Guid OrderId, Guid WaiterId, Guid? TableId, IReadOnlyList<ModifiedOrderItem> Items, string? Note, DateTime Now)
+{
+    public decimal Total => Items.Sum(item => item.Subtotal);
+}
 
 public sealed record RecentOrder(Guid Id, int OrderNumber, OrderChannel Channel, OrderStatus Status, int? TableNumber, DateTime CreatedAt);
 
@@ -72,6 +93,12 @@ public interface IOrderRepository
     /// false, changing nothing, when the order is no longer in <paramref name="from"/> (someone else changed it first).
     /// </summary>
     Task<bool> ChangeStatusAsync(Guid orderId, OrderStatus from, OrderStatus to, Guid changedById, DateTime now, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Replaces the lines, the table, and the total of the order, adds the note, and marks the order as modified, in one transaction.
+    /// Returns false, changing nothing, when the order does not belong to the waiter or is no longer New or InPreparation.
+    /// </summary>
+    Task<bool> UpdateAsync(OrderModification modification, CancellationToken cancellationToken);
 
     Task<OrderDetail?> GetDetailAsync(Guid orderId, CancellationToken cancellationToken);
 
