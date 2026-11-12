@@ -14,6 +14,7 @@ builder.Services.AddApplication();
 builder.Services.AddApiBase();
 builder.Services.AddAuthFeature();
 builder.Services.AddPublicOrders();
+builder.Services.AddRegistration();
 
 var app = builder.Build();
 

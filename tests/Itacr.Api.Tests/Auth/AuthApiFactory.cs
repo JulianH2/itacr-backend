@@ -123,6 +123,7 @@ public sealed class AuthApiFactory(DatabaseFixture database, IReadOnlyDictionary
         builder.UseSetting("Jwt:Secret", ApiFactory.TestJwtSecret);
         builder.UseSetting("RateLimiting:PermitLimit", "10000");
         builder.UseSetting("LoginSecurity:PermitLimit", "10000");
+        builder.UseSetting("Registration:PermitLimit", "10000");
         builder.UseSetting("PublicOrders:CreatePermitLimit", "10000");
         builder.UseSetting("PublicOrders:StatusPermitLimit", "10000");
         foreach (var (key, value) in settings ?? new Dictionary<string, string>())

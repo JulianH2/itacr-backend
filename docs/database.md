@@ -180,7 +180,7 @@ When the kitchen marks an order as `Ready`, its waiter, or the customer of a pic
 - **One notice per order:** `usp_Notification_CreateOrderReady` records a `Notifications` row of type `OrderReady` (recipient, `SentAt`) only while the order is `Ready` and only the first time; an undo and a new `Ready` record nothing more. It returns the order number, table, waiter, and customer to build the message. The text has the order number and the table for the waiter, and only the order number for the customer, never their name or phone.
 - **Sending:** the kitchen's request only puts the order id in an in-memory queue; a background service records the notice and sends it, so a slow push service never delays the tap. A restart can lose a queued notice; the order is still shown as `Ready` in the app (CA4). A browser the push service reports as gone (404 or 410) is deleted with `usp_PushSubscription_Delete`.
 - **Read:** the notification's link carries its id (`?notification=<id>`), so the PWA reports it even when the tap is what opens the app; it calls `POST /api/v1/public/notifications/{id}/read`, and `usp_Notification_MarkRead` sets `ReadAt` the first time only.
-- `V006` has its reversal in `database/rollbacks/`; `V007` (HU_12) is now the first one the development `rollback` command reverses.
+- `V006` has its reversal in `database/rollbacks/`; `V008` (HU_14) is now the first one the development `rollback` command reverses.
 
 ## Customizing a combo (HU_12)
 
@@ -198,6 +198,18 @@ A combo is ordered with a **size** and a **drink** (both required) and, optional
 - **What is saved.** `OrderItems.Size`, `Drink`, `Extras`, and `Exclusions` keep the **names** (see "Why `UnitPrice` is copied into `OrderItem`"), so renaming or deleting an option never changes an old order. The kitchen queue (`usp_Order_GetActive`) and the order detail (`usp_Order_GetById`) return them.
 - **Lines.** The same combo can be on several lines when its options differ (one without onion, one with extra cheese). Two lines with the same product and the same options are rejected, whatever the order of their extras and exclusions: the app adds the quantity instead.
 - `V007` adds the exclusions and has its reversal in `database/rollbacks/`, so it is now the script the development `rollback` command reverses first.
+
+## Asking for an account (HU_14)
+
+A new employee asks for an account from the login screen with `POST /api/v1/auth/registration-requests` (public, no token). The use case is `Application/Identity/RegisterEmployee` and the procedure is `usp_Employee_Register`.
+
+- **What is asked:** `fullName`, `email` (the email **or the user name**: one value, with no spaces, 3 to 254 characters), `phone` (10 digits), `role` (`Waiter` or `Kitchen`), `pin` (4 digits), `pinConfirmation`, and `acceptedPrivacyNotice` (must be true). Every missing field answers "Este campo es obligatorio." on that field (`400`), and a different confirmation answers "Los PIN no coinciden.".
+- **The manager role cannot be requested.** A public form must not be a way to become a manager, so the API only accepts `Waiter` and `Kitchen`; manager accounts come from the seed or from another manager.
+- **What is saved:** `Status = PendingApproval`, `PasswordHash = NULL`, `ApprovedById = NULL`, the hash of the PIN (never the PIN), and `PrivacyNoticeAcceptedAt`, the time the privacy notice was accepted, as the proof the data protection law asks for. `V008` adds that column; it is `NULL` for the employees that existed before.
+- **Unique email or user:** the unique index `IX_Employees_Email` (case-insensitive, by the collation of the database) is the guard. The procedure checks first under a range lock and also treats error 2601/2627 as "already taken", so two requests for the same email at the same moment cannot both succeed. A taken value answers `409` with "Ya existe una cuenta o una solicitud con ese correo o usuario." and saves nothing.
+- **Nobody can sign in with it yet:** the PIN and the password logins answer "pending approval" (`403`) until a manager approves the account. The screen where the manager approves it is another story.
+- **Limit:** one client IP can send 10 requests per hour (`Registration` options, `registration` policy), because several new employees share the restaurant's connection.
+- **Known gap:** the endpoint is public, so a script could fill the list of pending accounts of the manager within that limit. There is no CAPTCHA, as with the public orders; it would go in front of this endpoint if real abuse appears.
 
 ## Manager dashboard (HU_16)
 
