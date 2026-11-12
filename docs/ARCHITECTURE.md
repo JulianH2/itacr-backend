@@ -126,6 +126,7 @@ Every controller requires a signed-in user (`AuthorizeFilter`) unless it says `[
 | `GET /api/v1/catalog/categories`, `GET /api/v1/catalog/products`, `GET /api/v1/catalog/combo-options` | The menu and the options of a combo | global | Read-only, same for everyone |
 | `GET /api/v1/auth/employees?role=` | The people shown in the PIN picker | global | Returns only `id` and an abbreviated display name of **active** employees |
 | `POST /api/v1/auth/login/pin`, `POST /api/v1/auth/login/password`, `POST /api/v1/auth/pin-reset-requests` | Staff sign-in | `login`: 10 per minute (`LoginSecurity`) | A PIN also locks for 15 minutes after 5 failures |
+| `POST /api/v1/auth/registration-requests` | A new employee asks for an account (HU_14) | `registration`: **10 per hour** (`Registration`) | Creates a pending account that cannot sign in; only the roles Waiter and Kitchen; an email or user that is taken answers `409`, so it shows that the value exists. See the section "Asking for an account" of `database.md` |
 | `POST /api/v1/public/orders` | A customer sends a pickup order | `public-order-create`: **10 per 10 minutes** | The first public endpoint that creates data; see [6.2](#62-customer-pickup-orders-hu_06) |
 | `GET /api/v1/public/orders/{clientOrderId}` | A customer follows their order | `public-order-status`: **60 per minute** | Read-only, answers with the minimum, and only for `MobileApp` orders; see [6.2](#62-customer-pickup-orders-hu_06) |
 | OpenAPI and Scalar | API docs | Development only | Not mapped in QA or production |
