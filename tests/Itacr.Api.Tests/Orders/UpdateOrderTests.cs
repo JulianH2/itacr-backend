@@ -24,6 +24,8 @@ public sealed class UpdateOrderTests(DatabaseFixture database) : DatabaseTest(da
     private static readonly Guid LargeSize = Guid.Parse("30000000-0000-0000-0000-000000000003"); // +25
     private static readonly Guid ColaDrink = Guid.Parse("30000000-0000-0000-0000-000000000004");
     private static readonly Guid CheeseExtra = Guid.Parse("30000000-0000-0000-0000-000000000007"); // +12
+    private static readonly Guid BaconExtra = Guid.Parse("30000000-0000-0000-0000-000000000008"); // +18
+    private static readonly Guid NoOnion = Guid.Parse("30000000-0000-0000-0000-000000000010");
 
     [Theory]
     [InlineData(false)]
@@ -220,6 +222,84 @@ public sealed class UpdateOrderTests(DatabaseFixture database) : DatabaseTest(da
         var item = order.GetProperty("items")[0];
         Assert.Equal("Grande", item.GetProperty("size").GetString());
         Assert.Equal(["Queso extra"], item.GetProperty("extras").EnumerateArray().Select(extra => extra.GetString()));
+    }
+
+    [Fact]
+    public async Task Get_ShouldReturnTheIdsOfTheProductAndTheOptions_WhenTheWaiterOpensAComboToModifyIt()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        var (waiter, _) = await SignInAsync(factory, EmployeeRole.Waiter);
+        using var created = await waiter.PostAsJsonAsync(OrdersRoute, new
+        {
+            clientOrderId = Guid.NewGuid(),
+            tableId = TableFive,
+            takeAway = false,
+            items = new object[]
+            {
+                new { productId = ClassicCombo, quantity = 1, sizeId = LargeSize, drinkId = ColaDrink, extraIds = new[] { CheeseExtra, BaconExtra }, exclusionIds = new[] { NoOnion } },
+                new { productId = Soda, quantity = 1 },
+            },
+        });
+        var orderId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        // Act
+        var detail = await waiter.GetFromJsonAsync<JsonElement>($"{OrdersRoute}/{orderId}");
+
+        // Assert
+        var items = detail.GetProperty("items").EnumerateArray().ToList();
+        var combo = items.Single(item => item.GetProperty("productId").GetGuid() == ClassicCombo);
+        Assert.Equal(LargeSize, combo.GetProperty("sizeId").GetGuid());
+        Assert.Equal(ColaDrink, combo.GetProperty("drinkId").GetGuid());
+        Assert.Equal(["Queso extra", "Tocino"], combo.GetProperty("extras").EnumerateArray().Select(extra => extra.GetString()));
+        Assert.Equal([CheeseExtra, BaconExtra], combo.GetProperty("extraIds").EnumerateArray().Select(id => id.GetGuid()));
+        Assert.Equal([NoOnion], combo.GetProperty("exclusionIds").EnumerateArray().Select(id => id.GetGuid()));
+        var soda = items.Single(item => item.GetProperty("productId").GetGuid() == Soda);
+        Assert.Equal(JsonValueKind.Null, soda.GetProperty("sizeId").ValueKind);
+        Assert.Empty(soda.GetProperty("extraIds").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Put_ShouldKeepTheComboAsItWas_WhenTheWaiterSendsBackTheIdsOfTheDetail()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        var (waiter, _) = await SignInAsync(factory, EmployeeRole.Waiter);
+        using var created = await waiter.PostAsJsonAsync(OrdersRoute, new
+        {
+            clientOrderId = Guid.NewGuid(),
+            tableId = TableFive,
+            takeAway = false,
+            items = new[] { new { productId = ClassicCombo, quantity = 1, sizeId = LargeSize, drinkId = ColaDrink, extraIds = new[] { CheeseExtra }, exclusionIds = new[] { NoOnion } } },
+        });
+        var orderId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var combo = (await waiter.GetFromJsonAsync<JsonElement>($"{OrdersRoute}/{orderId}")).GetProperty("items")[0];
+
+        // Act
+        using var response = await waiter.PutAsJsonAsync($"{OrdersRoute}/{orderId}", new
+        {
+            tableId = TableFive,
+            items = new[]
+            {
+                new
+                {
+                    productId = combo.GetProperty("productId").GetGuid(),
+                    quantity = 3,
+                    sizeId = combo.GetProperty("sizeId").GetGuid(),
+                    drinkId = combo.GetProperty("drinkId").GetGuid(),
+                    extraIds = combo.GetProperty("extraIds").EnumerateArray().Select(id => id.GetGuid()).ToArray(),
+                    exclusionIds = combo.GetProperty("exclusionIds").EnumerateArray().Select(id => id.GetGuid()).ToArray(),
+                },
+            },
+        });
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var updated = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0];
+        Assert.Equal(3, updated.GetProperty("quantity").GetInt32());
+        Assert.Equal(combo.GetProperty("unitPrice").GetDecimal(), updated.GetProperty("unitPrice").GetDecimal());
+        Assert.Equal("Grande", updated.GetProperty("size").GetString());
+        Assert.Equal(["Cebolla"], updated.GetProperty("exclusions").EnumerateArray().Select(exclusion => exclusion.GetString()));
     }
 
     [Fact]
