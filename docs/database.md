@@ -88,6 +88,7 @@ erDiagram
         datetime2 LastStatusChangeAt
         datetime2 ReadyAt "nullable"
         datetime2 DeliveredAt "nullable"
+        datetime2 ModifiedAt "nullable, V009"
     }
     OrderItem {
         guid Id PK
@@ -243,6 +244,24 @@ A waiter closes an order when they hand it over, at the table or when the custom
 - **Whose order.** A waiter delivers the orders they took, and any waiter delivers a pickup order of a customer (it has no waiter, so it is nobody's active order; `GET /orders/pickups/ready` is how they find it). The order of another waiter answers `404`, like an id that does not exist. Pickup orders are read by waiters through `GET /orders/{id}` for the same reason.
 - **Times.** The delivery sets `DeliveredAt` and adds a `Ready` to `Delivered` history row with the waiter as `ChangedById`. The detail returns `deliveredAt`, and its timeline has the time of each stage (taken, in preparation, ready, delivered), which is what a manager reads when they open a delivered order (HU_10 CA3).
 - **Leaves the lists.** A `Delivered` order is not part of the kitchen queue, `GET /orders/active`, or `GET /orders/pickups/ready`.
+
+## Modifying an order (HU_13)
+
+A waiter changes an order they took while the kitchen has not finished it (ITACR-19):
+
+| Endpoint | Roles | Procedure |
+| --- | --- | --- |
+| `PUT /api/v1/orders/{id}` | Waiter | `usp_Order_GetById` (checks), then `usp_Order_Update` |
+
+- **Migration `V009`** adds the nullable `Orders.ModifiedAt` (additive, with its reversal in `database/rollbacks/`). It is the only schema change: `OrderNotes` already existed in `V001` and was not used until now.
+- **What the request is.** `{ tableId, items, note }`. `items` is the complete new list of lines (same shape as `POST /orders`, with the HU_12 options as ids), so adding, removing, or changing a quantity is one replace. The prices always come from `dbo.Products` and `ComboOptions`: the API ignores any price in the body, recalculates every `UnitPrice` and `Subtotal`, and sends the new `Total`.
+- **Replace, not diff.** `usp_Order_Update` runs in one transaction: it updates the order (`TableId`, `Total`, `ModifiedAt`, `UpdatedAt`), deletes its `OrderItems`, inserts the new ones, and inserts the note in `OrderNotes` when there is one. The lines get new ids, so nothing refers to an old line. Notes are only added: the earlier ones stay, and each edit without a note adds none. There is no history of the changes (out of scope); `ModifiedAt` only says that the order changed and when.
+- **Who and when.** Only the waiter who took the order, and only in `New` or `InPreparation` (`OrderStatusRules.CanModify`). The order of another waiter, a pickup order of a customer (it has no waiter), and an id that does not exist answer `404`; `Ready` and `Delivered` answer `409` ("El pedido ya no se puede modificar..."). The detail does not offer the action for those states.
+- **No lost update.** The API checks the status in the use case for a clear message, but the status can change between that read and the write (the kitchen taps "Listo"), so the guard is also in the `UPDATE` of the procedure: `WHERE Id = @Id AND WaiterId = @WaiterId AND Status IN (N'New', N'InPreparation')`. When no row matches, it rolls back, returns `Updated = 0`, and the API answers `409` ("El pedido cambió de estado mientras lo modificabas..."), like `usp_Order_ChangeStatus`. Two edits of the same order at once are serialized by the row lock of the `UPDATE`, and the last one wins.
+- **Never empty.** An order without lines answers `400` on `items` ("Un pedido no puede quedarse sin productos. Para anularlo, pide ayuda al gerente."). Cancelling an order needs a manager and is out of scope.
+- **Channel rules.** The channel never changes: a `DineIn` order needs `tableId` (it can be another table), and a `TakeAway` order must not send one (`400` on `tableId`).
+- **The kitchen.** `usp_Order_GetActive` returns `ModifiedAt` and the notes (`NotesJson`), so the board shows the "Modificado" mark on the card while the order is in the queue, plus its notes. `usp_Order_GetById` returns the same two for the waiter's detail. Both write `modifiedAt` as UTC with a `Z`. The kitchen is not notified with a push: the board polls every 5 seconds.
+- **The status does not move.** A modification does not add a row to `OrderStatusHistory` and does not change `Status`, `LastStatusChangeAt`, or `CreatedAt`, so the order keeps its place in the queue and its timers.
 
 ## Orders of a waiter (HU_08)
 
