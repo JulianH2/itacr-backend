@@ -27,7 +27,7 @@ public sealed class PersistenceConfigurationTests
         // Arrange
         var services = new ServiceCollection();
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:Default"] = "Server=localhost;Database=Itacr;Trusted_Connection=True;" })
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:Default"] = "Server=localhost;Database=Itacr;Trusted_Connection=True;Encrypt=True;" })
             .Build();
 
         // Act
