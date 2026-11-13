@@ -4,10 +4,6 @@ namespace Itacr.Application.Orders.CreateOrder;
 
 public sealed class CreateOrderValidator : AbstractValidator<CreateOrderCommand>
 {
-    private const int MaxItems = 50;
-    private const int MinQuantity = 1;
-    private const int MaxQuantity = 99;
-
     public CreateOrderValidator()
     {
         RuleFor(command => command.ClientOrderId).NotEmpty().WithMessage(OrdersErrors.ClientOrderIdRequired);
@@ -25,12 +21,12 @@ public sealed class CreateOrderValidator : AbstractValidator<CreateOrderCommand>
         RuleFor(command => command.Items)
             .Cascade(CascadeMode.Stop)
             .NotEmpty().WithMessage(OrdersErrors.ItemsRequired)
-            .Must(items => items.Count <= MaxItems).WithMessage(OrdersErrors.TooManyItems)
+            .Must(items => items.Count <= OrderLimits.MaxItems).WithMessage(OrdersErrors.TooManyItems)
             .Must(items => items.Select(item => item.LineKey()).Distinct().Count() == items.Count).WithMessage(OrdersErrors.DuplicatedProduct);
 
         // Reported per item ("items[0]"), so the client knows which line to fix.
         RuleForEach(command => command.Items)
-            .Must(item => item.Quantity is >= MinQuantity and <= MaxQuantity)
+            .Must(item => item.Quantity is >= OrderLimits.MinQuantity and <= OrderLimits.MaxQuantity)
             .WithMessage(OrdersErrors.QuantityOutOfRange);
     }
 }

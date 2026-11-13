@@ -31,6 +31,11 @@ public sealed class CreatePickupOrderHandler(
             return error;
         }
 
+        if (command.Items.Count > options.Value.MaxProducts)
+        {
+            return OrdersErrors.ItemsLimitExceeded;
+        }
+
         if (await pickupOrderRepository.GetByClientOrderIdAsync(command.ClientOrderId, cancellationToken) is { } existing)
         {
             return new CreatePickupOrderOutcome(PickupOrderResponse.From(existing), Created: false);
@@ -67,23 +72,20 @@ public sealed class CreatePickupOrderHandler(
 
         var customer = new Customer { Name = command.Name!.Trim(), Phone = command.Phone!, CreatedAt = now, UpdatedAt = now };
         var maxActiveOrders = options.Value.MaxActiveOrdersPerPhone;
-        switch (await pickupOrderRepository.CreateAsync(order, customer, maxActiveOrders, cancellationToken))
+        return await pickupOrderRepository.CreateAsync(order, customer, maxActiveOrders, cancellationToken) switch
         {
-            case PickupCreateOutcome.LimitReached:
-                return OrdersErrors.PickupLimitReached(maxActiveOrders);
+            PickupCreateOutcome.LimitReached => OrdersErrors.PickupLimitReached(maxActiveOrders),
 
-            case PickupCreateOutcome.AlreadyExists:
-                // Another request with the same ClientOrderId was saved first. If it is not a pickup order, the id is taken.
-                return await pickupOrderRepository.GetByClientOrderIdAsync(command.ClientOrderId, cancellationToken) is { } winner
-                    ? new CreatePickupOrderOutcome(PickupOrderResponse.From(winner), Created: false)
-                    : OrdersErrors.PickupOrderIdTaken;
+            // Another request with the same ClientOrderId was saved first. If it is not a pickup order, the id is taken.
+            PickupCreateOutcome.AlreadyExists => await pickupOrderRepository.GetByClientOrderIdAsync(command.ClientOrderId, cancellationToken) is { } winner
+                ? new CreatePickupOrderOutcome(PickupOrderResponse.From(winner), Created: false)
+                : OrdersErrors.PickupOrderIdTaken,
 
-            default:
-                return new CreatePickupOrderOutcome(ToResponse(order, products), Created: true);
-        }
+            _ => new CreatePickupOrderOutcome(ToResponse(order, products), Created: true),
+        };
     }
 
-    private static PickupOrderResponse ToResponse(Order order, IReadOnlyDictionary<Guid, Domain.Catalog.Product> products) => new(
+    private static PickupOrderResponse ToResponse(Order order, Dictionary<Guid, Domain.Catalog.Product> products) => new(
         order.ClientOrderId,
         order.OrderNumber,
         order.Status,

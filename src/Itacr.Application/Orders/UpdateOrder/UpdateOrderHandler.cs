@@ -27,6 +27,11 @@ public sealed class UpdateOrderHandler(
             return error;
         }
 
+        if (command.Items.Count > OrderLimits.MaxItems)
+        {
+            return OrdersErrors.ItemsLimitExceeded;
+        }
+
         if (await orderRepository.GetDetailAsync(orderId, cancellationToken) is not { } order || order.WaiterId != waiterId)
         {
             return OrdersErrors.OrderNotFound;

@@ -16,6 +16,10 @@ public sealed class EmployeeSeedPlanTests
 
     private static readonly HashSet<string> NoEmails = [];
 
+    private static readonly string[] PendingTestEmails = ["gerente@itacr.test", "pendiente@itacr.test"];
+    private static readonly string[] WaiterAndKitchenTestEmails = ["mesero@itacr.test", "cocina@itacr.test"];
+    private static readonly string[] AllTestEmails = ["mesero@itacr.test", "cocina@itacr.test", "gerente@itacr.test", "pendiente@itacr.test"];
+
     [Fact]
     public void Build_ShouldReturnAnActiveEmployeePerRoleAndAPendingWaiter_WhenEnvironmentIsDevelopment()
     {
@@ -45,7 +49,7 @@ public sealed class EmployeeSeedPlanTests
         var employees = plan.Build(isDevelopment: true, existing, hasManager: true);
 
         // Assert
-        Assert.Equivalent(new[] { "gerente@itacr.test", "pendiente@itacr.test" }, employees.Select(employee => employee.Email));
+        Assert.Equivalent(PendingTestEmails, employees.Select(employee => employee.Email));
     }
 
     [Fact]
@@ -56,10 +60,10 @@ public sealed class EmployeeSeedPlanTests
         var withoutPassword = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "MESERO@itacr.test", "cocina@itacr.test", "gerente@itacr.example" };
 
         // Act
-        var employees = plan.BuildMissingPasswords(isDevelopment: true, withoutPassword);
+        var employees = EmployeeSeedPlan.BuildMissingPasswords(isDevelopment: true, withoutPassword);
 
         // Assert
-        Assert.Equivalent(new[] { "mesero@itacr.test", "cocina@itacr.test" }, employees.Select(employee => employee.Email));
+        Assert.Equivalent(WaiterAndKitchenTestEmails, employees.Select(employee => employee.Email));
         Assert.All(employees, employee => Assert.Equal("Itacr2026!", employee.Password));
     }
 
@@ -71,7 +75,7 @@ public sealed class EmployeeSeedPlanTests
         var withoutPassword = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "mesero@itacr.test" };
 
         // Act
-        var employees = plan.BuildMissingPasswords(isDevelopment: false, withoutPassword);
+        var employees = EmployeeSeedPlan.BuildMissingPasswords(isDevelopment: false, withoutPassword);
 
         // Assert
         Assert.Empty(employees);
@@ -87,9 +91,7 @@ public sealed class EmployeeSeedPlanTests
         var employees = plan.Build(isDevelopment: false, NoEmails, hasManager: false);
 
         // Assert
-        Assert.Equivalent(
-            new[] { "mesero@itacr.test", "cocina@itacr.test", "gerente@itacr.test", "pendiente@itacr.test" },
-            employees.Select(employee => employee.Email));
+        Assert.Equivalent(AllTestEmails, employees.Select(employee => employee.Email));
     }
 
     [Fact]

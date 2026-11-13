@@ -23,7 +23,7 @@ public sealed record ConnectionRetryPolicy(int MaxAttempts, TimeSpan Delay)
 /// re-created on every run; then the employees are seeded. It never throws: any failure is logged as one
 /// clear message and <see cref="RunAsync"/> returns false, so the process exits with code 1.
 /// </summary>
-public sealed class DatabaseMigrator(
+public sealed partial class DatabaseMigrator(
     IConfiguration configuration,
     IHostEnvironment environment,
     EmployeeSeeder employeeSeeder,
@@ -84,16 +84,16 @@ public sealed class DatabaseMigrator(
             cancellationToken: cancellationToken));
         foreach (var script in applied)
         {
-            logger.LogInformation("Applied  {Script} on {Applied:yyyy-MM-dd HH:mm:ss}", script.ScriptName, script.Applied);
+            LogApplied(script.ScriptName, script.Applied);
         }
 
         var pending = upgrader.GetScriptsToExecute().Where(script => script.SqlScriptOptions.ScriptType == ScriptType.RunOnce).ToList();
         foreach (var script in pending)
         {
-            logger.LogInformation("Pending  {Script}", script.Name);
+            LogPending(script.Name);
         }
 
-        logger.LogInformation("{Applied} versioned scripts applied, {Pending} pending", applied.Count(), pending.Count);
+        LogVersionedSummary(applied.Count(), pending.Count);
         return true;
     }, cancellationToken);
 
@@ -144,7 +144,7 @@ public sealed class DatabaseMigrator(
             transaction,
             cancellationToken: cancellationToken));
         await transaction.CommitAsync(cancellationToken);
-        logger.LogInformation("{Script} reversed and removed from dbo.SchemaVersions; the next run applies it again", lastApplied);
+        LogReversed(lastApplied);
         return true;
     }, cancellationToken);
 
@@ -173,7 +173,7 @@ public sealed class DatabaseMigrator(
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             logger.LogError(
-                "The connection string 'ConnectionStrings:{Name}' is missing. Set it with dotnet user-secrets or the ConnectionStrings__{Name} environment variable",
+                "The connection string 'ConnectionStrings:{Name}' is missing. Set it with dotnet user-secrets or the ConnectionStrings__{EnvironmentVariableName} environment variable",
                 ConnectionStringName,
                 ConnectionStringName);
             return null;
@@ -184,13 +184,8 @@ public sealed class DatabaseMigrator(
 
     private async Task<bool> MigrateAsync(CancellationToken cancellationToken)
     {
-        var connectionString = configuration.GetConnectionString(ConnectionStringName);
-        if (string.IsNullOrWhiteSpace(connectionString))
+        if (ConnectionString() is not { } connectionString)
         {
-            logger.LogError(
-                "The connection string 'ConnectionStrings:{Name}' is missing. Set it with dotnet user-secrets or the ConnectionStrings__{Name} environment variable",
-                ConnectionStringName,
-                ConnectionStringName);
             return false;
         }
 
@@ -235,7 +230,7 @@ public sealed class DatabaseMigrator(
                 return false;
             }
 
-            logger.LogInformation("Database created by EF Core: {Script} marked as executed without running it", InitialSchemaScript);
+            LogBaselined(InitialSchemaScript);
         }
 
         var result = upgrader.PerformUpgrade();
@@ -335,4 +330,19 @@ public sealed class DatabaseMigrator(
         NeedsBaseline,
         Incomplete,
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Applied  {Script} on {Applied:yyyy-MM-dd HH:mm:ss}")]
+    private partial void LogApplied(string script, DateTime applied);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Pending  {Script}")]
+    private partial void LogPending(string script);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "{Applied} versioned scripts applied, {Pending} pending")]
+    private partial void LogVersionedSummary(int applied, int pending);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "{Script} reversed and removed from dbo.SchemaVersions; the next run applies it again")]
+    private partial void LogReversed(string? script);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Database created by EF Core: {Script} marked as executed without running it")]
+    private partial void LogBaselined(string script);
 }

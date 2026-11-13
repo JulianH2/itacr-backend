@@ -74,7 +74,7 @@ public sealed class StaffAccessTests(DatabaseFixture database) : DatabaseTest(da
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         var saved = await ReadEmployeeAsync(pending.Id);
         Assert.Equal(("Active", managerId), (saved.Status, saved.ApprovedById));
-        var login = await factory.LoginAsync(anonymous, pending.Id, ChosenPin);
+        var login = await AuthApiFactory.LoginAsync(anonymous, pending.Id, ChosenPin);
         Assert.Equal(pending.Id, login.Employee.Id);
         Assert.Empty((await manager.GetFromJsonAsync<JsonElement>(Route)).GetProperty("accounts").EnumerateArray());
     }
@@ -233,7 +233,7 @@ public sealed class StaffAccessTests(DatabaseFixture database) : DatabaseTest(da
         // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         using var anonymous = factory.CreateClient();
-        var login = await factory.LoginAsync(anonymous, waiter.Id, TemporaryPin);
+        var login = await AuthApiFactory.LoginAsync(anonymous, waiter.Id, TemporaryPin);
         Assert.Equal(waiter.Id, login.Employee.Id);
         using var oldPin = await anonymous.PostAsJsonAsync("/api/v1/auth/login/pin", new { employeeId = waiter.Id, pin = ChosenPin });
         Assert.Equal(HttpStatusCode.Unauthorized, oldPin.StatusCode);
@@ -265,7 +265,7 @@ public sealed class StaffAccessTests(DatabaseFixture database) : DatabaseTest(da
         Assert.Equal(HttpStatusCode.Locked, locked.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(0, await factory.GetFailedLoginAttemptsAsync(waiter.Id));
-        Assert.Equal(waiter.Id, (await factory.LoginAsync(anonymous, waiter.Id, TemporaryPin)).Employee.Id);
+        Assert.Equal(waiter.Id, (await AuthApiFactory.LoginAsync(anonymous, waiter.Id, TemporaryPin)).Employee.Id);
     }
 
     [Fact]
@@ -285,7 +285,7 @@ public sealed class StaffAccessTests(DatabaseFixture database) : DatabaseTest(da
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Contains(ManagerMessages.PinResetAlreadyHandled, await response.Content.ReadAsStringAsync());
         using var anonymous = factory.CreateClient();
-        Assert.Equal(waiter.Id, (await factory.LoginAsync(anonymous, waiter.Id, TemporaryPin)).Employee.Id);
+        Assert.Equal(waiter.Id, (await AuthApiFactory.LoginAsync(anonymous, waiter.Id, TemporaryPin)).Employee.Id);
     }
 
     [Fact]
@@ -303,7 +303,7 @@ public sealed class StaffAccessTests(DatabaseFixture database) : DatabaseTest(da
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.NotEqual(string.Empty, await factory.GetPinHashAsync(waiter.Id));
         using var anonymous = factory.CreateClient();
-        Assert.Equal(waiter.Id, (await factory.LoginAsync(anonymous, waiter.Id, ChosenPin)).Employee.Id);
+        Assert.Equal(waiter.Id, (await AuthApiFactory.LoginAsync(anonymous, waiter.Id, ChosenPin)).Employee.Id);
     }
 
     [Fact]
@@ -356,7 +356,7 @@ public sealed class StaffAccessTests(DatabaseFixture database) : DatabaseTest(da
         await using var factory = new AuthApiFactory(Database);
         var staff = await factory.AddEmployeeAsync("Personal", role, "1234");
         using var client = factory.CreateClient();
-        AuthApiFactory.Authorize(client, (await factory.LoginAsync(client, staff.Id, "1234")).AccessToken);
+        AuthApiFactory.Authorize(client, (await AuthApiFactory.LoginAsync(client, staff.Id, "1234")).AccessToken);
         var pending = await factory.AddEmployeeAsync("Ana López", EmployeeRole.Waiter, ChosenPin, EmployeeStatus.PendingApproval);
 
         // Act
@@ -399,7 +399,7 @@ public sealed class StaffAccessTests(DatabaseFixture database) : DatabaseTest(da
         const string Pin = "1234";
         var employee = await factory.AddEmployeeAsync($"Gerente {Guid.NewGuid():N}", EmployeeRole.Manager, Pin);
         var client = factory.CreateClient();
-        AuthApiFactory.Authorize(client, (await factory.LoginAsync(client, employee.Id, Pin)).AccessToken);
+        AuthApiFactory.Authorize(client, (await AuthApiFactory.LoginAsync(client, employee.Id, Pin)).AccessToken);
         return (client, employee.Id);
     }
 
