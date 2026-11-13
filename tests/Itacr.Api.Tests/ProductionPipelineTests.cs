@@ -5,14 +5,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Itacr.Api.Tests;
 
 /// <summary>Outside Development the API forces HTTPS and tells the browsers to keep using it (HSTS).</summary>
-public sealed class ProductionPipelineTests : IClassFixture<ProductionPipelineTests.ProductionApiFactory>
+public sealed class ProductionPipelineTests(ProductionPipelineTests.ProductionApiFactory factory)
+    : IClassFixture<ProductionPipelineTests.ProductionApiFactory>
 {
     private const string Host = "itacr.example";
     private const string Path = "/api/v1/auth/me";
-
-    private readonly ProductionApiFactory _factory;
-
-    public ProductionPipelineTests(ProductionApiFactory factory) => _factory = factory;
 
     [Fact]
     public async Task Get_ShouldSendTheHstsHeader_WhenTheRequestIsHttpsInProduction()
@@ -43,7 +40,7 @@ public sealed class ProductionPipelineTests : IClassFixture<ProductionPipelineTe
         Assert.Equal($"https://{Host}{Path}", response.Headers.Location?.ToString());
     }
 
-    private HttpClient CreateClient(string scheme) => _factory.CreateClient(new WebApplicationFactoryClientOptions
+    private HttpClient CreateClient(string scheme) => factory.CreateClient(new WebApplicationFactoryClientOptions
     {
         BaseAddress = new Uri($"{scheme}://{Host}"),
         AllowAutoRedirect = false,
