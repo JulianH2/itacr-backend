@@ -277,6 +277,8 @@ public sealed class ManagerDashboardTests(DatabaseFixture database) : DatabaseTe
     [InlineData("channel=Everyone")]
     [InlineData("status=Cancelled")]
     [InlineData("page=0")]
+    [InlineData("page=100001")]
+    [InlineData("page=2147483647")]
     [InlineData("pageSize=101")]
     [InlineData("pageSize=0")]
     public async Task GetOrders_ShouldRejectTheRequest_WhenAFilterOrThePageIsNotValid(string extra)
