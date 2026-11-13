@@ -32,7 +32,7 @@ public sealed class DbSessionTests(DatabaseFixture database) : DatabaseTest(data
     {
         // Arrange: a server that is not listening, so the connection cannot be opened.
         await using var session = new DbSession(new DatabaseConnection(
-            "Server=localhost,1;Database=ItacrMissing;User ID=sa;Password=Itacr2026!;TrustServerCertificate=True;Connect Timeout=2"));
+            "Server=localhost,1;Database=ItacrMissing;User ID=sa;Password=Itacr2026!;Encrypt=True;TrustServerCertificate=True;Connect Timeout=2"));
 
         // Act / Assert
         await Assert.ThrowsAsync<SqlException>(() => session.ExecuteInTransactionAsync(_ => Task.CompletedTask, CancellationToken.None));
