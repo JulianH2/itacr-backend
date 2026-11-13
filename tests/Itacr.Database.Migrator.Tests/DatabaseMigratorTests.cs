@@ -6,6 +6,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Hosting.Internal;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -311,11 +312,114 @@ public sealed partial class DatabaseMigratorTests(SqlServerFixture sqlServer)
         Assert.False(succeeded);
     }
 
+    [Fact]
+    public async Task ShowStatusAsync_ShouldListTheAppliedScriptsAndNothingPending_WhenTheDatabaseIsUpToDate()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var logger = new RecordingLogger<DatabaseMigrator>();
+        var migrator = CreateMigrator(connectionString, Environments.Development, logger: logger);
+        Assert.True(await migrator.RunAsync(CancellationToken.None));
+
+        // Act
+        var succeeded = await migrator.ShowStatusAsync(CancellationToken.None);
+
+        // Assert
+        Assert.True(succeeded);
+        Assert.All(AllScripts, script => Assert.Contains(logger.Messages, message => message.Contains(script, StringComparison.Ordinal)));
+        Assert.Contains(logger.Messages, message => message.Contains($"{AllScripts.Length} versioned scripts applied, 0 pending"));
+    }
+
+    [Fact]
+    public async Task ShowStatusAsync_ShouldListThePendingScript_WhenOneWasReversed()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var logger = new RecordingLogger<DatabaseMigrator>();
+        var migrator = CreateMigrator(connectionString, Environments.Development, logger: logger);
+        Assert.True(await migrator.RunAsync(CancellationToken.None));
+        Assert.True(await migrator.RollbackAsync(ResolvedAtScript, CancellationToken.None));
+
+        // Act
+        var succeeded = await migrator.ShowStatusAsync(CancellationToken.None);
+
+        // Assert
+        Assert.True(succeeded);
+        Assert.Contains(logger.Messages, message => message.StartsWith("Pending", StringComparison.Ordinal) && message.Contains(ResolvedAtScript, StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, message => message.Contains($"{AllScripts.Length - 1} versioned scripts applied, 1 pending"));
+    }
+
+    [Fact]
+    public async Task ShowStatusAsync_ShouldFailWithoutChanges_WhenTheConnectionStringIsMissing()
+    {
+        // Arrange
+        var migrator = CreateMigrator(connectionString: null, Environments.Development);
+
+        // Act
+        var succeeded = await migrator.ShowStatusAsync(CancellationToken.None);
+
+        // Assert
+        Assert.False(succeeded);
+    }
+
+    [Fact]
+    public async Task RollbackAsync_ShouldChangeNothing_WhenThereIsNoRollbackScriptForTheScript()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var migrator = CreateMigrator(connectionString, Environments.Development);
+        Assert.True(await migrator.RunAsync(CancellationToken.None));
+
+        // Act
+        var reversed = await migrator.RollbackAsync(InitialSchemaScript, CancellationToken.None);
+
+        // Assert
+        Assert.False(reversed);
+        await using var connection = new SqlConnection(connectionString);
+        Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldReportTheCancellationAndFail_WhenTheTokenIsAlreadyCancelled()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var logger = new RecordingLogger<DatabaseMigrator>();
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+
+        // Act
+        var succeeded = await CreateMigrator(connectionString, Environments.Development, logger: logger).RunAsync(cancellation.Token);
+
+        // Assert
+        Assert.False(succeeded);
+        Assert.Contains(logger.Messages, message => message.Contains("cancelled", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ShowStatusAsync_ShouldReportTheCancellationAndFail_WhenTheTokenIsAlreadyCancelled()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var logger = new RecordingLogger<DatabaseMigrator>();
+        Assert.True(await CreateMigrator(connectionString, Environments.Development).RunAsync(CancellationToken.None));
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+
+        // Act
+        var succeeded = await CreateMigrator(connectionString, Environments.Development, logger: logger).ShowStatusAsync(cancellation.Token);
+
+        // Assert
+        Assert.False(succeeded);
+        Assert.Contains(logger.Messages, message => message.Contains("cancelled", StringComparison.OrdinalIgnoreCase));
+    }
+
     internal static DatabaseMigrator CreateMigrator(
         string? connectionString,
         string environmentName,
         SeedOptions? seed = null,
-        ConnectionRetryPolicy? retryPolicy = null)
+        ConnectionRetryPolicy? retryPolicy = null,
+        ILogger<DatabaseMigrator>? logger = null)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { [$"ConnectionStrings:{DatabaseMigrator.ConnectionStringName}"] = connectionString })
@@ -323,7 +427,7 @@ public sealed partial class DatabaseMigratorTests(SqlServerFixture sqlServer)
         var environment = new HostingEnvironment { EnvironmentName = environmentName };
         var plan = new EmployeeSeedPlan(Options.Create(seed ?? new SeedOptions()), NullLogger<EmployeeSeedPlan>.Instance);
         var seeder = new EmployeeSeeder(plan, PasswordHasher, TimeProvider.System, NullLogger<EmployeeSeeder>.Instance);
-        return new DatabaseMigrator(configuration, environment, seeder, NullLogger<DatabaseMigrator>.Instance, retryPolicy);
+        return new DatabaseMigrator(configuration, environment, seeder, logger ?? NullLogger<DatabaseMigrator>.Instance, retryPolicy);
     }
 
     /// <summary>Builds the state of a database migrated by EF Core in sprint 1: the V001 schema plus the EF migrations history.</summary>

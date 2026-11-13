@@ -177,6 +177,7 @@ public sealed class ComboCustomizationTests(DatabaseFixture database) : Database
     [InlineData("unknown")]
     [InlineData("size-is-a-drink")]
     [InlineData("extra-is-an-exclusion")]
+    [InlineData("unknown-exclusion")]
     [InlineData("repeated-extra")]
     public async Task Post_ShouldRejectTheOrder_WhenAnOptionIsNotValidForItsPlace(string case_)
     {
@@ -188,6 +189,7 @@ public sealed class ComboCustomizationTests(DatabaseFixture database) : Database
             "unknown" => Line(ClassicCombo, 1, Guid.NewGuid(), ColaDrink, [], []),
             "size-is-a-drink" => Line(ClassicCombo, 1, ColaDrink, ColaDrink, [], []),
             "extra-is-an-exclusion" => Line(ClassicCombo, 1, LargeSize, ColaDrink, [NoOnion], []),
+            "unknown-exclusion" => Line(ClassicCombo, 1, LargeSize, ColaDrink, [], [Guid.NewGuid()]),
             _ => Line(ClassicCombo, 1, LargeSize, ColaDrink, [CheeseExtra, CheeseExtra], []),
         };
 

@@ -31,10 +31,16 @@ public sealed class CreatePickupOrderHandler(
             return error;
         }
 
-        if (command.Items.Count > options.Value.MaxProducts)
+        var maxItems = options.Value.MaxProducts;
+        if (command.Items.Count > maxItems)
         {
             return OrdersErrors.ItemsLimitExceeded;
         }
+
+        // The number of lines is clamped to the limit: the allocation below and the loops that walk the lines are
+        // driven by this value and never by the size of the request, so a request with too many lines cannot make
+        // the API reserve memory without end (ITACR-66).
+        var itemCount = Math.Min(command.Items.Count, maxItems);
 
         if (await pickupOrderRepository.GetByClientOrderIdAsync(command.ClientOrderId, cancellationToken) is { } existing)
         {
@@ -48,9 +54,9 @@ public sealed class CreatePickupOrderHandler(
             return OrdersErrors.UnknownProducts;
         }
 
-        var customized = new List<CustomizedItem>(command.Items.Count);
+        var customized = new List<CustomizedItem>(itemCount);
         var comboOptions = await OrderItemCustomization.LoadOptionsAsync(catalogRepository, command.Items, cancellationToken);
-        for (var index = 0; index < command.Items.Count; index++)
+        for (var index = 0; index < itemCount; index++)
         {
             var resolved = OrderItemCustomization.Resolve(products[command.Items[index].ProductId], command.Items[index], index, comboOptions);
             if (!resolved.IsSuccess)
@@ -63,7 +69,7 @@ public sealed class CreatePickupOrderHandler(
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var order = Order.CreatePickup(command.ClientOrderId, now);
-        for (var index = 0; index < command.Items.Count; index++)
+        for (var index = 0; index < itemCount; index++)
         {
             var item = command.Items[index];
             var line = customized[index];

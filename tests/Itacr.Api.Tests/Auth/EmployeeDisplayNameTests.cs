@@ -9,6 +9,7 @@ public sealed class EmployeeDisplayNameTests
     [InlineData("Mesero de Prueba", "Mesero P.")]
     [InlineData("  Ana   martínez ", "Ana M.")]
     [InlineData("Carla", "Carla")]
+    [InlineData("   ", "")]
     public void From_ShouldReturnTheFirstNameAndLastInitial_WhenTheFullNameHasSeveralWords(string fullName, string expected)
     {
         // Act

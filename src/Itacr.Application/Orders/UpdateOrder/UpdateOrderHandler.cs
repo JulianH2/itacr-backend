@@ -32,6 +32,11 @@ public sealed class UpdateOrderHandler(
             return OrdersErrors.ItemsLimitExceeded;
         }
 
+        // The number of lines is clamped to the limit: the allocation below and the loops that walk the lines are
+        // driven by this value and never by the size of the request, so a request with too many lines cannot make
+        // the API reserve memory without end (ITACR-66).
+        var itemCount = Math.Min(command.Items.Count, OrderLimits.MaxItems);
+
         if (await orderRepository.GetDetailAsync(orderId, cancellationToken) is not { } order || order.WaiterId != waiterId)
         {
             return OrdersErrors.OrderNotFound;
@@ -61,8 +66,8 @@ public sealed class UpdateOrderHandler(
         }
 
         var comboOptions = await OrderItemCustomization.LoadOptionsAsync(catalogRepository, command.Items, cancellationToken);
-        var lines = new List<ModifiedOrderItem>(command.Items.Count);
-        for (var index = 0; index < command.Items.Count; index++)
+        var lines = new List<ModifiedOrderItem>(itemCount);
+        for (var index = 0; index < itemCount; index++)
         {
             var item = command.Items[index];
             var resolved = OrderItemCustomization.Resolve(products[item.ProductId], item, index, comboOptions);
