@@ -17,7 +17,7 @@ public sealed class LoginWithPasswordValidator : AbstractValidator<LoginWithPass
 
         RuleFor(command => command.Password)
             .Cascade(CascadeMode.Stop)
-            .NotEmpty().WithMessage(AuthProblems.PasswordRequired)
-            .MaximumLength(PasswordMaxLength).WithMessage(AuthProblems.InvalidPassword);
+            .NotEmpty().WithMessage(AuthProblems.AccessKeyRequired)
+            .MaximumLength(PasswordMaxLength).WithMessage(AuthProblems.InvalidSignIn);
     }
 }

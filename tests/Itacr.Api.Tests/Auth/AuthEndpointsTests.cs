@@ -276,7 +276,7 @@ public sealed class AuthEndpointsTests(DatabaseFixture database) : DatabaseTest(
     }
 
     [Fact]
-    public async Task LoginWithPassword_ShouldRejectWithTheInvalidPasswordMessage_WhenThePasswordIsWrong()
+    public async Task LoginWithPassword_ShouldRejectWithTheInvalidSignInMessage_WhenTheSecretIsWrong()
     {
         // Arrange
         await using var factory = new AuthApiFactory(Database);
@@ -287,7 +287,23 @@ public sealed class AuthEndpointsTests(DatabaseFixture database) : DatabaseTest(
         using var response = await client.PostAsJsonAsync("/api/v1/auth/login/password", new { email = manager.Email, password = "wrong-password" });
 
         // Assert
-        await AssertProblemAsync(response, HttpStatusCode.Unauthorized, AuthProblems.InvalidCredentialsType, AuthProblems.InvalidPassword);
+        await AssertProblemAsync(response, HttpStatusCode.Unauthorized, AuthProblems.InvalidCredentialsType, AuthProblems.InvalidSignIn);
+    }
+
+    [Fact]
+    public async Task LoginWithPassword_ShouldRequireTheAccessKey_WhenItIsMissing()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.PostAsJsonAsync("/api/v1/auth/login/password", new { email = "manager@itacr.app" });
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var errors = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errors");
+        Assert.Equal([AuthProblems.AccessKeyRequired], errors.GetProperty("password").EnumerateArray().Select(message => message.GetString()));
     }
 
     [Fact]

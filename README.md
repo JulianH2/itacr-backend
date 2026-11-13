@@ -220,10 +220,11 @@ The code is analyzed with [Xygeni](https://in.xygeni.io) (free plan) for code qu
 [SonarQube Cloud](https://sonarcloud.io/project/overview?id=JulianH2_itacr-backend) (free plan for public repositories) measures the code quality: bugs, vulnerabilities, code smells, duplication, and test coverage, with a quality gate. It complements Xygeni, which stays for the security of the dependencies, the secrets, and the workflows.
 
 - **Project:** organization `julianh2`, project key `JulianH2_itacr-backend`, analysis method **GitHub Actions** (Automatic Analysis is off: it does not support C# and reads no coverage).
-- **Automatic run:** `.github/workflows/sonarqube.yml` builds the solution, runs every test with coverage, and sends the analysis on every PR into `sprint-*`, `develop`, `release`, and `main`, on every push to them, and by hand. It is not a required check, so an outage never blocks a merge. Dependabot PRs skip it, like Xygeni, because they cannot read secrets.
+- **Automatic run:** `.github/workflows/sonarqube.yml` builds the solution, runs every test with coverage, and sends the analysis only on pushes to `develop`. The current SonarQube Cloud plan does not analyze pull requests or non-main branches. It is not a required check, so an outage never blocks a merge.
 - **Coverage:** `coverage.runsettings` writes OpenCover for SonarQube and Cobertura for the summary of the `ci` job, from the same run.
 - **Secret:** `SONAR_TOKEN` (Settings > Secrets and variables > Actions), created in SonarQube Cloud > the project > **Administration** > **Analysis Method**. Never commit it.
 - **Quality gate:** "Sonar way": on the new code, coverage of at least 80 %, duplication of at most 3 %, and an A in reliability, security, and maintainability. The new code is everything since the previous version.
+- **Known false positive:** the PL/SQL rule "DELETE without WHERE" reports `database/migrations/V001__initial_schema.sql` because of the `ON DELETE NO ACTION` of a foreign key. That clause is not a DELETE statement: the rule misreads it, and the finding is not a real risk. The script is already applied in QA and production and is not modified (DbUp keeps the applied scripts in `dbo.SchemaVersions`, so changing one would break the databases that already ran it).
 
 ## Database versioning (DbUp)
 
