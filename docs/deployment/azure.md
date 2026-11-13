@@ -95,7 +95,9 @@ Everything is created by hand in the Azure Portal. No repository creates or chan
 
 - All four apps share the CPU quota of one **F1** plan, which has a daily limit and no Always On. After idle time the first request is slow (a cold start), and a busy day can pause the apps until the quota resets.
 - The free serverless **Azure SQL** databases pause when idle. The first request after a pause can take up to a minute; the connection strings use `Connection Timeout=60`, and the API retries the opening of the connection.
-- None of this is a bug. Before a demo, open the health check once to wake the stack (section 9).
+- The workflow `.github/workflows/keep-warm.yml` (ITACR-67) calls the page of each frontend and `/api/v1/health/live` of each API every 10 minutes from 08:00 to 22:59 in Mexico City, so the apps are not unloaded during the service hours. `/api/v1/health/live` runs no check and never opens the database, so the serverless database still pauses and its free monthly allowance is not spent; keeping it awake all day would use it up. The first request that needs data after a pause is still slow: the PWA shows "Despertando el servidor…" and tries again on its own.
+- Scheduled workflows only run from the default branch (`develop`), and GitHub turns them off after 60 days without repository activity: enable the workflow again in the **Actions** tab if that happens. The workflow only warns, it never fails, when an app does not answer.
+- None of this is a bug. Before a demo outside the service hours, open the health check once to wake the stack (section 9).
 
 ## 3. Azure SQL
 

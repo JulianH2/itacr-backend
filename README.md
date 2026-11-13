@@ -54,6 +54,7 @@ The API listens on `http://localhost:3000`:
 | --------------------------------------- | ------------------------------------------ |
 | `http://localhost:3000/api/v1`          | REST API                                   |
 | `http://localhost:3000/api/v1/health`   | Health check (API and database)            |
+| `http://localhost:3000/api/v1/health/live` | Liveness check (the process only, no database) |
 | `http://localhost:3000/scalar/v1`       | API reference UI (Development only)        |
 | `http://localhost:3000/openapi/v1.json` | OpenAPI document (Development only)        |
 | `http://localhost:3000/hubs/kitchen`    | SignalR hub for the Kitchen Display System |
@@ -166,6 +167,8 @@ Production runs on Azure (resource group `rg-itacr-prod-westus`, region West US)
 Azure generates the domains with a unique suffix (`<app>-<suffix>.westus-01.azurewebsites.net`); `app-itacr-backend-prod.azurewebsites.net` does not exist. They are shown in each App Service > Overview > **Default domain**.
 
 The health check returns `200 Healthy` when the API runs and reaches Azure SQL, and `503 Unhealthy` when it cannot. The free serverless database pauses when idle, so the first request after a pause can take up to a minute or return `503` once while it resumes.
+
+`/api/v1/health/live` always answers `200 Healthy` while the process runs and never opens the database. The `keep-warm` workflow calls it every 10 minutes during the service hours so the free plan does not unload the apps (details in [docs/deployment/azure.md](docs/deployment/azure.md)).
 
 ### Production settings
 
