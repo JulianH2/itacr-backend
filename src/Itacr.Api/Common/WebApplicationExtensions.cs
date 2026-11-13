@@ -1,4 +1,5 @@
 using Itacr.Api.Common.Options;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 
@@ -7,6 +8,7 @@ namespace Itacr.Api.Common;
 public static class WebApplicationExtensions
 {
     private const string HealthRoute = "/api/v1/health";
+    private const string LiveRoute = "/api/v1/health/live";
 
     public static WebApplication UseApiBase(this WebApplication app)
     {
@@ -30,6 +32,8 @@ public static class WebApplicationExtensions
 
         // Explicitly public: the App Service health probe and the API docs never send a token.
         app.MapHealthChecks(HealthRoute).AllowAnonymous();
+        // Runs no check, so it never opens the database: the keep-warm workflow calls it without waking the serverless database.
+        app.MapHealthChecks(LiveRoute, new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
 
         if (app.Environment.IsDevelopment())
         {
