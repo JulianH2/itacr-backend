@@ -16,4 +16,7 @@ public sealed record GetManagerOrdersQuery(
 {
     public const int DefaultPageSize = 20;
     public const int MaxPageSize = 100;
+
+    // Keeps (page - 1) * pageSize far from the int limit, which the OFFSET of the procedure would overflow.
+    public const int MaxPage = 100_000;
 }

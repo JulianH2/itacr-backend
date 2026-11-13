@@ -15,14 +15,23 @@ from collections import defaultdict
 from pathlib import Path
 
 
+def relative_to_project(package, filename):
+    """Coverlet writes the path of a file relative to a different root in each report ("Itacr.Api/Program.cs" in one and
+    "src/Itacr.Api/Program.cs" in another). Without this, the same file counts as two and half of its lines look uncovered."""
+    marker = f"{package}/"
+    index = filename.find(marker)
+    return filename[index + len(marker):] if index >= 0 else filename
+
+
 def merge_reports(reports):
     """Returns {project: {(file, line): hits}}, keeping the highest number of hits of each line."""
     projects = defaultdict(dict)
     for report in reports:
         for package in ET.parse(report).getroot().iter("package"):
-            lines = projects[package.get("name", "unknown")]
+            name = package.get("name", "unknown")
+            lines = projects[name]
             for cls in package.iter("class"):
-                filename = cls.get("filename", "")
+                filename = relative_to_project(name, cls.get("filename", ""))
                 for line in cls.iter("line"):
                     key = (filename, int(line.get("number", "0")))
                     lines[key] = max(lines.get(key, 0), int(line.get("hits", "0")))
@@ -57,7 +66,7 @@ def main():
     reports = sorted(folder.rglob("coverage.cobertura.xml"))
     if not reports:
         print(f"::warning title=No coverage report::There is no coverage.cobertura.xml under {folder}.")
-        return 0
+        return
 
     markdown = render(merge_reports(reports))
     print(markdown)
@@ -65,8 +74,7 @@ def main():
     if summary:
         with open(summary, "a", encoding="utf-8") as file:
             file.write(markdown)
-    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

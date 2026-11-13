@@ -84,6 +84,8 @@ public static class OrdersErrors
 
     public static readonly Error TakeAwayHasNoTable = Error.Validation(new Dictionary<string, string[]> { ["tableId"] = [TakeAwayHasNoTableMessage] });
 
+    public static readonly Error ItemsLimitExceeded = Error.Validation(new Dictionary<string, string[]> { ["items"] = [TooManyItems] });
+
     public static readonly Error UnknownTable = Error.Validation(new Dictionary<string, string[]> { ["tableId"] = [TableNotFound] });
 
     public static readonly Error UnknownProducts = Error.Validation(new Dictionary<string, string[]> { ["items"] = [ProductsNotFound] });

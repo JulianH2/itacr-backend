@@ -277,6 +277,8 @@ public sealed class ManagerDashboardTests(DatabaseFixture database) : DatabaseTe
     [InlineData("channel=Everyone")]
     [InlineData("status=Cancelled")]
     [InlineData("page=0")]
+    [InlineData("page=100001")]
+    [InlineData("page=2147483647")]
     [InlineData("pageSize=101")]
     [InlineData("pageSize=0")]
     public async Task GetOrders_ShouldRejectTheRequest_WhenAFilterOrThePageIsNotValid(string extra)
@@ -371,7 +373,7 @@ public sealed class ManagerDashboardTests(DatabaseFixture database) : DatabaseTe
         const string Pin = "1234";
         var employee = await factory.AddEmployeeAsync($"Empleado {role} {Guid.NewGuid():N}", role, Pin);
         var client = factory.CreateClient();
-        AuthApiFactory.Authorize(client, (await factory.LoginAsync(client, employee.Id, Pin)).AccessToken);
+        AuthApiFactory.Authorize(client, (await AuthApiFactory.LoginAsync(client, employee.Id, Pin)).AccessToken);
         return client;
     }
 }

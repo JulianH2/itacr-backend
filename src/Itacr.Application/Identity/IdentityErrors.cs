@@ -7,7 +7,7 @@ public static class IdentityErrors
 {
     public static readonly Error InvalidPin = new(ErrorKind.Unauthorized, "Invalid credentials", AuthProblems.InvalidPin, AuthProblems.InvalidCredentialsType);
 
-    public static readonly Error InvalidPassword = new(ErrorKind.Unauthorized, "Invalid credentials", AuthProblems.InvalidPassword, AuthProblems.InvalidCredentialsType);
+    public static readonly Error InvalidSignIn = new(ErrorKind.Unauthorized, "Invalid credentials", AuthProblems.InvalidSignIn, AuthProblems.InvalidCredentialsType);
 
     public static readonly Error PendingApproval = new(ErrorKind.Forbidden, "Account pending approval", AuthProblems.PendingApproval, AuthProblems.PendingApprovalType);
 

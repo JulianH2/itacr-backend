@@ -106,7 +106,7 @@ public sealed class AuthApiFactory(DatabaseFixture database, IReadOnlyDictionary
         return [.. notifications];
     }
 
-    public async Task<LoginResponse> LoginAsync(HttpClient client, Guid employeeId, string pin)
+    public static async Task<LoginResponse> LoginAsync(HttpClient client, Guid employeeId, string pin)
     {
         using var response = await client.PostAsJsonAsync("/api/v1/auth/login/pin", new { employeeId, pin });
         response.EnsureSuccessStatusCode();

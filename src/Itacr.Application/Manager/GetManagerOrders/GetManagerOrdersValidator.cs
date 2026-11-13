@@ -8,7 +8,9 @@ public sealed class GetManagerOrdersValidator : AbstractValidator<GetManagerOrde
     {
         DateRangeRules.Apply(this, query => query.From, query => query.To);
 
-        RuleFor(query => query.Page).GreaterThanOrEqualTo(1).WithMessage(ManagerMessages.PageInvalid);
+        RuleFor(query => query.Page)
+            .InclusiveBetween(1, GetManagerOrdersQuery.MaxPage)
+            .WithMessage(ManagerMessages.PageInvalid);
         RuleFor(query => query.PageSize)
             .InclusiveBetween(1, GetManagerOrdersQuery.MaxPageSize)
             .WithMessage(ManagerMessages.PageSizeInvalid);
