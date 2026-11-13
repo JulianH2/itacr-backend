@@ -1,14 +1,11 @@
 name: SonarQube
 
-# Code quality and coverage in SonarQube Cloud (organization julianh2, project JulianH2_itacr-backend): on every PR into the
-# long-lived branches, on every push to them, and by hand. It is its own workflow, apart from the required `ci` check, so an
-# outage of SonarQube Cloud never blocks a merge. Results: https://sonarcloud.io/project/overview?id=JulianH2_itacr-backend
+# Code quality and coverage in SonarQube Cloud (organization julianh2, project JulianH2_itacr-backend): only when develop
+# changes. The current plan does not analyze pull requests or non-main branches. It is separate from the
+# required `ci` check, so an outage of SonarQube Cloud never blocks a merge. Results: https://sonarcloud.io/project/overview?id=JulianH2_itacr-backend
 on:
-  pull_request:
-    branches: ['sprint-*', develop, release, main]
   push:
-    branches: ['sprint-*', develop, release, main]
-  workflow_dispatch:
+    branches: [develop]
 
 permissions:
   contents: read
@@ -20,9 +17,6 @@ concurrency:
 jobs:
   sonarqube:
     name: SonarQube
-    # Dependabot PRs cannot read repository secrets, so the analysis would fail without SONAR_TOKEN. The push to develop
-    # analyzes those updates once they are merged.
-    if: github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

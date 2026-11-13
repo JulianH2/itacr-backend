@@ -34,6 +34,11 @@ public sealed class CreateOrderHandler(
             return OrdersErrors.ItemsLimitExceeded;
         }
 
+        // The number of lines is clamped to the limit: the allocation below and the loops that walk the lines are
+        // driven by this value and never by the size of the request, so a request with too many lines cannot make
+        // the API reserve memory without end (ITACR-66).
+        var itemCount = Math.Min(command.Items.Count, OrderLimits.MaxItems);
+
         if (await orderRepository.GetByClientOrderIdAsync(command.ClientOrderId, cancellationToken) is { } existing)
         {
             return Replay(existing, waiterId);
@@ -70,9 +75,9 @@ public sealed class CreateOrderHandler(
             return OrdersErrors.UnknownProducts;
         }
 
-        var customized = new List<CustomizedItem>(command.Items.Count);
+        var customized = new List<CustomizedItem>(itemCount);
         var comboOptions = await OrderItemCustomization.LoadOptionsAsync(catalogRepository, command.Items, cancellationToken);
-        for (var index = 0; index < command.Items.Count; index++)
+        for (var index = 0; index < itemCount; index++)
         {
             var resolved = OrderItemCustomization.Resolve(products[command.Items[index].ProductId], command.Items[index], index, comboOptions);
             if (!resolved.IsSuccess)
@@ -85,7 +90,7 @@ public sealed class CreateOrderHandler(
 
         var channel = command.TakeAway ? OrderChannel.TakeAway : OrderChannel.DineIn;
         var order = Order.Create(command.ClientOrderId, channel, command.TableId, waiterId, customerId: null, createdAt.UtcDateTime);
-        for (var index = 0; index < command.Items.Count; index++)
+        for (var index = 0; index < itemCount; index++)
         {
             var item = command.Items[index];
             var line = customized[index];

@@ -79,9 +79,9 @@ public sealed partial class DatabaseMigrator(
 
         var upgrader = BuildUpgrader(connectionString);
         await using var connection = new SqlConnection(connectionString);
-        var applied = await connection.QueryAsync<(string ScriptName, DateTime Applied)>(new CommandDefinition(
+        var applied = (await connection.QueryAsync<(string ScriptName, DateTime Applied)>(new CommandDefinition(
             "IF OBJECT_ID(N'dbo.SchemaVersions', N'U') IS NOT NULL SELECT ScriptName, Applied FROM dbo.SchemaVersions ORDER BY Id;",
-            cancellationToken: cancellationToken));
+            cancellationToken: cancellationToken))).ToList();
         foreach (var script in applied)
         {
             LogApplied(script.ScriptName, script.Applied);
@@ -93,7 +93,7 @@ public sealed partial class DatabaseMigrator(
             LogPending(script.Name);
         }
 
-        LogVersionedSummary(applied.Count(), pending.Count);
+        LogVersionedSummary(applied.Count, pending.Count);
         return true;
     }, cancellationToken);
 
