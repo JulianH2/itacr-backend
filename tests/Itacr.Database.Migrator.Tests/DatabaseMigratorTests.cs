@@ -12,7 +12,7 @@ using Microsoft.Extensions.Options;
 namespace Itacr.Database.Migrator.Tests;
 
 [Collection(SqlServerCollection.Name)]
-public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
+public sealed partial class DatabaseMigratorTests(SqlServerFixture sqlServer)
 {
     private const string InitialSchemaScript = "V001__initial_schema.sql";
     private const string OrderStatusHistoryScript = "V002__add_order_status_history.sql";
@@ -356,8 +356,11 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
     {
         var withoutAccents = new string([.. productName.Normalize(System.Text.NormalizationForm.FormD)
             .Where(character => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(character) != System.Globalization.UnicodeCategory.NonSpacingMark)]);
-        return string.Join('-', System.Text.RegularExpressions.Regex.Split(withoutAccents.ToLowerInvariant(), "[^a-z0-9]+").Where(part => part.Length > 0));
+        return string.Join('-', NonAlphanumeric().Split(withoutAccents.ToLowerInvariant()).Where(part => part.Length > 0));
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex("[^a-z0-9]+")]
+    private static partial System.Text.RegularExpressions.Regex NonAlphanumeric();
 
     private static string NewDatabaseName() => $"ItacrMigratorTests_{Guid.NewGuid():N}";
 }
