@@ -14,14 +14,14 @@ public sealed record SeedEmployee(string FullName, string Email, string Pin, Emp
 public sealed class EmployeeSeedPlan(IOptions<SeedOptions> options, ILogger<EmployeeSeedPlan> logger)
 {
     private const int PinLength = 4;
-    private const string DevelopmentPassword = "Itacr2026!";
+    private const string DevelopmentCredential = "Itacr2026!";
 
     private static readonly SeedEmployee[] DevelopmentEmployees =
     [
-        new("Mesero de Prueba", "mesero@itacr.test", "1111", EmployeeRole.Waiter, EmployeeStatus.Active, DevelopmentPassword),
-        new("Cocina de Prueba", "cocina@itacr.test", "2222", EmployeeRole.Kitchen, EmployeeStatus.Active, DevelopmentPassword),
-        new("Gerente de Prueba", "gerente@itacr.test", "3333", EmployeeRole.Manager, EmployeeStatus.Active, DevelopmentPassword),
-        new("Mesero Pendiente", "pendiente@itacr.test", "4444", EmployeeRole.Waiter, EmployeeStatus.PendingApproval, DevelopmentPassword),
+        new("Mesero de Prueba", "mesero@itacr.test", "1111", EmployeeRole.Waiter, EmployeeStatus.Active, DevelopmentCredential),
+        new("Cocina de Prueba", "cocina@itacr.test", "2222", EmployeeRole.Kitchen, EmployeeStatus.Active, DevelopmentCredential),
+        new("Gerente de Prueba", "gerente@itacr.test", "3333", EmployeeRole.Manager, EmployeeStatus.Active, DevelopmentCredential),
+        new("Mesero Pendiente", "pendiente@itacr.test", "4444", EmployeeRole.Waiter, EmployeeStatus.PendingApproval, DevelopmentCredential),
     ];
 
     public IReadOnlyList<SeedEmployee> Build(bool isDevelopment, IReadOnlySet<string> existingEmails, bool hasManager)
@@ -38,7 +38,7 @@ public sealed class EmployeeSeedPlan(IOptions<SeedOptions> options, ILogger<Empl
     /// The test employees of a local database seeded before 2 October 2026, which exist without a password, so the password
     /// login works there too. Development only: never in QA or production.
     /// </summary>
-    public IReadOnlyList<SeedEmployee> BuildMissingPasswords(bool isDevelopment, IReadOnlySet<string> emailsWithoutPassword) =>
+    public static IReadOnlyList<SeedEmployee> BuildMissingPasswords(bool isDevelopment, IReadOnlySet<string> emailsWithoutPassword) =>
         isDevelopment ? DevelopmentEmployees.Where(candidate => emailsWithoutPassword.Contains(candidate.Email)).ToList() : [];
 
     private List<SeedEmployee> BuildInitialManager(IReadOnlySet<string> existingEmails, bool hasManager)

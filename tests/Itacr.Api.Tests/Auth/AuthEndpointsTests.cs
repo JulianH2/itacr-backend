@@ -63,7 +63,7 @@ public sealed class AuthEndpointsTests(DatabaseFixture database) : DatabaseTest(
         using var client = factory.CreateClient();
 
         // Act
-        var login = await factory.LoginAsync(client, waiter.Id, "1111");
+        var login = await AuthApiFactory.LoginAsync(client, waiter.Id, "1111");
 
         // Assert
         Assert.Equal(new SessionEmployeeResponse(waiter.Id, "Mesero P.", EmployeeRole.Waiter), login.Employee);
@@ -191,7 +191,7 @@ public sealed class AuthEndpointsTests(DatabaseFixture database) : DatabaseTest(
         using var client = factory.CreateClient();
 
         // Act
-        await factory.LoginAsync(client, waiter.Id, "1111");
+        await AuthApiFactory.LoginAsync(client, waiter.Id, "1111");
 
         // Assert
         var storedHash = await factory.GetPinHashAsync(waiter.Id);
@@ -297,7 +297,7 @@ public sealed class AuthEndpointsTests(DatabaseFixture database) : DatabaseTest(
         await using var factory = new AuthApiFactory(Database);
         var kitchen = await factory.AddEmployeeAsync("Cocina de Prueba", EmployeeRole.Kitchen, "2222");
         using var client = factory.CreateClient();
-        var login = await factory.LoginAsync(client, kitchen.Id, "2222");
+        var login = await AuthApiFactory.LoginAsync(client, kitchen.Id, "2222");
         AuthApiFactory.Authorize(client, login.AccessToken);
 
         // Act

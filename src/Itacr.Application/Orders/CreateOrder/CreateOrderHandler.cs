@@ -29,6 +29,11 @@ public sealed class CreateOrderHandler(
             return error;
         }
 
+        if (command.Items.Count > OrderLimits.MaxItems)
+        {
+            return OrdersErrors.ItemsLimitExceeded;
+        }
+
         if (await orderRepository.GetByClientOrderIdAsync(command.ClientOrderId, cancellationToken) is { } existing)
         {
             return Replay(existing, waiterId);
@@ -118,7 +123,7 @@ public sealed class CreateOrderHandler(
         return new CreateOrderOutcome(response, Created: false);
     }
 
-    private static CreateOrderResponse ToResponse(Order order, int? tableNumber, IReadOnlyDictionary<Guid, Product> products) => new(
+    private static CreateOrderResponse ToResponse(Order order, int? tableNumber, Dictionary<Guid, Product> products) => new(
         order.Id,
         order.ClientOrderId,
         order.OrderNumber,

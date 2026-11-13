@@ -346,7 +346,7 @@ public sealed class PushNotificationTests(DatabaseFixture database) : DatabaseTe
         const string Pin = "1234";
         var employee = await factory.AddEmployeeAsync($"Empleado {role} {Guid.NewGuid():N}", role, Pin);
         var client = factory.CreateClient();
-        AuthApiFactory.Authorize(client, (await factory.LoginAsync(client, employee.Id, Pin)).AccessToken);
+        AuthApiFactory.Authorize(client, (await AuthApiFactory.LoginAsync(client, employee.Id, Pin)).AccessToken);
         return (client, employee.Id);
     }
 

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace Itacr.Database.Migrator.Seeding;
 
 /// <summary>Seeds employees in C# because their PINs and passwords are hashed with the same <see cref="PasswordHasher{TUser}"/> the API verifies with.</summary>
-public sealed class EmployeeSeeder(
+public sealed partial class EmployeeSeeder(
     EmployeeSeedPlan plan,
     IPasswordHasher<Employee> passwordHasher,
     TimeProvider timeProvider,
@@ -33,7 +33,7 @@ public sealed class EmployeeSeeder(
             cancellationToken: cancellationToken))).ToDictionary(employee => employee.Email, employee => employee.Id, StringComparer.OrdinalIgnoreCase);
 
         var newEmployees = plan.Build(isDevelopment, emails.ToHashSet(StringComparer.OrdinalIgnoreCase), hasManager);
-        var missingPasswords = plan.BuildMissingPasswords(isDevelopment, withoutPassword.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase));
+        var missingPasswords = EmployeeSeedPlan.BuildMissingPasswords(isDevelopment, withoutPassword.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase));
         if (newEmployees.Count == 0 && missingPasswords.Count == 0)
         {
             return;
@@ -78,7 +78,7 @@ public sealed class EmployeeSeeder(
         }
 
         await transaction.CommitAsync(cancellationToken);
-        logger.LogInformation("Seeded {Count} employees and set the test password of {Updated}", newEmployees.Count, missingPasswords.Count);
+        LogSeeded(newEmployees.Count, missingPasswords.Count);
     }
 
     // PasswordHasher<TUser> never reads the user: the hash depends only on its options.
@@ -106,4 +106,7 @@ public sealed class EmployeeSeeder(
 
         return employee;
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Seeded {Count} employees and set the test password of {Updated}")]
+    private partial void LogSeeded(int count, int updated);
 }

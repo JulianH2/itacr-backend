@@ -57,7 +57,7 @@ def main():
     reports = sorted(folder.rglob("coverage.cobertura.xml"))
     if not reports:
         print(f"::warning title=No coverage report::There is no coverage.cobertura.xml under {folder}.")
-        return 0
+        return
 
     markdown = render(merge_reports(reports))
     print(markdown)
@@ -65,8 +65,7 @@ def main():
     if summary:
         with open(summary, "a", encoding="utf-8") as file:
             file.write(markdown)
-    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
