@@ -1,5 +1,51 @@
 # Changelog
 
+## [0.7.0](https://github.com/JulianH2/itacr-backend/compare/v0.6.0...v0.7.0) (2026-11-19)
+
+
+### Added
+
+* **auth:** let a new employee ask for an account from the login screen (ITACR-20) ([639e9d1](https://github.com/JulianH2/itacr-backend/commit/639e9d166d7ed1ab279bfbec1df6cafcb291b8f4))
+* **auth:** let a new employee ask for an account from the login screen (ITACR-20) ([97b3332](https://github.com/JulianH2/itacr-backend/commit/97b33326496ac5257cbdf8fb5cc09fccc843b467))
+* **core:** add a liveness route and a keep-warm workflow (ITACR-67) ([bf57029](https://github.com/JulianH2/itacr-backend/commit/bf57029a4627f1f530d4f4b710d07ba7ec258e6f))
+* **core:** add a liveness route and a keep-warm workflow (ITACR-67) ([78ecf31](https://github.com/JulianH2/itacr-backend/commit/78ecf31b8e9730503d4cf423c2e84aca4eb05b31))
+* **db:** add order modified time and update procedure (ITACR-19) ([c08da35](https://github.com/JulianH2/itacr-backend/commit/c08da35fb5add8f8c01672491b337d1dfc2481bf))
+* **db:** add the aggregate queries of the manager dashboard (ITACR-22) ([2cec617](https://github.com/JulianH2/itacr-backend/commit/2cec617386cd34f4648bca3d0d2a2380f795d49b))
+* **db:** save the pending account of a new employee with the date of the privacy notice (ITACR-20) ([8c1059b](https://github.com/JulianH2/itacr-backend/commit/8c1059b58922ca2a7f0802c90e986c4d9584fd9d))
+* **manager:** add the endpoints of the manager dashboard (ITACR-22) ([f722b5f](https://github.com/JulianH2/itacr-backend/commit/f722b5f502528a843a5b20968d14593b95d61081))
+* **manager:** add the endpoints of the manager dashboard (ITACR-22) ([59519fb](https://github.com/JulianH2/itacr-backend/commit/59519fb4c5adcbdd16725d19e86332f6e318200d))
+* **manager:** approve staff accounts and assign temporary pins (ITACR-21) ([aab187e](https://github.com/JulianH2/itacr-backend/commit/aab187eba602fda72fec5cca9c916628d0e6b059))
+* **manager:** approve staff accounts and assign temporary pins (ITACR-21) ([5f49a66](https://github.com/JulianH2/itacr-backend/commit/5f49a662dcbea8c9d5890247594198ed85ccc7dc))
+* **orders:** let the waiter modify an order before it is ready (ITACR-19) ([c642d6d](https://github.com/JulianH2/itacr-backend/commit/c642d6d7e0f037bf653c291f51e01b11356717f1))
+* **orders:** let the waiter modify an order before it is ready (ITACR-19) ([e388682](https://github.com/JulianH2/itacr-backend/commit/e38868265e37c19612cd8e6257ef1f422479811b))
+* **orders:** return product and option ids in the order detail (ITACR-19) ([9d87698](https://github.com/JulianH2/itacr-backend/commit/9d876984a3ff27ce033c8203034e0a739d42eef4))
+
+
+### Fixed
+
+* **core:** answer every date of the api in utc (ITACR-22) ([d8ed4e2](https://github.com/JulianH2/itacr-backend/commit/d8ed4e2745b07e6a40ada397cf08d80274739c1c))
+* **core:** answer every date of the api in utc (ITACR-22) ([451342d](https://github.com/JulianH2/itacr-backend/commit/451342d6659e58b73b9609c8d6f18e5149006f41))
+* **core:** await RunAsync and drop the public partial Program (ITACR-66) ([3c87d35](https://github.com/JulianH2/itacr-backend/commit/3c87d3580aaaec29c6fdcdc02983c45e1cbd9dfb))
+* **core:** finish the final quality and security round (ITACR-66) ([ebafb96](https://github.com/JulianH2/itacr-backend/commit/ebafb96c3f8d39f672f01807402a864914340eb3))
+* **core:** finish the final quality and security round (ITACR-66) ([da8a324](https://github.com/JulianH2/itacr-backend/commit/da8a324e37233c18a669bac61d7b040d751995f8))
+* **core:** fix the sonarqube findings of the backend (ITACR-66) ([24c54db](https://github.com/JulianH2/itacr-backend/commit/24c54db1d5dedc989fb4fe980f860dac74e0102e))
+* **core:** require an encrypted connection in the new session tests (ITACR-66) ([014a721](https://github.com/JulianH2/itacr-backend/commit/014a721bdf67082ee4fcd26d8e900349e569e068))
+* **core:** require an encrypted connection in the new session tests (ITACR-66) ([dad3810](https://github.com/JulianH2/itacr-backend/commit/dad38109e8f2bf80a58f21c4e27703ab2c150d95))
+* **core:** use a primary constructor in the production pipeline tests (ITACR-66) ([8ec2b83](https://github.com/JulianH2/itacr-backend/commit/8ec2b831c8836ec3b387aa9e18589520d79d11e5))
+* **core:** use a primary constructor in the production pipeline tests (ITACR-66) ([c0455aa](https://github.com/JulianH2/itacr-backend/commit/c0455aa3b9e17974e6474b87c49b6ec9852aac87))
+* **db:** clean up the migrator logging, seed plan and tests (ITACR-66) ([1f56edd](https://github.com/JulianH2/itacr-backend/commit/1f56eddfaec55b62ad692ab08a94d177d87b69bb))
+* **manager:** cap the page number of the orders list (ITACR-22) ([e7ac2c6](https://github.com/JulianH2/itacr-backend/commit/e7ac2c6f67d37fa12c09d52d7415dc2dbc368faa))
+* **manager:** cap the page number of the orders list (ITACR-22) ([21ca54c](https://github.com/JulianH2/itacr-backend/commit/21ca54cb469117f97bba2b12beb25beb8ef2b5b1))
+* **orders:** check the item count before the order loops (ITACR-66) ([4652c24](https://github.com/JulianH2/itacr-backend/commit/4652c2449ff2a847d1d3d75de451855f3b3c8ab2))
+
+
+### Documentation
+
+* **auth:** document the request of an account (ITACR-20) ([45667e5](https://github.com/JulianH2/itacr-backend/commit/45667e5bf2e98922f0c7bcbbf5acd8e47aabb7df))
+* **manager:** document the manager dashboard (ITACR-22) ([42d1daf](https://github.com/JulianH2/itacr-backend/commit/42d1daf5d411d0ae12d25ab6e5b00b40ff6357bd))
+* **manager:** use the access token variable in the examples (ITACR-22) ([40a3c3a](https://github.com/JulianH2/itacr-backend/commit/40a3c3ab4ee3983d72ee6331165af148942c3931))
+* **repo:** allow a procedure to return several result sets (ITACR-22) ([25f07c1](https://github.com/JulianH2/itacr-backend/commit/25f07c1909ce9b002204e7840744625ef7ee585b))
+
 ## [0.6.0](https://github.com/JulianH2/itacr-backend/compare/v0.5.0...v0.6.0) (2026-11-07)
 
 
