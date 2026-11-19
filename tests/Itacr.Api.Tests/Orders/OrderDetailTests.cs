@@ -43,6 +43,28 @@ public sealed class OrderDetailTests(DatabaseFixture database) : DatabaseTest(da
     }
 
     [Fact]
+    public async Task Get_ShouldAnswerEveryTimeInUtc_WhenTheOrderHasCreationReadyAndTimelineTimes()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        var (waiter, _) = await SignInAsync(factory, EmployeeRole.Waiter);
+        var orderId = await PlaceOrderAsync(waiter, TableFive);
+        var (kitchen, _) = await SignInAsync(factory, EmployeeRole.Kitchen);
+        (await kitchen.PostAsJsonAsync($"/api/v1/orders/{orderId}/status", new { status = "InPreparation" })).EnsureSuccessStatusCode();
+        (await kitchen.PostAsJsonAsync($"/api/v1/orders/{orderId}/status", new { status = "Ready" })).EnsureSuccessStatusCode();
+
+        // Act
+        var order = await waiter.GetFromJsonAsync<JsonElement>($"/api/v1/orders/{orderId}");
+        var recent = await waiter.GetFromJsonAsync<JsonElement>("/api/v1/orders/recent");
+
+        // Assert
+        Assert.EndsWith("Z", order.GetProperty("createdAt").GetString());
+        Assert.EndsWith("Z", order.GetProperty("readyAt").GetString());
+        Assert.All(order.GetProperty("timeline").EnumerateArray(), entry => Assert.EndsWith("Z", entry.GetProperty("changedAt").GetString()));
+        Assert.EndsWith("Z", recent.EnumerateArray().First().GetProperty("createdAt").GetString());
+    }
+
+    [Fact]
     public async Task Get_ShouldAnswerNotFound_WhenTheOrderDoesNotExist()
     {
         // Arrange
@@ -103,7 +125,7 @@ public sealed class OrderDetailTests(DatabaseFixture database) : DatabaseTest(da
         const string Pin = "1234";
         var employee = await factory.AddEmployeeAsync($"Empleado {role}", role, Pin);
         var client = factory.CreateClient();
-        AuthApiFactory.Authorize(client, (await factory.LoginAsync(client, employee.Id, Pin)).AccessToken);
+        AuthApiFactory.Authorize(client, (await AuthApiFactory.LoginAsync(client, employee.Id, Pin)).AccessToken);
         return (client, employee.Id);
     }
 

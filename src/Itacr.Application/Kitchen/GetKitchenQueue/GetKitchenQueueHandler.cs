@@ -24,5 +24,7 @@ public sealed class GetKitchenQueueHandler(IKitchenRepository kitchenRepository,
         order.Status,
         order.TableNumber,
         order.CreatedAt,
-        [.. order.Items.Select(item => new KitchenQueueItemResponse(item.ProductName, item.Quantity, item.Size, item.Drink, item.Extras, item.Exclusions))]);
+        order.ModifiedAt,
+        [.. order.Items.Select(item => new KitchenQueueItemResponse(item.ProductName, item.Quantity, item.Size, item.Drink, item.Extras, item.Exclusions))],
+        order.Notes);
 }

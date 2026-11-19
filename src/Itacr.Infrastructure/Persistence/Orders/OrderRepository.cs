@@ -96,6 +96,25 @@ internal sealed class OrderRepository(DbSession session) : IOrderRepository
             cancellationToken));
     }
 
+    public async Task<bool> UpdateAsync(OrderModification modification, CancellationToken cancellationToken)
+    {
+        var connection = await session.GetOpenConnectionAsync(cancellationToken);
+        return await connection.QuerySingleAsync<bool>(session.Procedure(
+            "dbo.usp_Order_Update",
+            new
+            {
+                Id = modification.OrderId,
+                modification.WaiterId,
+                modification.TableId,
+                modification.Total,
+                modification.Now,
+                NoteId = SequentialGuid.Create(),
+                modification.Note,
+                ItemsJson = OrderPayload.Items(modification.Items),
+            },
+            cancellationToken));
+    }
+
     public async Task<OrderDetail?> GetDetailAsync(Guid orderId, CancellationToken cancellationToken)
     {
         var connection = await session.GetOpenConnectionAsync(cancellationToken);
@@ -120,7 +139,9 @@ internal sealed class OrderRepository(DbSession session) : IOrderRepository
             row.LastStatusChangeAt,
             row.ReadyAt,
             row.DeliveredAt,
+            row.ModifiedAt is { } modifiedAt ? DateTime.SpecifyKind(modifiedAt, DateTimeKind.Utc) : null,
             items,
+            row.NotesJson is null ? [] : [.. (JsonSerializer.Deserialize<List<NoteJson>>(row.NotesJson, ItemsJson) ?? []).Select(note => note.Text)],
             [.. history.Select(entry => new OrderStatusChange(ParseStatus(entry.FromStatus), Enum.Parse<OrderStatus>(entry.ToStatus), entry.ChangedById, entry.ChangedAt))]);
     }
 
@@ -185,8 +206,12 @@ internal sealed class OrderRepository(DbSession session) : IOrderRepository
         DateTime LastStatusChangeAt,
         DateTime? ReadyAt,
         DateTime? DeliveredAt,
+        DateTime? ModifiedAt,
         string? ItemsJson,
-        string? HistoryJson);
+        string? HistoryJson,
+        string? NotesJson);
+
+    private sealed record NoteJson(string Text);
 
     private sealed record HistoryEntryJson(string? FromStatus, string ToStatus, Guid? ChangedById, DateTime ChangedAt);
 

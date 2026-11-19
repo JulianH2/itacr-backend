@@ -25,5 +25,8 @@ public interface IEmployeeRepository
     /// <summary>Clears the failed count and the lockout, and stores <paramref name="newPinHash"/> when it is not null.</summary>
     Task RegisterSuccessfulPinLoginAsync(Guid id, string? newPinHash, DateTime now, CancellationToken cancellationToken);
 
+    /// <summary>Saves a new employee as pending approval. False when the email or user is already taken: nothing is saved then.</summary>
+    Task<bool> RegisterAsync(Employee employee, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<Guid>> GetActiveManagerIdsAsync(Guid excludedEmployeeId, CancellationToken cancellationToken);
 }

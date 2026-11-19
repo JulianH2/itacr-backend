@@ -250,7 +250,7 @@ public sealed class CreateOrderTests(DatabaseFixture database) : DatabaseTest(da
 
         var kitchen = await factory.AddEmployeeAsync("Cocina de Prueba", EmployeeRole.Kitchen, "2222");
         using var kitchenClient = factory.CreateClient();
-        AuthApiFactory.Authorize(kitchenClient, (await factory.LoginAsync(kitchenClient, kitchen.Id, "2222")).AccessToken);
+        AuthApiFactory.Authorize(kitchenClient, (await AuthApiFactory.LoginAsync(kitchenClient, kitchen.Id, "2222")).AccessToken);
         var queue = await kitchenClient.GetFromJsonAsync<JsonElement>("/api/v1/kitchen/queue");
         int[] expected = [firstOrder.GetProperty("orderNumber").GetInt32(), await OrderNumberAsync(second), await OrderNumberAsync(online)];
         Assert.Equal(expected, queue.GetProperty("orders").EnumerateArray().Select(order => order.GetProperty("orderNumber").GetInt32()));
@@ -320,7 +320,7 @@ public sealed class CreateOrderTests(DatabaseFixture database) : DatabaseTest(da
         await using var factory = new AuthApiFactory(Database);
         var kitchen = await factory.AddEmployeeAsync("Cocina de Prueba", EmployeeRole.Kitchen, "2222");
         using var client = factory.CreateClient();
-        AuthApiFactory.Authorize(client, (await factory.LoginAsync(client, kitchen.Id, "2222")).AccessToken);
+        AuthApiFactory.Authorize(client, (await AuthApiFactory.LoginAsync(client, kitchen.Id, "2222")).AccessToken);
 
         // Act
         using var response = await client.PostAsJsonAsync(OrdersRoute, OrderBody(Guid.NewGuid(), TableFive, takeAway: false, (Soda, 1)));
@@ -362,7 +362,7 @@ public sealed class CreateOrderTests(DatabaseFixture database) : DatabaseTest(da
     {
         var waiter = await factory.AddEmployeeAsync("Mesero de Prueba", EmployeeRole.Waiter, "1111");
         var client = factory.CreateClient();
-        AuthApiFactory.Authorize(client, (await factory.LoginAsync(client, waiter.Id, "1111")).AccessToken);
+        AuthApiFactory.Authorize(client, (await AuthApiFactory.LoginAsync(client, waiter.Id, "1111")).AccessToken);
         return (client, waiter.Id);
     }
 

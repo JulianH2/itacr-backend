@@ -24,7 +24,9 @@ internal sealed class KitchenRepository(DbSession session) : IKitchenRepository
         row.TableNumber,
         // datetime2 comes back without a kind; every timestamp is stored in UTC.
         DateTime.SpecifyKind(row.CreatedAt, DateTimeKind.Utc),
-        row.ItemsJson is null ? [] : JsonSerializer.Deserialize<List<ActiveOrderItem>>(row.ItemsJson, ItemsJson) ?? []);
+        row.ModifiedAt is { } modifiedAt ? DateTime.SpecifyKind(modifiedAt, DateTimeKind.Utc) : null,
+        row.ItemsJson is null ? [] : JsonSerializer.Deserialize<List<ActiveOrderItem>>(row.ItemsJson, ItemsJson) ?? [],
+        row.NotesJson is null ? [] : [.. (JsonSerializer.Deserialize<List<NoteJson>>(row.NotesJson, ItemsJson) ?? []).Select(note => note.Text)]);
 
     private sealed record ActiveOrderRow(
         Guid Id,
@@ -33,5 +35,9 @@ internal sealed class KitchenRepository(DbSession session) : IKitchenRepository
         string Status,
         int? TableNumber,
         DateTime CreatedAt,
-        string? ItemsJson);
+        DateTime? ModifiedAt,
+        string? ItemsJson,
+        string? NotesJson);
+
+    private sealed record NoteJson(string Text);
 }

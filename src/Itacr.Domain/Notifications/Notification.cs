@@ -17,4 +17,7 @@ public sealed class Notification : AuditableEntity
     public DateTime SentAt { get; set; }
 
     public DateTime? ReadAt { get; set; }
+
+    /// <summary>When a manager answered a PIN reset request (HU_15); null while it is pending.</summary>
+    public DateTime? ResolvedAt { get; set; }
 }

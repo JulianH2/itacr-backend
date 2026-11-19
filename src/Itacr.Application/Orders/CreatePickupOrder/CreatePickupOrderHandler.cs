@@ -31,6 +31,17 @@ public sealed class CreatePickupOrderHandler(
             return error;
         }
 
+        var maxItems = options.Value.MaxProducts;
+        if (command.Items.Count > maxItems)
+        {
+            return OrdersErrors.ItemsLimitExceeded;
+        }
+
+        // The number of lines is clamped to the limit: the allocation below and the loops that walk the lines are
+        // driven by this value and never by the size of the request, so a request with too many lines cannot make
+        // the API reserve memory without end (ITACR-66).
+        var itemCount = Math.Min(command.Items.Count, maxItems);
+
         if (await pickupOrderRepository.GetByClientOrderIdAsync(command.ClientOrderId, cancellationToken) is { } existing)
         {
             return new CreatePickupOrderOutcome(PickupOrderResponse.From(existing), Created: false);
@@ -43,9 +54,9 @@ public sealed class CreatePickupOrderHandler(
             return OrdersErrors.UnknownProducts;
         }
 
-        var customized = new List<CustomizedItem>(command.Items.Count);
+        var customized = new List<CustomizedItem>(itemCount);
         var comboOptions = await OrderItemCustomization.LoadOptionsAsync(catalogRepository, command.Items, cancellationToken);
-        for (var index = 0; index < command.Items.Count; index++)
+        for (var index = 0; index < itemCount; index++)
         {
             var resolved = OrderItemCustomization.Resolve(products[command.Items[index].ProductId], command.Items[index], index, comboOptions);
             if (!resolved.IsSuccess)
@@ -58,7 +69,7 @@ public sealed class CreatePickupOrderHandler(
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var order = Order.CreatePickup(command.ClientOrderId, now);
-        for (var index = 0; index < command.Items.Count; index++)
+        for (var index = 0; index < itemCount; index++)
         {
             var item = command.Items[index];
             var line = customized[index];
@@ -67,23 +78,20 @@ public sealed class CreatePickupOrderHandler(
 
         var customer = new Customer { Name = command.Name!.Trim(), Phone = command.Phone!, CreatedAt = now, UpdatedAt = now };
         var maxActiveOrders = options.Value.MaxActiveOrdersPerPhone;
-        switch (await pickupOrderRepository.CreateAsync(order, customer, maxActiveOrders, cancellationToken))
+        return await pickupOrderRepository.CreateAsync(order, customer, maxActiveOrders, cancellationToken) switch
         {
-            case PickupCreateOutcome.LimitReached:
-                return OrdersErrors.PickupLimitReached(maxActiveOrders);
+            PickupCreateOutcome.LimitReached => OrdersErrors.PickupLimitReached(maxActiveOrders),
 
-            case PickupCreateOutcome.AlreadyExists:
-                // Another request with the same ClientOrderId was saved first. If it is not a pickup order, the id is taken.
-                return await pickupOrderRepository.GetByClientOrderIdAsync(command.ClientOrderId, cancellationToken) is { } winner
-                    ? new CreatePickupOrderOutcome(PickupOrderResponse.From(winner), Created: false)
-                    : OrdersErrors.PickupOrderIdTaken;
+            // Another request with the same ClientOrderId was saved first. If it is not a pickup order, the id is taken.
+            PickupCreateOutcome.AlreadyExists => await pickupOrderRepository.GetByClientOrderIdAsync(command.ClientOrderId, cancellationToken) is { } winner
+                ? new CreatePickupOrderOutcome(PickupOrderResponse.From(winner), Created: false)
+                : OrdersErrors.PickupOrderIdTaken,
 
-            default:
-                return new CreatePickupOrderOutcome(ToResponse(order, products), Created: true);
-        }
+            _ => new CreatePickupOrderOutcome(ToResponse(order, products), Created: true),
+        };
     }
 
-    private static PickupOrderResponse ToResponse(Order order, IReadOnlyDictionary<Guid, Domain.Catalog.Product> products) => new(
+    private static PickupOrderResponse ToResponse(Order order, Dictionary<Guid, Domain.Catalog.Product> products) => new(
         order.ClientOrderId,
         order.OrderNumber,
         order.Status,

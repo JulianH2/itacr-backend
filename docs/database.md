@@ -88,6 +88,7 @@ erDiagram
         datetime2 LastStatusChangeAt
         datetime2 ReadyAt "nullable"
         datetime2 DeliveredAt "nullable"
+        datetime2 ModifiedAt "nullable, V009"
     }
     OrderItem {
         guid Id PK
@@ -180,7 +181,7 @@ When the kitchen marks an order as `Ready`, its waiter, or the customer of a pic
 - **One notice per order:** `usp_Notification_CreateOrderReady` records a `Notifications` row of type `OrderReady` (recipient, `SentAt`) only while the order is `Ready` and only the first time; an undo and a new `Ready` record nothing more. It returns the order number, table, waiter, and customer to build the message. The text has the order number and the table for the waiter, and only the order number for the customer, never their name or phone.
 - **Sending:** the kitchen's request only puts the order id in an in-memory queue; a background service records the notice and sends it, so a slow push service never delays the tap. A restart can lose a queued notice; the order is still shown as `Ready` in the app (CA4). A browser the push service reports as gone (404 or 410) is deleted with `usp_PushSubscription_Delete`.
 - **Read:** the notification's link carries its id (`?notification=<id>`), so the PWA reports it even when the tap is what opens the app; it calls `POST /api/v1/public/notifications/{id}/read`, and `usp_Notification_MarkRead` sets `ReadAt` the first time only.
-- `V006` has its reversal in `database/rollbacks/`; `V007` (HU_12) is now the first one the development `rollback` command reverses.
+- `V006` has its reversal in `database/rollbacks/`; `V008` (HU_14) is now the first one the development `rollback` command reverses.
 
 ## Customizing a combo (HU_12)
 
@@ -199,6 +200,58 @@ A combo is ordered with a **size** and a **drink** (both required) and, optional
 - **Lines.** The same combo can be on several lines when its options differ (one without onion, one with extra cheese). Two lines with the same product and the same options are rejected, whatever the order of their extras and exclusions: the app adds the quantity instead.
 - `V007` adds the exclusions and has its reversal in `database/rollbacks/`, so it is now the script the development `rollback` command reverses first.
 
+## Asking for an account (HU_14)
+
+A new employee asks for an account from the login screen with `POST /api/v1/auth/registration-requests` (public, no token). The use case is `Application/Identity/RegisterEmployee` and the procedure is `usp_Employee_Register`.
+
+- **What is asked:** `fullName`, `email` (the email **or the user name**: one value, with no spaces, 3 to 254 characters), `phone` (10 digits), `role` (`Waiter` or `Kitchen`), `pin` (4 digits), `pinConfirmation`, and `acceptedPrivacyNotice` (must be true). Every missing field answers "Este campo es obligatorio." on that field (`400`), and a different confirmation answers "Los PIN no coinciden.".
+- **The manager role cannot be requested.** A public form must not be a way to become a manager, so the API only accepts `Waiter` and `Kitchen`; manager accounts come from the seed or from another manager.
+- **What is saved:** `Status = PendingApproval`, `PasswordHash = NULL`, `ApprovedById = NULL`, the hash of the PIN (never the PIN), and `PrivacyNoticeAcceptedAt`, the time the privacy notice was accepted, as the proof the data protection law asks for. `V008` adds that column; it is `NULL` for the employees that existed before.
+- **Unique email or user:** the unique index `IX_Employees_Email` (case-insensitive, by the collation of the database) is the guard. The procedure checks first under a range lock and also treats error 2601/2627 as "already taken", so two requests for the same email at the same moment cannot both succeed. A taken value answers `409` with "Ya existe una cuenta o una solicitud con ese correo o usuario." and saves nothing.
+- **Nobody can sign in with it yet:** the PIN and the password logins answer "pending approval" (`403`) until a manager approves the account (HU_15, the section "Staff access requests").
+- **Limit:** one client IP can send 10 requests per hour (`Registration` options, `registration` policy), because several new employees share the restaurant's connection.
+- **Known gap:** the endpoint is public, so a script could fill the list of pending accounts of the manager within that limit. There is no CAPTCHA, as with the public orders; it would go in front of this endpoint if real abuse appears.
+
+## Staff access requests (HU_15)
+
+The manager attends two kinds of request from the dashboard. All the endpoints are only for the role **Manager** (`401` without a session, `403` for a waiter or the kitchen) and their procedures are in `database/procedures/Manager/`.
+
+| Endpoint | What it does | Procedure |
+| -------- | ------------ | --------- |
+| `GET /api/v1/manager/access-requests` | Lists the pending accounts (name, role, when) and the pending PIN resets, oldest first; both lists are empty when there is nothing to attend | `usp_AccessRequest_GetPending` (two result sets) |
+| `POST /api/v1/manager/access-requests/{employeeId}/approve` | `PendingApproval` to `Active`; saves the manager in `ApprovedById` | `usp_Employee_ReviewAccess` |
+| `POST /api/v1/manager/access-requests/{employeeId}/reject` | `PendingApproval` to `Rejected` | `usp_Employee_ReviewAccess` |
+| `POST /api/v1/manager/pin-reset-requests/{employeeId}/temporary-pin` with `{ "pin": "1234" }` | Replaces the PIN, clears the lockout, and resolves the request | `usp_Employee_AssignTemporaryPin` |
+
+The three writes answer `204`; `404` when the employee does not exist (or is not active, for the PIN) and `409` when the request was already handled.
+
+- **Approving and rejecting.** `usp_Employee_ReviewAccess` runs one `UPDATE ... WHERE Id = @Id AND Status = N'PendingApproval'` in a transaction and returns `Outcome`: `1` changed, `2` the account was not pending (`409`), `0` it does not exist (`404`). Two managers acting at once cannot both win, and an approved account cannot be rejected afterwards, or the other way round. Editing the role or deleting an active employee is out of scope. The sign-in already treated the statuses: `PendingApproval` answers "pending approval" and `Rejected` answers "account not active", both `403`, with the PIN and with the password.
+- **`ApprovedById`** is the manager who approved the account. A rejection leaves it empty: the column says who approved, and `UpdatedAt` is the only trace of the rejection.
+- **What a rejection does with the email.** The account is kept as `Rejected`, so its unique email stays taken: that person gets `409` if they ask again with the same email, and the manager cannot undo the rejection from the app. This avoids deleting data, keeps the audit trail, and stops someone rejected from asking over and over. Releasing the email (for example, letting a rejected account ask again) would be a new story.
+- **What a pending PIN reset is.** `POST /api/v1/auth/pin-reset-requests` (HU_01) writes one `PinReset` notification per active manager (a `NULL` recipient when there is none). A request is pending while any `PinReset` notification of an **active** employee has `ResolvedAt IS NULL`; the list shows one row per employee, with the time of the last request. `ReadAt` is not used for this: it says that one recipient opened the notice (HU_09), not that the request was attended. `V010` adds `Notifications.ResolvedAt` (nullable; the reversal is in `database/rollbacks/`), so the PIN resets asked before it stay pending.
+- **Assigning the PIN.** `usp_Employee_AssignTemporaryPin` checks that the employee is active (`Outcome` `0` otherwise), sets `ResolvedAt` on **every** unresolved `PinReset` notification of that employee (all the managers' copies), and only if it resolved at least one it stores the new `PinHash`, sets `FailedLoginAttempts = 0` and `LockoutEndAt = NULL`, all in one transaction. When there was nothing to resolve the answer is `409` and the PIN is untouched, so two managers answering at once cannot both change it, and nobody can set the PIN of an employee who did not ask.
+- **The PIN is never stored or returned.** The API hashes it with `ICredentialHasher` (PBKDF2) before the procedure and no response carries a hash. The temporary PIN is a normal PIN: it is 4 digits, works as any other, and the app does not force a change; the manager tells it to the employee in person.
+- **Times** come from `TimeProvider` and travel as `@Now`.
+
+## Manager dashboard (HU_16)
+
+The manager sees the shift in two read-only endpoints, both only for the role **Manager** (`401` without a session, `403` for a waiter or the kitchen). Every number is added up from `dbo.Orders` by aggregate queries (`database/procedures/Manager/`); there is no table of metrics and nothing is typed by hand.
+
+| Endpoint | What it answers | Procedures |
+| -------- | --------------- | ---------- |
+| `GET /api/v1/manager/dashboard?from=&to=` | The orders, the sales, the average preparation time of each channel, the slowest channel, and the trend by hour | `usp_Manager_GetChannelSummary`, `usp_Manager_GetSalesTrend` |
+| `GET /api/v1/manager/orders?from=&to=&channel=&status=&page=&pageSize=` | The table of recent orders, newest first, one page at a time | `usp_Manager_GetOrders` |
+
+The detail of a row is the existing `GET /api/v1/orders/{id}`, which a manager can read for any order: its products, the total, and the time of each stage.
+
+- **Range.** `from` (inclusive) and `to` (exclusive) are UTC instants, for example the start and the end of the day of the restaurant (in Mexico City, `06:00Z` to `06:00Z`), and are required. The range cannot be longer than 31 days. The API keeps no time zone: the client decides what "today" is.
+- **Channels.** There are two: **Waiter** (`DineIn` and `TakeAway`, the orders a waiter took) and **Pickup** (`MobileApp`, the orders of customers). The dashboard always answers both, with zeros when a channel has no orders.
+- **Total orders** are the orders created in the range. **Sales** are the total of the orders **delivered** in the range, by the time they were delivered (`DeliveredAt`), so an order created before the range and delivered inside it counts as a sale and not as an order of the range.
+- **Preparation time** is the time between the creation of the order and the moment it became Ready (`ReadyAt - CreatedAt`). An order that is not Ready yet, one that went back from Ready (its `ReadyAt` is cleared), and one with a negative time (a device clock ahead of the server) are left out of the average. An order a waiter sent after being offline keeps the time of the device as `CreatedAt`, so the time it waited without a connection counts in its preparation time.
+- **Slowest channel** is the one with the longer average, only when both channels have prepared orders and the averages differ; otherwise it is `null`.
+- **Trend.** One point per whole hour of UTC that had orders created or sales. The hours of UTC are whole hours of Mexico City, so the client writes them in its own time zone and adds them up into days for a long range.
+- **Table.** The orders created in the range, filtered by `channel` (`Waiter` or `Pickup`) and `status` (`New`, `InPreparation`, `Ready`, `Delivered`). `page` starts at 1 and `pageSize` is 20 by default and at most 100. `totalCount` is every order that matches, not only the page. The index `IX_Orders_CreatedAt` serves the range.
+
 ## Delivering an order (HU_10)
 
 A waiter closes an order when they hand it over, at the table or when the customer arrives (ITACR-16):
@@ -212,6 +265,25 @@ A waiter closes an order when they hand it over, at the table or when the custom
 - **Whose order.** A waiter delivers the orders they took, and any waiter delivers a pickup order of a customer (it has no waiter, so it is nobody's active order; `GET /orders/pickups/ready` is how they find it). The order of another waiter answers `404`, like an id that does not exist. Pickup orders are read by waiters through `GET /orders/{id}` for the same reason.
 - **Times.** The delivery sets `DeliveredAt` and adds a `Ready` to `Delivered` history row with the waiter as `ChangedById`. The detail returns `deliveredAt`, and its timeline has the time of each stage (taken, in preparation, ready, delivered), which is what a manager reads when they open a delivered order (HU_10 CA3).
 - **Leaves the lists.** A `Delivered` order is not part of the kitchen queue, `GET /orders/active`, or `GET /orders/pickups/ready`.
+
+## Modifying an order (HU_13)
+
+A waiter changes an order they took while the kitchen has not finished it (ITACR-19):
+
+| Endpoint | Roles | Procedure |
+| --- | --- | --- |
+| `PUT /api/v1/orders/{id}` | Waiter | `usp_Order_GetById` (checks), then `usp_Order_Update` |
+
+- **Migration `V009`** adds the nullable `Orders.ModifiedAt` (additive, with its reversal in `database/rollbacks/`). It is the only schema change: `OrderNotes` already existed in `V001` and was not used until now.
+- **What the request is.** `{ tableId, items, note }`. `items` is the complete new list of lines (same shape as `POST /orders`, with the HU_12 options as ids), so adding, removing, or changing a quantity is one replace. The prices always come from `dbo.Products` and `ComboOptions`: the API ignores any price in the body, recalculates every `UnitPrice` and `Subtotal`, and sends the new `Total`.
+- **Replace, not diff.** `usp_Order_Update` runs in one transaction: it updates the order (`TableId`, `Total`, `ModifiedAt`, `UpdatedAt`), deletes its `OrderItems`, inserts the new ones, and inserts the note in `OrderNotes` when there is one. The lines get new ids, so nothing refers to an old line. Notes are only added: the earlier ones stay, and each edit without a note adds none. There is no history of the changes (out of scope); `ModifiedAt` only says that the order changed and when.
+- **Who and when.** Only the waiter who took the order, and only in `New` or `InPreparation` (`OrderStatusRules.CanModify`). The order of another waiter, a pickup order of a customer (it has no waiter), and an id that does not exist answer `404`; `Ready` and `Delivered` answer `409` ("El pedido ya no se puede modificar..."). The detail does not offer the action for those states.
+- **No lost update.** The API checks the status in the use case for a clear message, but the status can change between that read and the write (the kitchen taps "Listo"), so the guard is also in the `UPDATE` of the procedure: `WHERE Id = @Id AND WaiterId = @WaiterId AND Status IN (N'New', N'InPreparation')`. When no row matches, it rolls back, returns `Updated = 0`, and the API answers `409` ("El pedido cambió de estado mientras lo modificabas..."), like `usp_Order_ChangeStatus`. Two edits of the same order at once are serialized by the row lock of the `UPDATE`, and the last one wins.
+- **Never empty.** An order without lines answers `400` on `items` ("Un pedido no puede quedarse sin productos. Para anularlo, pide ayuda al gerente."). Cancelling an order needs a manager and is out of scope.
+- **Channel rules.** The channel never changes: a `DineIn` order needs `tableId` (it can be another table), and a `TakeAway` order must not send one (`400` on `tableId`).
+- **The kitchen.** `usp_Order_GetActive` returns `ModifiedAt` and the notes (`NotesJson`), so the board shows the "Modificado" mark on the card while the order is in the queue, plus its notes. `usp_Order_GetById` returns the same two for the waiter's detail. Both write `modifiedAt` as UTC with a `Z`. The kitchen is not notified with a push: the board polls every 5 seconds.
+- **Opening the order to modify it.** `OrderItems` keep only the names of the options (see "Why `UnitPrice` is copied into `OrderItem`"), so `usp_Order_GetById` also returns, for each line, the `ProductId` and the ids of the size, the drink, the extras, and the exclusions, found by name and type in `ComboOptions` (`sizeId`, `drinkId`, `extraIds`, `exclusionIds`). `extraIds` and `exclusionIds` keep the order of `extras` and `exclusions`, and an entry is `null` when that option was deleted or renamed since the order was taken; the app then cannot rebuild the line and does not offer the edit. The app sends those ids back in `PUT /orders/{id}`.
+- **The status does not move.** A modification does not add a row to `OrderStatusHistory` and does not change `Status`, `LastStatusChangeAt`, or `CreatedAt`, so the order keeps its place in the queue and its timers.
 
 ## Orders of a waiter (HU_08)
 

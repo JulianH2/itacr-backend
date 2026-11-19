@@ -54,6 +54,7 @@ The API listens on `http://localhost:3000`:
 | --------------------------------------- | ------------------------------------------ |
 | `http://localhost:3000/api/v1`          | REST API                                   |
 | `http://localhost:3000/api/v1/health`   | Health check (API and database)            |
+| `http://localhost:3000/api/v1/health/live` | Liveness check (the process only, no database) |
 | `http://localhost:3000/scalar/v1`       | API reference UI (Development only)        |
 | `http://localhost:3000/openapi/v1.json` | OpenAPI document (Development only)        |
 | `http://localhost:3000/hubs/kitchen`    | SignalR hub for the Kitchen Display System |
@@ -167,6 +168,8 @@ Azure generates the domains with a unique suffix (`<app>-<suffix>.westus-01.azur
 
 The health check returns `200 Healthy` when the API runs and reaches Azure SQL, and `503 Unhealthy` when it cannot. The free serverless database pauses when idle, so the first request after a pause can take up to a minute or return `503` once while it resumes.
 
+`/api/v1/health/live` always answers `200 Healthy` while the process runs and never opens the database. The `keep-warm` workflow calls it every 10 minutes during the service hours so the free plan does not unload the apps (details in [docs/deployment/azure.md](docs/deployment/azure.md)).
+
 ### Production settings
 
 They live only in App Service `app-itacr-backend-prod` > Settings > **Environment variables**, never in the repository. The API validates them at startup and does not start if one is missing (the log stream says which one).
@@ -214,6 +217,17 @@ The code is analyzed with [Xygeni](https://in.xygeni.io) (free plan) for code qu
 - **Results:** in.xygeni.io > **Code Quality** and **Risks**, project `JulianH2/itacr-backend`; the history of runs is in **Scan History**.
 - **Exclusions:** none beyond build output and dependencies (`bin/`, `obj/`, `node_modules/`); findings are fixed, never hidden.
 - GitHub **CodeQL** (Security > Code scanning, default setup with the `security-and-quality` suite) also analyzes every PR.
+
+## Code quality and coverage (SonarQube Cloud)
+
+[SonarQube Cloud](https://sonarcloud.io/project/overview?id=JulianH2_itacr-backend) (free plan for public repositories) measures the code quality: bugs, vulnerabilities, code smells, duplication, and test coverage, with a quality gate. It complements Xygeni, which stays for the security of the dependencies, the secrets, and the workflows.
+
+- **Project:** organization `julianh2`, project key `JulianH2_itacr-backend`, analysis method **GitHub Actions** (Automatic Analysis is off: it does not support C# and reads no coverage).
+- **Automatic run:** `.github/workflows/sonarqube.yml` builds the solution, runs every test with coverage, and sends the analysis only on pushes to `develop`. The current SonarQube Cloud plan does not analyze pull requests or non-main branches. It is not a required check, so an outage never blocks a merge.
+- **Coverage:** `coverage.runsettings` writes OpenCover for SonarQube and Cobertura for the summary of the `ci` job, from the same run.
+- **Secret:** `SONAR_TOKEN` (Settings > Secrets and variables > Actions), created in SonarQube Cloud > the project > **Administration** > **Analysis Method**. Never commit it.
+- **Quality gate:** "Sonar way": on the new code, coverage of at least 80 %, duplication of at most 3 %, and an A in reliability, security, and maintainability. The new code is everything since the previous version.
+- **Known false positive:** the PL/SQL rule "DELETE without WHERE" reports `database/migrations/V001__initial_schema.sql` because of the `ON DELETE NO ACTION` of a foreign key. That clause is not a DELETE statement: the rule misreads it, and the finding is not a real risk. The script is already applied in QA and production and is not modified (DbUp keeps the applied scripts in `dbo.SchemaVersions`, so changing one would break the databases that already ran it).
 
 ## Database versioning (DbUp)
 

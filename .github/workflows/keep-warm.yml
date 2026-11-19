@@ -1,0 +1,43 @@
+name: Keep warm
+
+# The four apps share a free App Service plan without Always On, so Azure unloads them after about 20 minutes without traffic and
+# the next visitor waits close to a minute (ITACR-67). This calls each app every 10 minutes during the service hours.
+# It only calls the page of the frontends and the liveness route of the APIs: neither opens the database, so the free serverless
+# Azure SQL can still pause and its monthly free allowance is not spent. Scheduled workflows only run from the default branch.
+on:
+  schedule:
+    # 14:00-04:59 UTC is 08:00-22:59 in Mexico City (UTC-6, no daylight saving time).
+    - cron: '*/10 14-23,0-4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    name: Ping the apps
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Call every app
+        run: |
+          urls=(
+            "https://app-itacr-frontend-qa.azurewebsites.net/"
+            "https://app-itacr-backend-qa.azurewebsites.net/api/v1/health/live"
+            "https://app-itacr-frontend-prod-hchjfvaadffrhre3.westus-01.azurewebsites.net/"
+            "https://app-itacr-backend-prod-b3hvcggncghafbgp.westus-01.azurewebsites.net/api/v1/health/live"
+          )
+          for url in "${urls[@]}"; do
+            (
+              code=$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 120 "$url") || code=000
+              echo "$code $url"
+              if [ "$code" = "000" ] || [ "${code:0:1}" = "5" ]; then
+                echo "::warning title=App did not answer::$url answered $code"
+              fi
+            ) &
+          done
+          wait

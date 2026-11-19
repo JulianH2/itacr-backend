@@ -31,6 +31,20 @@ Authorization: Bearer {{accessToken}}
 POST {{baseUrl}}/api/v1/orders/00000000-0000-0000-0000-000000000000/deliver
 Authorization: Bearer {{accessToken}}
 
+### Modify an order that is New or InPreparation: 200 with the new total, 400 with no products, 404 for another waiter's order, 409 when it is Ready or Delivered
+# Sign in as the waiter who took the order (POST /api/v1/auth/login/pin); the request replaces every product, prices come from the menu, note is optional
+PUT {{baseUrl}}/api/v1/orders/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "tableId": "40000000-0000-0000-0000-000000000005",
+  "items": [
+    { "productId": "20000000-0000-0000-0000-000000000005", "quantity": 2 }
+  ],
+  "note": "Sin sal"
+}
+
 ### Pickup orders of customers that are Ready and wait to be handed over: 200 for a waiter, 403 for kitchen or manager
 GET {{baseUrl}}/api/v1/orders/pickups/ready
 Authorization: Bearer {{accessToken}}
@@ -49,3 +63,60 @@ Content-Type: application/json
 
 ### Follow a pickup order with the clientOrderId the phone kept: 200, or 404 when it is not a pickup order
 GET {{baseUrl}}/api/v1/public/orders/3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b
+
+### Ask for an account (HU_14): 202, the account waits for the manager. No login needed
+POST {{baseUrl}}/api/v1/auth/registration-requests
+Content-Type: application/json
+
+{
+  "fullName": "Ana López",
+  "email": "ana.lopez",
+  "phone": "7711234567",
+  "role": "Waiter",
+  "pin": "4821",
+  "pinConfirmation": "4821",
+  "acceptedPrivacyNotice": true
+}
+
+### The same request with another confirmation: 400 "Los PIN no coinciden." on pinConfirmation
+POST {{baseUrl}}/api/v1/auth/registration-requests
+Content-Type: application/json
+
+{
+  "fullName": "Ana López",
+  "email": "ana.lopez2",
+  "phone": "7711234567",
+  "role": "Waiter",
+  "pin": "4821",
+  "pinConfirmation": "4822",
+  "acceptedPrivacyNotice": true
+}
+
+### Manager dashboard (HU_16): 200 with the orders, sales and preparation time by channel. Manager only: 403 for others, 401 without a token
+GET {{baseUrl}}/api/v1/manager/dashboard?from=2026-11-10T06:00:00Z&to=2026-11-11T06:00:00Z
+Authorization: Bearer {{accessToken}}
+
+### Manager orders, only the pickup ones that were delivered: 200
+GET {{baseUrl}}/api/v1/manager/orders?from=2026-11-10T06:00:00Z&to=2026-11-11T06:00:00Z&channel=Pickup&status=Delivered&page=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+
+### Pending access requests (HU_15): 200 with the accounts to approve and the PIN resets to answer. Manager only: 403 for others, 401 without a token
+GET {{baseUrl}}/api/v1/manager/access-requests
+Authorization: Bearer {{accessToken}}
+
+### Approve an account: 204 and the employee can sign in; 404 unknown id; 409 already handled
+POST {{baseUrl}}/api/v1/manager/access-requests/00000000-0000-0000-0000-000000000000/approve
+Authorization: Bearer {{accessToken}}
+
+### Reject an account: 204 and the employee cannot sign in; 404 unknown id; 409 already handled
+POST {{baseUrl}}/api/v1/manager/access-requests/00000000-0000-0000-0000-000000000000/reject
+Authorization: Bearer {{accessToken}}
+
+### Assign a temporary PIN to an employee who asked to reset theirs: 204; 400 not 4 digits; 404 unknown id; 409 already handled
+POST {{baseUrl}}/api/v1/manager/pin-reset-requests/00000000-0000-0000-0000-000000000000/temporary-pin
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "pin": "9087"
+}

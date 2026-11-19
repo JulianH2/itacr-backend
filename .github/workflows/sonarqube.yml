@@ -1,0 +1,72 @@
+name: SonarQube
+
+# Code quality and coverage in SonarQube Cloud (organization julianh2, project JulianH2_itacr-backend): only when develop
+# changes. The current plan does not analyze pull requests or non-main branches. It is separate from the
+# required `ci` check, so an outage of SonarQube Cloud never blocks a merge. Results: https://sonarcloud.io/project/overview?id=JulianH2_itacr-backend
+on:
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sonarqube-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sonarqube:
+    name: SonarQube
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      # The whole history, so SonarQube Cloud can tell the new code from the old one.
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # The scanner runs on Java.
+      - name: Set up JDK 17
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up .NET from global.json
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Install the SonarScanner for .NET
+        run: dotnet tool install --global dotnet-sonarscanner --version 12.1.0
+
+      - name: Begin the analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: >-
+          dotnet sonarscanner begin
+          /k:"JulianH2_itacr-backend"
+          /o:"julianh2"
+          /d:sonar.host.url="https://sonarcloud.io"
+          /d:sonar.token="$SONAR_TOKEN"
+          /d:sonar.cs.opencover.reportsPaths="TestResults/**/coverage.opencover.xml"
+
+      # Debug: Release turns every warning into an error, and the analyzers the scanner adds must report, not stop the build.
+      - name: Build
+        run: dotnet build Itacr.slnx
+
+      # One test project at a time (-m:1), so at most two SQL Server containers share the 8 GB of the runner.
+      - name: Run tests with coverage
+        run: >-
+          dotnet test Itacr.slnx --no-build -m:1
+          --collect "XPlat Code Coverage" --settings coverage.runsettings --results-directory TestResults
+
+      - name: End the analysis and send it
+        if: ${{ !cancelled() }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"

@@ -6,13 +6,14 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Hosting.Internal;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Itacr.Database.Migrator.Tests;
 
 [Collection(SqlServerCollection.Name)]
-public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
+public sealed partial class DatabaseMigratorTests(SqlServerFixture sqlServer)
 {
     private const string InitialSchemaScript = "V001__initial_schema.sql";
     private const string OrderStatusHistoryScript = "V002__add_order_status_history.sql";
@@ -21,11 +22,14 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
     private const string ProductAvailabilityScript = "V005__add_product_is_available.sql";
     private const string PushEndpointIndexScript = "V006__add_push_subscription_endpoint_index.sql";
     private const string ExclusionOptionsScript = "V007__add_combo_exclusion_options.sql";
+    private const string PrivacyNoticeScript = "V008__add_employee_privacy_notice_date.sql";
+    private const string OrderModifiedAtScript = "V009__add_order_modified_at.sql";
+    private const string ResolvedAtScript = "V010__add_notification_resolved_at.sql";
     private const string PushEndpointIndexQuery = "SELECT COUNT(*) FROM sys.indexes WHERE name = N'UX_PushSubscriptions_Endpoint';";
     private const string LastEfCoreMigration = "20261002130000_AddFnGetProductsByCategory";
 
     private static readonly PasswordHasher<Employee> PasswordHasher = new();
-    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript, PickupConstraintsScript, WebpImagesScript, ProductAvailabilityScript, PushEndpointIndexScript, ExclusionOptionsScript];
+    private static readonly string[] AllScripts = [InitialSchemaScript, OrderStatusHistoryScript, PickupConstraintsScript, WebpImagesScript, ProductAvailabilityScript, PushEndpointIndexScript, ExclusionOptionsScript, PrivacyNoticeScript, OrderModifiedAtScript, ResolvedAtScript];
 
     [Fact]
     public async Task RunAsync_ShouldCreateTheSchemaAndSeedTheTestEmployees_WhenDatabaseDoesNotExist()
@@ -160,6 +164,12 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         await using var connection = new SqlConnection(connectionString);
 
         // Act
+        var resolvedAtReversed = await migrator.RollbackAsync(ResolvedAtScript, CancellationToken.None);
+        var resolvedAtAfterRollback = await connection.ExecuteScalarAsync<int?>("SELECT COL_LENGTH(N'dbo.Notifications', N'ResolvedAt');");
+        var modifiedAtReversed = await migrator.RollbackAsync(OrderModifiedAtScript, CancellationToken.None);
+        var modifiedAtAfterRollback = await connection.ExecuteScalarAsync<int?>("SELECT COL_LENGTH(N'dbo.Orders', N'ModifiedAt');");
+        var privacyReversed = await migrator.RollbackAsync(PrivacyNoticeScript, CancellationToken.None);
+        var privacyAfterRollback = await connection.ExecuteScalarAsync<int?>("SELECT COL_LENGTH(N'dbo.Employees', N'PrivacyNoticeAcceptedAt');");
         var exclusionsReversed = await migrator.RollbackAsync(ExclusionOptionsScript, CancellationToken.None);
         var exclusionsAfterRollback = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.ComboOptions WHERE [Type] = N'Exclusion';");
         var indexReversed = await migrator.RollbackAsync(PushEndpointIndexScript, CancellationToken.None);
@@ -170,13 +180,19 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         var reapplied = await migrator.RunAsync(CancellationToken.None);
 
         // Assert
+        Assert.True(resolvedAtReversed);
+        Assert.Null(resolvedAtAfterRollback);
+        Assert.True(modifiedAtReversed);
+        Assert.Null(modifiedAtAfterRollback);
+        Assert.True(privacyReversed);
+        Assert.Null(privacyAfterRollback);
         Assert.True(exclusionsReversed);
         Assert.Equal(0, exclusionsAfterRollback);
         Assert.True(indexReversed);
         Assert.Equal(0, indexAfterRollback);
         Assert.True(columnReversed);
         Assert.Null(columnAfterRollback);
-        Assert.Equal(AllScripts[..^3], scriptsAfterRollback);
+        Assert.Equal(AllScripts[..^6], scriptsAfterRollback);
         Assert.True(reapplied);
         Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
         Assert.Equal(18, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.Products WHERE IsAvailable = 1;"));
@@ -209,7 +225,7 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         Assert.True(await CreateMigrator(connectionString, Environments.Development).RunAsync(CancellationToken.None));
 
         // Act
-        var reversed = await CreateMigrator(connectionString, Environments.Production).RollbackAsync(ExclusionOptionsScript, CancellationToken.None);
+        var reversed = await CreateMigrator(connectionString, Environments.Production).RollbackAsync(ResolvedAtScript, CancellationToken.None);
 
         // Assert
         Assert.False(reversed);
@@ -296,11 +312,114 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         Assert.False(succeeded);
     }
 
+    [Fact]
+    public async Task ShowStatusAsync_ShouldListTheAppliedScriptsAndNothingPending_WhenTheDatabaseIsUpToDate()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var logger = new RecordingLogger<DatabaseMigrator>();
+        var migrator = CreateMigrator(connectionString, Environments.Development, logger: logger);
+        Assert.True(await migrator.RunAsync(CancellationToken.None));
+
+        // Act
+        var succeeded = await migrator.ShowStatusAsync(CancellationToken.None);
+
+        // Assert
+        Assert.True(succeeded);
+        Assert.All(AllScripts, script => Assert.Contains(logger.Messages, message => message.Contains(script, StringComparison.Ordinal)));
+        Assert.Contains(logger.Messages, message => message.Contains($"{AllScripts.Length} versioned scripts applied, 0 pending"));
+    }
+
+    [Fact]
+    public async Task ShowStatusAsync_ShouldListThePendingScript_WhenOneWasReversed()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var logger = new RecordingLogger<DatabaseMigrator>();
+        var migrator = CreateMigrator(connectionString, Environments.Development, logger: logger);
+        Assert.True(await migrator.RunAsync(CancellationToken.None));
+        Assert.True(await migrator.RollbackAsync(ResolvedAtScript, CancellationToken.None));
+
+        // Act
+        var succeeded = await migrator.ShowStatusAsync(CancellationToken.None);
+
+        // Assert
+        Assert.True(succeeded);
+        Assert.Contains(logger.Messages, message => message.StartsWith("Pending", StringComparison.Ordinal) && message.Contains(ResolvedAtScript, StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, message => message.Contains($"{AllScripts.Length - 1} versioned scripts applied, 1 pending"));
+    }
+
+    [Fact]
+    public async Task ShowStatusAsync_ShouldFailWithoutChanges_WhenTheConnectionStringIsMissing()
+    {
+        // Arrange
+        var migrator = CreateMigrator(connectionString: null, Environments.Development);
+
+        // Act
+        var succeeded = await migrator.ShowStatusAsync(CancellationToken.None);
+
+        // Assert
+        Assert.False(succeeded);
+    }
+
+    [Fact]
+    public async Task RollbackAsync_ShouldChangeNothing_WhenThereIsNoRollbackScriptForTheScript()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var migrator = CreateMigrator(connectionString, Environments.Development);
+        Assert.True(await migrator.RunAsync(CancellationToken.None));
+
+        // Act
+        var reversed = await migrator.RollbackAsync(InitialSchemaScript, CancellationToken.None);
+
+        // Assert
+        Assert.False(reversed);
+        await using var connection = new SqlConnection(connectionString);
+        Assert.Equal(AllScripts, await ExecutedScriptsAsync(connection));
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldReportTheCancellationAndFail_WhenTheTokenIsAlreadyCancelled()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var logger = new RecordingLogger<DatabaseMigrator>();
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+
+        // Act
+        var succeeded = await CreateMigrator(connectionString, Environments.Development, logger: logger).RunAsync(cancellation.Token);
+
+        // Assert
+        Assert.False(succeeded);
+        Assert.Contains(logger.Messages, message => message.Contains("cancelled", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ShowStatusAsync_ShouldReportTheCancellationAndFail_WhenTheTokenIsAlreadyCancelled()
+    {
+        // Arrange
+        var connectionString = sqlServer.ConnectionStringFor(NewDatabaseName());
+        var logger = new RecordingLogger<DatabaseMigrator>();
+        Assert.True(await CreateMigrator(connectionString, Environments.Development).RunAsync(CancellationToken.None));
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+
+        // Act
+        var succeeded = await CreateMigrator(connectionString, Environments.Development, logger: logger).ShowStatusAsync(cancellation.Token);
+
+        // Assert
+        Assert.False(succeeded);
+        Assert.Contains(logger.Messages, message => message.Contains("cancelled", StringComparison.OrdinalIgnoreCase));
+    }
+
     internal static DatabaseMigrator CreateMigrator(
         string? connectionString,
         string environmentName,
         SeedOptions? seed = null,
-        ConnectionRetryPolicy? retryPolicy = null)
+        ConnectionRetryPolicy? retryPolicy = null,
+        ILogger<DatabaseMigrator>? logger = null)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { [$"ConnectionStrings:{DatabaseMigrator.ConnectionStringName}"] = connectionString })
@@ -308,7 +427,7 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
         var environment = new HostingEnvironment { EnvironmentName = environmentName };
         var plan = new EmployeeSeedPlan(Options.Create(seed ?? new SeedOptions()), NullLogger<EmployeeSeedPlan>.Instance);
         var seeder = new EmployeeSeeder(plan, PasswordHasher, TimeProvider.System, NullLogger<EmployeeSeeder>.Instance);
-        return new DatabaseMigrator(configuration, environment, seeder, NullLogger<DatabaseMigrator>.Instance, retryPolicy);
+        return new DatabaseMigrator(configuration, environment, seeder, logger ?? NullLogger<DatabaseMigrator>.Instance, retryPolicy);
     }
 
     /// <summary>Builds the state of a database migrated by EF Core in sprint 1: the V001 schema plus the EF migrations history.</summary>
@@ -341,8 +460,11 @@ public sealed class DatabaseMigratorTests(SqlServerFixture sqlServer)
     {
         var withoutAccents = new string([.. productName.Normalize(System.Text.NormalizationForm.FormD)
             .Where(character => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(character) != System.Globalization.UnicodeCategory.NonSpacingMark)]);
-        return string.Join('-', System.Text.RegularExpressions.Regex.Split(withoutAccents.ToLowerInvariant(), "[^a-z0-9]+").Where(part => part.Length > 0));
+        return string.Join('-', NonAlphanumeric().Split(withoutAccents.ToLowerInvariant()).Where(part => part.Length > 0));
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex("[^a-z0-9]+")]
+    private static partial System.Text.RegularExpressions.Regex NonAlphanumeric();
 
     private static string NewDatabaseName() => $"ItacrMigratorTests_{Guid.NewGuid():N}";
 }

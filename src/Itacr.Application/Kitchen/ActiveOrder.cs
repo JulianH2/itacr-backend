@@ -19,4 +19,6 @@ public sealed record ActiveOrder(
     OrderStatus Status,
     int? TableNumber,
     DateTime CreatedAt,
-    IReadOnlyList<ActiveOrderItem> Items);
+    DateTime? ModifiedAt,
+    IReadOnlyList<ActiveOrderItem> Items,
+    IReadOnlyList<string> Notes);

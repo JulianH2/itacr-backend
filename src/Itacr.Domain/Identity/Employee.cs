@@ -23,4 +23,7 @@ public sealed class Employee : AuditableEntity
     public int FailedLoginAttempts { get; set; }
 
     public DateTime? LockoutEndAt { get; set; }
+
+    /// <summary>When the employee accepted the privacy notice asking for the account (HU_14); null for those who did not go through that form.</summary>
+    public DateTime? PrivacyNoticeAcceptedAt { get; set; }
 }

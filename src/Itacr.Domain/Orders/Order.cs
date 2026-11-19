@@ -26,6 +26,8 @@ public sealed class Order : AuditableEntity
 
     public DateTime? DeliveredAt { get; set; }
 
+    public DateTime? ModifiedAt { get; set; }
+
     public ICollection<OrderItem> Items { get; } = [];
 
     public ICollection<OrderNote> Notes { get; } = [];

@@ -83,6 +83,8 @@ public sealed class KitchenQueueHandlerTests
         OrderStatus.New,
         tableNumber,
         Now.UtcDateTime.AddMinutes(-minutesAgo),
+        null,
+        [],
         []);
 
     private sealed class StubKitchenRepository(IReadOnlyList<ActiveOrder> orders) : IKitchenRepository

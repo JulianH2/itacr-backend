@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Itacr.Application.Orders;
 using Itacr.Domain.Orders;
 
 namespace Itacr.Infrastructure.Persistence.Orders;
@@ -9,6 +10,20 @@ namespace Itacr.Infrastructure.Persistence.Orders;
 /// </summary>
 internal static class OrderPayload
 {
+    /// <summary>The JSON of the lines of a modified order, each with a new key.</summary>
+    public static string Items(IEnumerable<ModifiedOrderItem> items) => JsonSerializer.Serialize(items.Select(item => new
+    {
+        Id = SequentialGuid.Create(),
+        item.ProductId,
+        item.Quantity,
+        item.UnitPrice,
+        item.Subtotal,
+        item.Size,
+        item.Drink,
+        item.Extras,
+        item.Exclusions,
+    }));
+
     /// <summary>Gives the order and its children their keys, and returns the JSON of the items and of the history.</summary>
     public static (string ItemsJson, string HistoryJson) Prepare(Order order)
     {

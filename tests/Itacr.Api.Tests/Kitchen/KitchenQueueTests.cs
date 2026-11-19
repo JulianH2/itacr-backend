@@ -197,7 +197,7 @@ public sealed class KitchenQueueTests(DatabaseFixture database) : DatabaseTest(d
         const string Pin = "1234";
         var employee = await factory.AddEmployeeAsync($"Empleado {role}", role, Pin);
         var client = factory.CreateClient();
-        AuthApiFactory.Authorize(client, (await factory.LoginAsync(client, employee.Id, Pin)).AccessToken);
+        AuthApiFactory.Authorize(client, (await AuthApiFactory.LoginAsync(client, employee.Id, Pin)).AccessToken);
         return client;
     }
 

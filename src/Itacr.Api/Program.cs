@@ -14,12 +14,10 @@ builder.Services.AddApplication();
 builder.Services.AddApiBase();
 builder.Services.AddAuthFeature();
 builder.Services.AddPublicOrders();
+builder.Services.AddRegistration();
 
 var app = builder.Build();
 
 app.UseApiBase();
 
-app.Run();
-
-// Makes the entry point visible to WebApplicationFactory<Program> in the test project.
-public partial class Program;
+await app.RunAsync();

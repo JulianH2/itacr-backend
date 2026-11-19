@@ -22,7 +22,7 @@ public sealed class LoginWithPasswordHandler(
         if (employee?.PasswordHash is null
             || credentialHasher.Verify(employee.PasswordHash, command.Password) == CredentialVerification.Failed)
         {
-            return IdentityErrors.InvalidPassword;
+            return IdentityErrors.InvalidSignIn;
         }
 
         return EmployeeSignIn.Complete(employee, tokenService);

@@ -24,7 +24,9 @@ public sealed record KitchenQueueItemResponse(
 /// <param name="Status">New, InPreparation, or Ready; it decides the board column.</param>
 /// <param name="TableNumber">Table of a dine-in order, null otherwise.</param>
 /// <param name="CreatedAt">UTC instant when the order was created; the queue is ordered by it.</param>
+/// <param name="ModifiedAt">UTC instant when the waiter last modified the order, or null; the board shows the "Modificado" mark when it is set.</param>
 /// <param name="Items">The products of the order.</param>
+/// <param name="Notes">The notes the waiter added to the order, oldest first.</param>
 public sealed record KitchenQueueOrderResponse(
     Guid Id,
     int OrderNumber,
@@ -32,7 +34,9 @@ public sealed record KitchenQueueOrderResponse(
     OrderStatus Status,
     int? TableNumber,
     DateTime CreatedAt,
-    IReadOnlyList<KitchenQueueItemResponse> Items);
+    DateTime? ModifiedAt,
+    IReadOnlyList<KitchenQueueItemResponse> Items,
+    IReadOnlyList<string> Notes);
 
 /// <summary>The active orders in one queue, oldest first.</summary>
 /// <param name="ServerTime">UTC instant of the server when it answered, so timers do not depend on the device clock.</param>
