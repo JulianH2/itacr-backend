@@ -192,6 +192,31 @@ public sealed class KitchenQueueTests(DatabaseFixture database) : DatabaseTest(d
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Get_ShouldStillShowTheActiveOrders_WhenTheApiRestarts()
+    {
+        // Arrange: the queue lives in the database, not in the memory of the API (ITACR-73)
+        var order = new { Channel = "DineIn", Status = "Ready", Table = TableFive };
+        await using (var beforeRestart = new AuthApiFactory(Database))
+        {
+            var now = beforeRestart.Time.GetUtcNow().UtcDateTime;
+            await AddOrderAsync(order.Channel, order.Status, order.Table, now.AddMinutes(-8), new OrderLine(Soda, 1));
+            using var before = await SignInAsync(beforeRestart, EmployeeRole.Kitchen);
+            var queueBefore = await before.GetFromJsonAsync<JsonElement>(QueueRoute);
+            Assert.Single(queueBefore.GetProperty("orders").EnumerateArray());
+        }
+
+        // Act: a new host is what a restart of the API gives
+        await using var afterRestart = new AuthApiFactory(Database);
+        using var client = await SignInAsync(afterRestart, EmployeeRole.Kitchen);
+        var queue = await client.GetFromJsonAsync<JsonElement>(QueueRoute);
+
+        // Assert
+        var shown = Assert.Single(queue.GetProperty("orders").EnumerateArray());
+        Assert.Equal("Ready", shown.GetProperty("status").GetString());
+        Assert.Equal(5, shown.GetProperty("tableNumber").GetInt32());
+    }
+
     private static async Task<HttpClient> SignInAsync(AuthApiFactory factory, EmployeeRole role)
     {
         const string Pin = "1234";
