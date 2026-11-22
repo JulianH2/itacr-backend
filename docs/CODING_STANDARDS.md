@@ -229,7 +229,7 @@ builder.Services
 }
 ```
 
-- Lists are bounded. Today every list has a fixed limit in its use case (for example the last 10 orders of a waiter in `GET /orders/recent`) and none is paginated. A list that can grow without limit is paginated with `?page=1&limit=20` and returns `{ data, meta: { page, limit, total } }`.
+- Lists are bounded. Most lists have a fixed limit in their use case (for example the last 10 orders of a waiter in `GET /orders/recent`). A list that can grow without limit is paginated with `?page=1&pageSize=20` (`page` from 1 up to a maximum, `pageSize` from 1 up to a maximum) and returns `{ items, totalCount, page, pageSize }`; see `GET /api/v1/manager/orders`, which also rejects a `page` or `pageSize` outside its range with `400`.
 - JSON uses camelCase property names (the ASP.NET Core default) and enums as strings (`JsonStringEnumConverter`).
 - Dates in **ISO 8601 UTC** (`2026-09-28T18:30:00.000Z`): store and return `DateTime` values with `DateTimeKind.Utc`, taken from the injected `TimeProvider`. The frontend converts to local time.
 - Order creation accepts the client UUID (`clientOrderId`) as an **idempotency key**. The first request returns `201` with the new order; repeating it returns the original order with `200` instead of creating a duplicate, and `409` when the key belongs to another waiter's order. The unique index on `ClientOrderId` guarantees it even when two requests race (`POST /api/v1/orders`, ITACR-9).
