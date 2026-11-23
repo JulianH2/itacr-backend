@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.1](https://github.com/JulianH2/itacr-backend/compare/v0.7.0...v0.7.1) (2026-11-23)
+
+
+### Documentation
+
+* **repo:** describe the pagination the api really uses (ITACR-69) ([fbe098b](https://github.com/JulianH2/itacr-backend/commit/fbe098bc236ab24b367c084e05140f278b973465))
+* **repo:** describe the pagination the api really uses (ITACR-69) ([b60862f](https://github.com/JulianH2/itacr-backend/commit/b60862f8adfd247851d8b225f55dd2d85e85d0a0))
+
 ## [0.7.0](https://github.com/JulianH2/itacr-backend/compare/v0.6.0...v0.7.0) (2026-11-19)
 
 
