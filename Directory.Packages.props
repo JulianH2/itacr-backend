@@ -31,7 +31,7 @@
     <PackageVersion Include="Scalar.AspNetCore" Version="3.0.0" />
     <!-- Transitive through Microsoft.Data.SqlClient; 10.0.13 fixes CVE-2026-70162 and CVE-2026-84008. Remove once SqlClient brings it. -->
     <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
-    <PackageVersion Include="Testcontainers.MsSql" Version="4.16.0" />
+    <PackageVersion Include="Testcontainers.MsSql" Version="4.17.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
   </ItemGroup>
