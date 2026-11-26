@@ -1,0 +1,35 @@
+name: Dependency Audit
+
+# Reports known vulnerabilities in the NuGet dependencies (ITACR-75). It only warns: the job never fails the PR, because
+# a vulnerability in a transitive package often has no fix yet. Dependabot opens the update PRs when a fix exists.
+on:
+  pull_request:
+    branches: ['sprint-*', develop, release, main]
+  schedule:
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nuget-audit:
+    name: NuGet audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: List vulnerable packages, direct and transitive
+        run: |
+          dotnet list Itacr.slnx package --vulnerable --include-transitive > audit.txt 2>&1 || true
+          cat audit.txt
+          if grep -qE '\b(High|Critical)\b' audit.txt; then
+            echo "::warning title=Vulnerable dependencies::dotnet list package found high or critical vulnerabilities. See the job log."
+          fi
