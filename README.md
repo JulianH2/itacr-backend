@@ -217,6 +217,7 @@ The code is analyzed with [Xygeni](https://in.xygeni.io) (free plan) for code qu
 - **Results:** in.xygeni.io > **Code Quality** and **Risks**, project `JulianH2/itacr-backend`; the history of runs is in **Scan History**.
 - **Exclusions:** none beyond build output and dependencies (`bin/`, `obj/`, `node_modules/`); findings are fixed, never hidden.
 - GitHub **CodeQL** (Security > Code scanning, default setup with the `security-and-quality` suite) also analyzes every PR.
+- **Dependency audit:** `.github/workflows/dependency-audit.yml` runs `dotnet list package --vulnerable --include-transitive` on every PR, every Monday, and by hand. It only warns (a yellow notice in the job) when it finds a high or critical vulnerability; it never fails the PR, because a transitive package often has no fix yet (ITACR-75).
 
 ## Code quality and coverage (SonarQube Cloud)
 
