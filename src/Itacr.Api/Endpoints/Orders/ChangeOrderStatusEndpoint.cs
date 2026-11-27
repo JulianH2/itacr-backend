@@ -42,6 +42,6 @@ public sealed class ChangeOrderStatusEndpoint(ChangeOrderStatusHandler handler) 
         }
 
         var result = await handler.HandleAsync(id, command, employeeId, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : this.ToActionResult(result.Error!);
+        return this.OkOrProblem(result);
     }
 }

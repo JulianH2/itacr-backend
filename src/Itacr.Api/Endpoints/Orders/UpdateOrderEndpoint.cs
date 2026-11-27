@@ -43,6 +43,6 @@ public sealed class UpdateOrderEndpoint(UpdateOrderHandler handler) : Controller
         }
 
         var result = await handler.HandleAsync(id, command, waiterId, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : this.ToActionResult(result.Error!);
+        return this.OkOrProblem(result);
     }
 }

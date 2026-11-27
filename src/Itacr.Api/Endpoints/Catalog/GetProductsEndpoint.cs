@@ -25,6 +25,6 @@ public sealed class GetProductsEndpoint(GetProductsHandler handler) : Controller
         CancellationToken cancellationToken)
     {
         var result = await handler.HandleAsync(new GetProductsQuery(categoryId), cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : this.ToActionResult(result.Error!);
+        return this.OkOrProblem(result);
     }
 }

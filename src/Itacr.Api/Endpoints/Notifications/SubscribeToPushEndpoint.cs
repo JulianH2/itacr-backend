@@ -39,6 +39,6 @@ public sealed class SubscribeToPushEndpoint(SubscribeToPushHandler handler) : Co
         }
 
         var result = await handler.HandleAsync(command, waiterId, cancellationToken);
-        return result.IsSuccess ? NoContent() : this.ToActionResult(result.Error!);
+        return this.NoContentOrProblem(result);
     }
 }

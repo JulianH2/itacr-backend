@@ -29,6 +29,6 @@ public sealed class MarkNotificationReadEndpoint(MarkNotificationReadHandler han
     public async Task<IActionResult> HandleAsync(Guid id, CancellationToken cancellationToken)
     {
         var result = await handler.HandleAsync(id, cancellationToken);
-        return result.IsSuccess ? NoContent() : this.ToActionResult(result.Error!);
+        return this.NoContentOrProblem(result);
     }
 }

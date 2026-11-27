@@ -34,6 +34,6 @@ public sealed class GetPickupOrderStatusEndpoint(GetPickupOrderStatusHandler han
     public async Task<ActionResult<PickupOrderResponse>> HandleAsync(Guid clientOrderId, CancellationToken cancellationToken)
     {
         var result = await handler.HandleAsync(clientOrderId, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : this.ToActionResult(result.Error!);
+        return this.OkOrProblem(result);
     }
 }

@@ -39,6 +39,6 @@ public sealed class GetOrderDetailEndpoint(GetOrderDetailHandler handler) : Cont
         }
 
         var result = await handler.HandleAsync(id, onlyWaiterId, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : this.ToActionResult(result.Error!);
+        return this.OkOrProblem(result);
     }
 }

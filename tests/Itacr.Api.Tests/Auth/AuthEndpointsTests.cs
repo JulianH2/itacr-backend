@@ -1,10 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Dapper;
 using Itacr.Application.Identity;
+using Itacr.Application.Identity.GetActiveEmployees;
 using Itacr.Domain.Identity;
 using Itacr.Domain.Notifications;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 
@@ -335,6 +339,122 @@ public sealed class AuthEndpointsTests(DatabaseFixture database) : DatabaseTest(
 
         // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetEmployees_ShouldReturnBadRequest_WhenTheRoleIsNotOneOfTheRoles()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.GetAsync("/api/v1/auth/employees?role=99");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ShouldReturnTheRoleMessage_WhenTheRoleIsOutOfRange()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var handler = scope.ServiceProvider.GetRequiredService<GetActiveEmployeesHandler>();
+
+        // Act
+        var result = await handler.HandleAsync(new GetActiveEmployeesQuery((EmployeeRole)99), CancellationToken.None);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Contains(AuthProblems.RoleInvalid, result.Error!.Fields["role"]);
+    }
+
+    [Fact]
+    public async Task LoginWithPin_ShouldRejectWithTheInvalidPinMessage_WhenTheEmployeeDoesNotExist()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.PostAsJsonAsync(PinLoginRoute, new { employeeId = Guid.NewGuid(), pin = "1111" });
+
+        // Assert
+        await AssertProblemAsync(response, HttpStatusCode.Unauthorized, AuthProblems.InvalidCredentialsType, AuthProblems.InvalidPin);
+    }
+
+    [Fact]
+    public async Task LoginWithPassword_ShouldRejectWithTheInvalidSignInMessage_WhenNoEmployeeHasTheEmail()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.PostAsJsonAsync("/api/v1/auth/login/password", new { email = "nobody@itacr.test", password = AuthApiFactory.Password });
+
+        // Assert
+        await AssertProblemAsync(response, HttpStatusCode.Unauthorized, AuthProblems.InvalidCredentialsType, AuthProblems.InvalidSignIn);
+    }
+
+    [Fact]
+    public async Task LoginWithPassword_ShouldRejectWithTheInvalidSignInMessage_WhenTheEmployeeHasNoPassword()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        var waiter = await factory.AddEmployeeAsync("Mesero de Prueba", EmployeeRole.Waiter, "1111");
+        await using (var connection = new SqlConnection(Database.ConnectionString))
+        {
+            await connection.ExecuteAsync("UPDATE dbo.Employees SET PasswordHash = NULL WHERE Id = @Id;", new { waiter.Id });
+        }
+
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.PostAsJsonAsync("/api/v1/auth/login/password", new { email = waiter.Email, password = AuthApiFactory.Password });
+
+        // Assert
+        await AssertProblemAsync(response, HttpStatusCode.Unauthorized, AuthProblems.InvalidCredentialsType, AuthProblems.InvalidSignIn);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RequestPinReset_ShouldReturnNotFound_WhenTheEmployeeDoesNotExistOrIsNotActive(bool exists)
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        var employeeId = exists
+            ? (await factory.AddEmployeeAsync("Mesero Pendiente", EmployeeRole.Waiter, "4444", EmployeeStatus.PendingApproval)).Id
+            : Guid.NewGuid();
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.PostAsJsonAsync("/api/v1/auth/pin-reset-requests", new { employeeId });
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Empty(await factory.GetNotificationsAsync());
+    }
+
+    [Fact]
+    public async Task RequestPinReset_ShouldLeaveTheNoticeForAnyManager_WhenThereIsNoActiveManager()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        var waiter = await factory.AddEmployeeAsync("Mesero de Prueba", EmployeeRole.Waiter, "1111");
+        using var client = factory.CreateClient();
+
+        // Act
+        using var response = await client.PostAsJsonAsync("/api/v1/auth/pin-reset-requests", new { employeeId = waiter.Id });
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        var notification = Assert.Single(await factory.GetNotificationsAsync());
+        Assert.Equal(waiter.Id, notification.SubjectEmployeeId);
+        Assert.Null(notification.RecipientEmployeeId);
     }
 
     private static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode status, string type, string detail)

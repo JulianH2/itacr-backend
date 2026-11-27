@@ -23,4 +23,11 @@ public sealed class ErrorStatusCodeTests
     {
         Assert.All(Enum.GetValues<ErrorKind>(), kind => ErrorActionResults.StatusCodeOf(kind));
     }
+
+    [Fact]
+    public void StatusCodeOf_ShouldThrow_WhenTheKindIsUnknown()
+    {
+        // Act / Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => ErrorActionResults.StatusCodeOf((ErrorKind)99));
+    }
 }

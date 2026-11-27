@@ -44,6 +44,8 @@ jobs:
       - name: Install the SonarScanner for .NET
         run: dotnet tool install --global dotnet-sonarscanner --version 12.1.0
 
+      # Coverage only measures C#: the T-SQL scripts run in SQL Server and the workflow scripts in CI, where no
+      # test collects coverage, and Program.cs only wires the migrator together (its commands are tested one by one).
       - name: Begin the analysis
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -54,6 +56,7 @@ jobs:
           /d:sonar.host.url="https://sonarcloud.io"
           /d:sonar.token="$SONAR_TOKEN"
           /d:sonar.cs.opencover.reportsPaths="TestResults/**/coverage.opencover.xml"
+          /d:sonar.coverage.exclusions="database/**/*.sql,.github/**,database/Itacr.Database.Migrator/Program.cs"
 
       # Debug: Release turns every warning into an error, and the analyzers the scanner adds must report, not stop the build.
       - name: Build

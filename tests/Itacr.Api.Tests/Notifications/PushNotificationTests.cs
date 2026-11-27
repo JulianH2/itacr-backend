@@ -245,6 +245,24 @@ public sealed class PushNotificationTests(DatabaseFixture database) : DatabaseTe
     }
 
     [Fact]
+    public async Task SubscribePickup_ShouldReject_WhenTheSubscriptionIsNotValid()
+    {
+        // Arrange
+        await using var factory = new AuthApiFactory(Database);
+        using var anonymous = factory.CreateClient();
+
+        // Act
+        using var response = await anonymous.PostAsJsonAsync(
+            $"/api/v1/public/orders/{Guid.NewGuid()}/push-subscription",
+            new { endpoint = "http://push.example.com/abc", p256dh = "BKey", auth = "auth" });
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains(NotificationsErrors.SubscriptionInvalid, problem.GetProperty("errors").EnumerateObject().SelectMany(field => field.Value.EnumerateArray()).Select(message => message.GetString()));
+    }
+
+    [Fact]
     public async Task PublicKey_ShouldReturnTheConfiguredKey_WhenPushIsConfigured()
     {
         // Arrange

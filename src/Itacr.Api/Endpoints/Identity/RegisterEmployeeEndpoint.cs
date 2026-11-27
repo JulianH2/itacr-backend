@@ -34,6 +34,6 @@ public sealed class RegisterEmployeeEndpoint(RegisterEmployeeHandler handler) : 
     public async Task<IActionResult> HandleAsync(RegisterEmployeeCommand command, CancellationToken cancellationToken)
     {
         var result = await handler.HandleAsync(command, cancellationToken);
-        return result.IsSuccess ? Accepted() : this.ToActionResult(result.Error!);
+        return this.AcceptedOrProblem(result);
     }
 }

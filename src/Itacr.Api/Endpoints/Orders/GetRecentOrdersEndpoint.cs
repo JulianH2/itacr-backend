@@ -29,6 +29,6 @@ public sealed class GetRecentOrdersEndpoint(GetRecentOrdersHandler handler) : Co
         }
 
         var result = await handler.HandleAsync(waiterId, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : this.ToActionResult(result.Error!);
+        return this.OkOrProblem(result);
     }
 }

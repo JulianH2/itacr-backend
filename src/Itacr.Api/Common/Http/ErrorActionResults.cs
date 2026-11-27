@@ -30,6 +30,18 @@ public static class ErrorActionResults
         return controller.Problem(error.Detail, statusCode: StatusCodeOf(error.Kind), title: error.Title, type: error.Type);
     }
 
+    /// <summary>200 with the value when the use case succeeded, or the Problem Details of its error.</summary>
+    public static ActionResult<T> OkOrProblem<T>(this ControllerBase controller, Result<T> result) =>
+        result.IsSuccess ? controller.Ok(result.Value) : controller.ToActionResult(result.Error!);
+
+    /// <summary>204 when the use case succeeded, or the Problem Details of its error.</summary>
+    public static IActionResult NoContentOrProblem(this ControllerBase controller, Result result) =>
+        result.IsSuccess ? controller.NoContent() : controller.ToActionResult(result.Error!);
+
+    /// <summary>202 when the use case succeeded, or the Problem Details of its error.</summary>
+    public static IActionResult AcceptedOrProblem(this ControllerBase controller, Result result) =>
+        result.IsSuccess ? controller.Accepted() : controller.ToActionResult(result.Error!);
+
     public static int StatusCodeOf(ErrorKind kind) => kind switch
     {
         ErrorKind.Validation => StatusCodes.Status400BadRequest,

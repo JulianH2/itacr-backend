@@ -21,6 +21,6 @@ public sealed class RequestPinResetEndpoint(RequestPinResetHandler handler) : Co
     public async Task<IActionResult> HandleAsync(RequestPinResetCommand command, CancellationToken cancellationToken)
     {
         var result = await handler.HandleAsync(command, cancellationToken);
-        return result.IsSuccess ? Accepted() : this.ToActionResult(result.Error!);
+        return this.AcceptedOrProblem(result);
     }
 }
