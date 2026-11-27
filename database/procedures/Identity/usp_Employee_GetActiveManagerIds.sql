@@ -13,7 +13,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT e.Id
-    FROM dbo.Employees AS e
-    WHERE e.Role = N'Manager' AND e.Status = N'Active' AND e.Id <> @ExcludedEmployeeId;
+    BEGIN TRY
+        SELECT e.Id
+        FROM dbo.Employees AS e
+        WHERE e.Role = N'Manager' AND e.Status = N'Active' AND e.Id <> @ExcludedEmployeeId;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

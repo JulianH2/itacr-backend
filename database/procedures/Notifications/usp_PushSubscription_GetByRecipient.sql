@@ -14,8 +14,13 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT s.Endpoint, s.P256dh, s.Auth
-    FROM dbo.PushSubscriptions AS s
-    WHERE (@EmployeeId IS NOT NULL AND s.EmployeeId = @EmployeeId)
-       OR (@CustomerId IS NOT NULL AND s.CustomerId = @CustomerId);
+    BEGIN TRY
+        SELECT s.Endpoint, s.P256dh, s.Auth
+        FROM dbo.PushSubscriptions AS s
+        WHERE (@EmployeeId IS NOT NULL AND s.EmployeeId = @EmployeeId)
+           OR (@CustomerId IS NOT NULL AND s.CustomerId = @CustomerId);
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

@@ -28,23 +28,28 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT COUNT(*) AS TotalCount
-    FROM dbo.Orders AS o
-    WHERE o.CreatedAt >= @From AND o.CreatedAt < @To
-        AND (@Status IS NULL OR o.Status = @Status)
-        AND (@Channel IS NULL
-            OR (@Channel = N'Pickup' AND o.Channel = N'MobileApp')
-            OR (@Channel = N'Waiter' AND o.Channel <> N'MobileApp'));
+    BEGIN TRY
+        SELECT COUNT(*) AS TotalCount
+        FROM dbo.Orders AS o
+        WHERE o.CreatedAt >= @From AND o.CreatedAt < @To
+            AND (@Status IS NULL OR o.Status = @Status)
+            AND (@Channel IS NULL
+                OR (@Channel = N'Pickup' AND o.Channel = N'MobileApp')
+                OR (@Channel = N'Waiter' AND o.Channel <> N'MobileApp'));
 
-    SELECT o.Id, o.OrderNumber, o.Channel, o.Status, t.Number AS TableNumber, o.Total, o.CreatedAt, o.ReadyAt, o.DeliveredAt,
-        CASE WHEN o.ReadyAt >= o.CreatedAt THEN CAST(DATEDIFF_BIG(SECOND, o.CreatedAt, o.ReadyAt) AS int) END AS PreparationSeconds
-    FROM dbo.Orders AS o
-    LEFT JOIN dbo.DiningTables AS t ON t.Id = o.TableId
-    WHERE o.CreatedAt >= @From AND o.CreatedAt < @To
-        AND (@Status IS NULL OR o.Status = @Status)
-        AND (@Channel IS NULL
-            OR (@Channel = N'Pickup' AND o.Channel = N'MobileApp')
-            OR (@Channel = N'Waiter' AND o.Channel <> N'MobileApp'))
-    ORDER BY o.CreatedAt DESC, o.OrderNumber DESC
-    OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY;
+        SELECT o.Id, o.OrderNumber, o.Channel, o.Status, t.Number AS TableNumber, o.Total, o.CreatedAt, o.ReadyAt, o.DeliveredAt,
+            CASE WHEN o.ReadyAt >= o.CreatedAt THEN CAST(DATEDIFF_BIG(SECOND, o.CreatedAt, o.ReadyAt) AS int) END AS PreparationSeconds
+        FROM dbo.Orders AS o
+        LEFT JOIN dbo.DiningTables AS t ON t.Id = o.TableId
+        WHERE o.CreatedAt >= @From AND o.CreatedAt < @To
+            AND (@Status IS NULL OR o.Status = @Status)
+            AND (@Channel IS NULL
+                OR (@Channel = N'Pickup' AND o.Channel = N'MobileApp')
+                OR (@Channel = N'Waiter' AND o.Channel <> N'MobileApp'))
+        ORDER BY o.CreatedAt DESC, o.OrderNumber DESC
+        OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

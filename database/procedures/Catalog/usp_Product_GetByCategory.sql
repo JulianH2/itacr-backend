@@ -15,7 +15,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT p.Id, p.CategoryId, p.Name, p.Description, p.Price, p.ImageUrl, p.IsCombo
-    FROM dbo.fn_GetProductsByCategory(@CategoryId) AS p
-    ORDER BY p.Name;
+    BEGIN TRY
+        SELECT p.Id, p.CategoryId, p.Name, p.Description, p.Price, p.ImageUrl, p.IsCombo
+        FROM dbo.fn_GetProductsByCategory(@CategoryId) AS p
+        ORDER BY p.Name;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;
