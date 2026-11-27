@@ -16,15 +16,20 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT e.Id, e.FullName, e.Role, e.CreatedAt AS RequestedAt
-    FROM dbo.Employees AS e
-    WHERE e.Status = N'PendingApproval'
-    ORDER BY e.CreatedAt, e.Id;
+    BEGIN TRY
+        SELECT e.Id, e.FullName, e.Role, e.CreatedAt AS RequestedAt
+        FROM dbo.Employees AS e
+        WHERE e.Status = N'PendingApproval'
+        ORDER BY e.CreatedAt, e.Id;
 
-    SELECT e.Id AS EmployeeId, e.FullName, e.Role, MAX(n.SentAt) AS RequestedAt
-    FROM dbo.Notifications AS n
-    INNER JOIN dbo.Employees AS e ON e.Id = n.SubjectEmployeeId
-    WHERE n.Type = N'PinReset' AND n.ResolvedAt IS NULL AND e.Status = N'Active'
-    GROUP BY e.Id, e.FullName, e.Role
-    ORDER BY MAX(n.SentAt), e.Id;
+        SELECT e.Id AS EmployeeId, e.FullName, e.Role, MAX(n.SentAt) AS RequestedAt
+        FROM dbo.Notifications AS n
+        INNER JOIN dbo.Employees AS e ON e.Id = n.SubjectEmployeeId
+        WHERE n.Type = N'PinReset' AND n.ResolvedAt IS NULL AND e.Status = N'Active'
+        GROUP BY e.Id, e.FullName, e.Role
+        ORDER BY MAX(n.SentAt), e.Id;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

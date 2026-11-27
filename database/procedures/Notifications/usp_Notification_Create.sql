@@ -26,6 +26,11 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    INSERT INTO dbo.Notifications (Id, Type, RecipientEmployeeId, SubjectEmployeeId, OrderId, SentAt, CreatedAt, UpdatedAt)
-    VALUES (@Id, @Type, @RecipientEmployeeId, @SubjectEmployeeId, @OrderId, @SentAt, @Now, @Now);
+    BEGIN TRY
+        INSERT INTO dbo.Notifications (Id, Type, RecipientEmployeeId, SubjectEmployeeId, OrderId, SentAt, CreatedAt, UpdatedAt)
+        VALUES (@Id, @Type, @RecipientEmployeeId, @SubjectEmployeeId, @OrderId, @SentAt, @Now, @Now);
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

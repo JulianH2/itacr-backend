@@ -13,8 +13,13 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT e.Id, e.FullName
-    FROM dbo.Employees AS e
-    WHERE e.Role = @Role AND e.Status = N'Active'
-    ORDER BY e.FullName;
+    BEGIN TRY
+        SELECT e.Id, e.FullName
+        FROM dbo.Employees AS e
+        WHERE e.Role = @Role AND e.Status = N'Active'
+        ORDER BY e.FullName;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;
