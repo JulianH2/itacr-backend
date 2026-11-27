@@ -14,7 +14,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT o.Id, o.[Type], o.Name, o.PriceAdjustment
-    FROM dbo.ComboOptions AS o
-    ORDER BY o.[Type], o.PriceAdjustment, o.Name;
+    BEGIN TRY
+        SELECT o.Id, o.[Type], o.Name, o.PriceAdjustment
+        FROM dbo.ComboOptions AS o
+        ORDER BY o.[Type], o.PriceAdjustment, o.Name;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

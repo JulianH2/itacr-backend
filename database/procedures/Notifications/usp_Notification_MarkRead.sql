@@ -15,7 +15,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    UPDATE dbo.Notifications
-    SET ReadAt = @Now, UpdatedAt = @Now
-    WHERE Id = @Id AND ReadAt IS NULL;
+    BEGIN TRY
+        UPDATE dbo.Notifications
+        SET ReadAt = @Now, UpdatedAt = @Now
+        WHERE Id = @Id AND ReadAt IS NULL;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

@@ -15,16 +15,21 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT o.Id, o.ClientOrderId, o.OrderNumber, o.Channel, o.Status, o.WaiterId, t.Number AS TableNumber, o.Total, o.CreatedAt,
-        (
-            SELECT i.ProductId, p.Name, i.Quantity, i.UnitPrice, i.Subtotal
-            FROM dbo.OrderItems AS i
-            JOIN dbo.Products AS p ON p.Id = i.ProductId
-            WHERE i.OrderId = o.Id
-            ORDER BY i.Id
-            FOR JSON PATH
-        ) AS ItemsJson
-    FROM dbo.Orders AS o
-    LEFT JOIN dbo.DiningTables AS t ON t.Id = o.TableId
-    WHERE o.ClientOrderId = @ClientOrderId;
+    BEGIN TRY
+        SELECT o.Id, o.ClientOrderId, o.OrderNumber, o.Channel, o.Status, o.WaiterId, t.Number AS TableNumber, o.Total, o.CreatedAt,
+            (
+                SELECT i.ProductId, p.Name, i.Quantity, i.UnitPrice, i.Subtotal
+                FROM dbo.OrderItems AS i
+                JOIN dbo.Products AS p ON p.Id = i.ProductId
+                WHERE i.OrderId = o.Id
+                ORDER BY i.Id
+                FOR JSON PATH
+            ) AS ItemsJson
+        FROM dbo.Orders AS o
+        LEFT JOIN dbo.DiningTables AS t ON t.Id = o.TableId
+        WHERE o.ClientOrderId = @ClientOrderId;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

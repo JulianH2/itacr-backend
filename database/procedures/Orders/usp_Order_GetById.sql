@@ -22,44 +22,49 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT o.Id, o.OrderNumber, o.Channel, o.Status, t.Number AS TableNumber, o.WaiterId, o.Total, o.CreatedAt, o.LastStatusChangeAt, o.ReadyAt, o.DeliveredAt, o.ModifiedAt,
-        (
-            SELECT i.ProductId, p.Name, i.Quantity, i.UnitPrice, i.Subtotal, i.Size, i.Drink,
-                JSON_QUERY(COALESCE(CAST(i.Extras AS nvarchar(max)), N'[]')) AS Extras,
-                JSON_QUERY(COALESCE(CAST(i.Exclusions AS nvarchar(max)), N'[]')) AS Exclusions,
-                (SELECT co.Id FROM dbo.ComboOptions AS co WHERE co.[Type] = N'Size' AND co.Name = i.Size) AS SizeId,
-                (SELECT co.Id FROM dbo.ComboOptions AS co WHERE co.[Type] = N'Drink' AND co.Name = i.Drink) AS DrinkId,
-                JSON_QUERY(COALESCE((
-                    SELECT N'[' + STRING_AGG(COALESCE(N'"' + LOWER(CAST(co.Id AS nvarchar(36))) + N'"', N'null'), N',') WITHIN GROUP (ORDER BY CAST(e.[key] AS int)) + N']'
-                    FROM OPENJSON(COALESCE(CAST(i.Extras AS nvarchar(max)), N'[]')) AS e
-                    LEFT JOIN dbo.ComboOptions AS co ON co.[Type] = N'Extra' AND co.Name = e.[value]
-                ), N'[]')) AS ExtraIds,
-                JSON_QUERY(COALESCE((
-                    SELECT N'[' + STRING_AGG(COALESCE(N'"' + LOWER(CAST(co.Id AS nvarchar(36))) + N'"', N'null'), N',') WITHIN GROUP (ORDER BY CAST(e.[key] AS int)) + N']'
-                    FROM OPENJSON(COALESCE(CAST(i.Exclusions AS nvarchar(max)), N'[]')) AS e
-                    LEFT JOIN dbo.ComboOptions AS co ON co.[Type] = N'Exclusion' AND co.Name = e.[value]
-                ), N'[]')) AS ExclusionIds
-            FROM dbo.OrderItems AS i
-            JOIN dbo.Products AS p ON p.Id = i.ProductId
-            WHERE i.OrderId = o.Id
-            ORDER BY i.Id
-            FOR JSON PATH
-        ) AS ItemsJson,
-        (
-            SELECT h.FromStatus, h.ToStatus, h.ChangedById, h.CreatedAt AS ChangedAt
-            FROM dbo.OrderStatusHistory AS h
-            WHERE h.OrderId = o.Id
-            ORDER BY h.CreatedAt, h.Id
-            FOR JSON PATH
-        ) AS HistoryJson,
-        (
-            SELECT n.[Text] AS Text
-            FROM dbo.OrderNotes AS n
-            WHERE n.OrderId = o.Id
-            ORDER BY n.CreatedAt, n.Id
-            FOR JSON PATH
-        ) AS NotesJson
-    FROM dbo.Orders AS o
-    LEFT JOIN dbo.DiningTables AS t ON t.Id = o.TableId
-    WHERE o.Id = @Id;
+    BEGIN TRY
+        SELECT o.Id, o.OrderNumber, o.Channel, o.Status, t.Number AS TableNumber, o.WaiterId, o.Total, o.CreatedAt, o.LastStatusChangeAt, o.ReadyAt, o.DeliveredAt, o.ModifiedAt,
+            (
+                SELECT i.ProductId, p.Name, i.Quantity, i.UnitPrice, i.Subtotal, i.Size, i.Drink,
+                    JSON_QUERY(COALESCE(CAST(i.Extras AS nvarchar(max)), N'[]')) AS Extras,
+                    JSON_QUERY(COALESCE(CAST(i.Exclusions AS nvarchar(max)), N'[]')) AS Exclusions,
+                    (SELECT co.Id FROM dbo.ComboOptions AS co WHERE co.[Type] = N'Size' AND co.Name = i.Size) AS SizeId,
+                    (SELECT co.Id FROM dbo.ComboOptions AS co WHERE co.[Type] = N'Drink' AND co.Name = i.Drink) AS DrinkId,
+                    JSON_QUERY(COALESCE((
+                        SELECT N'[' + STRING_AGG(COALESCE(N'"' + LOWER(CAST(co.Id AS nvarchar(36))) + N'"', N'null'), N',') WITHIN GROUP (ORDER BY CAST(e.[key] AS int)) + N']'
+                        FROM OPENJSON(COALESCE(CAST(i.Extras AS nvarchar(max)), N'[]')) AS e
+                        LEFT JOIN dbo.ComboOptions AS co ON co.[Type] = N'Extra' AND co.Name = e.[value]
+                    ), N'[]')) AS ExtraIds,
+                    JSON_QUERY(COALESCE((
+                        SELECT N'[' + STRING_AGG(COALESCE(N'"' + LOWER(CAST(co.Id AS nvarchar(36))) + N'"', N'null'), N',') WITHIN GROUP (ORDER BY CAST(e.[key] AS int)) + N']'
+                        FROM OPENJSON(COALESCE(CAST(i.Exclusions AS nvarchar(max)), N'[]')) AS e
+                        LEFT JOIN dbo.ComboOptions AS co ON co.[Type] = N'Exclusion' AND co.Name = e.[value]
+                    ), N'[]')) AS ExclusionIds
+                FROM dbo.OrderItems AS i
+                JOIN dbo.Products AS p ON p.Id = i.ProductId
+                WHERE i.OrderId = o.Id
+                ORDER BY i.Id
+                FOR JSON PATH
+            ) AS ItemsJson,
+            (
+                SELECT h.FromStatus, h.ToStatus, h.ChangedById, h.CreatedAt AS ChangedAt
+                FROM dbo.OrderStatusHistory AS h
+                WHERE h.OrderId = o.Id
+                ORDER BY h.CreatedAt, h.Id
+                FOR JSON PATH
+            ) AS HistoryJson,
+            (
+                SELECT n.[Text] AS Text
+                FROM dbo.OrderNotes AS n
+                WHERE n.OrderId = o.Id
+                ORDER BY n.CreatedAt, n.Id
+                FOR JSON PATH
+            ) AS NotesJson
+        FROM dbo.Orders AS o
+        LEFT JOIN dbo.DiningTables AS t ON t.Id = o.TableId
+        WHERE o.Id = @Id;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

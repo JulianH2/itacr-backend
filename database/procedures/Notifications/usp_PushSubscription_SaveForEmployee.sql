@@ -24,17 +24,27 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    BEGIN TRANSACTION;
+    BEGIN TRY
+        BEGIN TRANSACTION;
 
-    UPDATE dbo.PushSubscriptions WITH (UPDLOCK, HOLDLOCK)
-    SET EmployeeId = @EmployeeId, CustomerId = NULL, P256dh = @P256dh, Auth = @Auth, UpdatedAt = @Now
-    WHERE Endpoint = @Endpoint;
+        UPDATE dbo.PushSubscriptions WITH (UPDLOCK, HOLDLOCK)
+        SET EmployeeId = @EmployeeId, CustomerId = NULL, P256dh = @P256dh, Auth = @Auth, UpdatedAt = @Now
+        WHERE Endpoint = @Endpoint;
 
-    IF @@ROWCOUNT = 0
-    BEGIN
-        INSERT INTO dbo.PushSubscriptions (Id, EmployeeId, CustomerId, Endpoint, P256dh, Auth, CreatedAt, UpdatedAt)
-        VALUES (@Id, @EmployeeId, NULL, @Endpoint, @P256dh, @Auth, @Now, @Now);
-    END;
+        IF @@ROWCOUNT = 0
+        BEGIN
+            INSERT INTO dbo.PushSubscriptions (Id, EmployeeId, CustomerId, Endpoint, P256dh, Auth, CreatedAt, UpdatedAt)
+            VALUES (@Id, @EmployeeId, NULL, @Endpoint, @P256dh, @Auth, @Now, @Now);
+        END;
 
-    COMMIT TRANSACTION;
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
+
+        THROW;
+    END CATCH;
 END;

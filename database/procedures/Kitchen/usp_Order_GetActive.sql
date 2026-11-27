@@ -17,26 +17,31 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT o.Id, o.OrderNumber, o.Channel, o.Status, t.Number AS TableNumber, o.CreatedAt, o.ModifiedAt,
-        (
-            SELECT p.Name AS ProductName, i.Quantity, i.Size, i.Drink,
-                JSON_QUERY(CAST(i.Extras AS nvarchar(max))) AS Extras,
-                JSON_QUERY(CAST(i.Exclusions AS nvarchar(max))) AS Exclusions
-            FROM dbo.OrderItems AS i
-            JOIN dbo.Products AS p ON p.Id = i.ProductId
-            WHERE i.OrderId = o.Id
-            ORDER BY i.Id
-            FOR JSON PATH
-        ) AS ItemsJson,
-        (
-            SELECT n.[Text] AS Text
-            FROM dbo.OrderNotes AS n
-            WHERE n.OrderId = o.Id
-            ORDER BY n.CreatedAt, n.Id
-            FOR JSON PATH
-        ) AS NotesJson
-    FROM dbo.Orders AS o
-    LEFT JOIN dbo.DiningTables AS t ON t.Id = o.TableId
-    WHERE o.Status IN (N'New', N'InPreparation', N'Ready')
-    ORDER BY o.CreatedAt, o.OrderNumber;
+    BEGIN TRY
+        SELECT o.Id, o.OrderNumber, o.Channel, o.Status, t.Number AS TableNumber, o.CreatedAt, o.ModifiedAt,
+            (
+                SELECT p.Name AS ProductName, i.Quantity, i.Size, i.Drink,
+                    JSON_QUERY(CAST(i.Extras AS nvarchar(max))) AS Extras,
+                    JSON_QUERY(CAST(i.Exclusions AS nvarchar(max))) AS Exclusions
+                FROM dbo.OrderItems AS i
+                JOIN dbo.Products AS p ON p.Id = i.ProductId
+                WHERE i.OrderId = o.Id
+                ORDER BY i.Id
+                FOR JSON PATH
+            ) AS ItemsJson,
+            (
+                SELECT n.[Text] AS Text
+                FROM dbo.OrderNotes AS n
+                WHERE n.OrderId = o.Id
+                ORDER BY n.CreatedAt, n.Id
+                FOR JSON PATH
+            ) AS NotesJson
+        FROM dbo.Orders AS o
+        LEFT JOIN dbo.DiningTables AS t ON t.Id = o.TableId
+        WHERE o.Status IN (N'New', N'InPreparation', N'Ready')
+        ORDER BY o.CreatedAt, o.OrderNumber;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

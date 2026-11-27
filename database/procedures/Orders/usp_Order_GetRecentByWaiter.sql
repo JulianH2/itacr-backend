@@ -18,9 +18,14 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT TOP (@Take) o.Id, o.OrderNumber, o.Channel, o.Status, t.Number AS TableNumber, o.CreatedAt
-    FROM dbo.Orders AS o
-    LEFT JOIN dbo.DiningTables AS t ON t.Id = o.TableId
-    WHERE o.WaiterId = @WaiterId AND o.CreatedAt >= @Since
-    ORDER BY o.CreatedAt DESC, o.OrderNumber DESC;
+    BEGIN TRY
+        SELECT TOP (@Take) o.Id, o.OrderNumber, o.Channel, o.Status, t.Number AS TableNumber, o.CreatedAt
+        FROM dbo.Orders AS o
+        LEFT JOIN dbo.DiningTables AS t ON t.Id = o.TableId
+        WHERE o.WaiterId = @WaiterId AND o.CreatedAt >= @Since
+        ORDER BY o.CreatedAt DESC, o.OrderNumber DESC;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

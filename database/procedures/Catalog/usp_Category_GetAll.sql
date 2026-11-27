@@ -12,7 +12,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT c.Id, c.Name, c.SortOrder
-    FROM dbo.Categories AS c
-    ORDER BY c.SortOrder;
+    BEGIN TRY
+        SELECT c.Id, c.Name, c.SortOrder
+        FROM dbo.Categories AS c
+        ORDER BY c.SortOrder;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

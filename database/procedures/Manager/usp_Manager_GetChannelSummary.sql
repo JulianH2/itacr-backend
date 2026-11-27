@@ -22,34 +22,39 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    WITH Created AS (
+    BEGIN TRY
+        WITH Created AS (
+            SELECT
+                CASE WHEN o.Channel = N'MobileApp' THEN N'Pickup' ELSE N'Waiter' END AS ChannelGroup,
+                COUNT(*) AS Orders,
+                COUNT(CASE WHEN o.ReadyAt >= o.CreatedAt THEN 1 END) AS PreparedOrders,
+                AVG(CASE WHEN o.ReadyAt >= o.CreatedAt THEN CAST(DATEDIFF_BIG(SECOND, o.CreatedAt, o.ReadyAt) AS float) END) AS AveragePreparationSeconds
+            FROM dbo.Orders AS o
+            WHERE o.CreatedAt >= @From AND o.CreatedAt < @To
+            GROUP BY CASE WHEN o.Channel = N'MobileApp' THEN N'Pickup' ELSE N'Waiter' END
+        ),
+        Delivered AS (
+            SELECT
+                CASE WHEN o.Channel = N'MobileApp' THEN N'Pickup' ELSE N'Waiter' END AS ChannelGroup,
+                COUNT(*) AS DeliveredOrders,
+                SUM(o.Total) AS Sales
+            FROM dbo.Orders AS o
+            WHERE o.Status = N'Delivered' AND o.DeliveredAt >= @From AND o.DeliveredAt < @To
+            GROUP BY CASE WHEN o.Channel = N'MobileApp' THEN N'Pickup' ELSE N'Waiter' END
+        )
         SELECT
-            CASE WHEN o.Channel = N'MobileApp' THEN N'Pickup' ELSE N'Waiter' END AS ChannelGroup,
-            COUNT(*) AS Orders,
-            COUNT(CASE WHEN o.ReadyAt >= o.CreatedAt THEN 1 END) AS PreparedOrders,
-            AVG(CASE WHEN o.ReadyAt >= o.CreatedAt THEN CAST(DATEDIFF_BIG(SECOND, o.CreatedAt, o.ReadyAt) AS float) END) AS AveragePreparationSeconds
-        FROM dbo.Orders AS o
-        WHERE o.CreatedAt >= @From AND o.CreatedAt < @To
-        GROUP BY CASE WHEN o.Channel = N'MobileApp' THEN N'Pickup' ELSE N'Waiter' END
-    ),
-    Delivered AS (
-        SELECT
-            CASE WHEN o.Channel = N'MobileApp' THEN N'Pickup' ELSE N'Waiter' END AS ChannelGroup,
-            COUNT(*) AS DeliveredOrders,
-            SUM(o.Total) AS Sales
-        FROM dbo.Orders AS o
-        WHERE o.Status = N'Delivered' AND o.DeliveredAt >= @From AND o.DeliveredAt < @To
-        GROUP BY CASE WHEN o.Channel = N'MobileApp' THEN N'Pickup' ELSE N'Waiter' END
-    )
-    SELECT
-        g.ChannelGroup,
-        ISNULL(c.Orders, 0) AS Orders,
-        ISNULL(c.PreparedOrders, 0) AS PreparedOrders,
-        c.AveragePreparationSeconds,
-        ISNULL(d.DeliveredOrders, 0) AS DeliveredOrders,
-        CAST(ISNULL(d.Sales, 0) AS decimal(12, 2)) AS Sales
-    FROM (VALUES (N'Waiter', 1), (N'Pickup', 2)) AS g (ChannelGroup, SortOrder)
-    LEFT JOIN Created AS c ON c.ChannelGroup = g.ChannelGroup
-    LEFT JOIN Delivered AS d ON d.ChannelGroup = g.ChannelGroup
-    ORDER BY g.SortOrder;
+            g.ChannelGroup,
+            ISNULL(c.Orders, 0) AS Orders,
+            ISNULL(c.PreparedOrders, 0) AS PreparedOrders,
+            c.AveragePreparationSeconds,
+            ISNULL(d.DeliveredOrders, 0) AS DeliveredOrders,
+            CAST(ISNULL(d.Sales, 0) AS decimal(12, 2)) AS Sales
+        FROM (VALUES (N'Waiter', 1), (N'Pickup', 2)) AS g (ChannelGroup, SortOrder)
+        LEFT JOIN Created AS c ON c.ChannelGroup = g.ChannelGroup
+        LEFT JOIN Delivered AS d ON d.ChannelGroup = g.ChannelGroup
+        ORDER BY g.SortOrder;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;
