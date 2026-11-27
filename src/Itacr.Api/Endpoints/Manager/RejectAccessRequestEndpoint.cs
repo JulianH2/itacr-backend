@@ -37,6 +37,6 @@ public sealed class RejectAccessRequestEndpoint(RejectAccessRequestHandler handl
         }
 
         var result = await handler.HandleAsync(employeeId, managerId, cancellationToken);
-        return result.IsSuccess ? NoContent() : this.ToActionResult(result.Error!);
+        return this.NoContentOrProblem(result);
     }
 }

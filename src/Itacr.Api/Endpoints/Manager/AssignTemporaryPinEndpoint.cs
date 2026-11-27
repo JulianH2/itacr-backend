@@ -36,6 +36,6 @@ public sealed class AssignTemporaryPinEndpoint(AssignTemporaryPinHandler handler
     public async Task<IActionResult> HandleAsync(Guid employeeId, AssignTemporaryPinCommand command, CancellationToken cancellationToken)
     {
         var result = await handler.HandleAsync(employeeId, command, cancellationToken);
-        return result.IsSuccess ? NoContent() : this.ToActionResult(result.Error!);
+        return this.NoContentOrProblem(result);
     }
 }

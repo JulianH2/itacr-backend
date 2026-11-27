@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+
 namespace Itacr.Infrastructure.Persistence;
 
 /// <summary>
@@ -11,11 +13,8 @@ internal static class SequentialGuid
     public static Guid Create()
     {
         var guidBytes = Guid.NewGuid().ToByteArray();
-        var counterBytes = BitConverter.GetBytes(Interlocked.Increment(ref _counter));
-        if (!BitConverter.IsLittleEndian)
-        {
-            Array.Reverse(counterBytes);
-        }
+        Span<byte> counterBytes = stackalloc byte[sizeof(long)];
+        BinaryPrimitives.WriteInt64LittleEndian(counterBytes, Interlocked.Increment(ref _counter));
 
         // SQL Server compares the last six bytes first, then bytes 8-9.
         guidBytes[8] = counterBytes[1];

@@ -40,6 +40,6 @@ public sealed class DeliverOrderEndpoint(DeliverOrderHandler handler) : Controll
         }
 
         var result = await handler.HandleAsync(id, waiterId, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : this.ToActionResult(result.Error!);
+        return this.OkOrProblem(result);
     }
 }

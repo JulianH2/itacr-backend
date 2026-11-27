@@ -29,6 +29,6 @@ public sealed class GetReadyPickupOrdersEndpoint(GetReadyPickupOrdersHandler han
     public async Task<ActionResult<IReadOnlyList<ActiveOrderResponse>>> HandleAsync(CancellationToken cancellationToken)
     {
         var result = await handler.HandleAsync(cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : this.ToActionResult(result.Error!);
+        return this.OkOrProblem(result);
     }
 }

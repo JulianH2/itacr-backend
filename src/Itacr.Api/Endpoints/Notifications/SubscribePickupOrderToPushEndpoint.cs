@@ -36,6 +36,6 @@ public sealed class SubscribePickupOrderToPushEndpoint(SubscribePickupOrderToPus
     public async Task<IActionResult> HandleAsync(Guid clientOrderId, PushSubscriptionCommand command, CancellationToken cancellationToken)
     {
         var result = await handler.HandleAsync(clientOrderId, command, cancellationToken);
-        return result.IsSuccess ? NoContent() : this.ToActionResult(result.Error!);
+        return this.NoContentOrProblem(result);
     }
 }

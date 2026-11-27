@@ -25,6 +25,6 @@ public sealed class LoginWithPinEndpoint(LoginWithPinHandler handler) : Controll
     public async Task<ActionResult<LoginResponse>> HandleAsync(LoginWithPinCommand command, CancellationToken cancellationToken)
     {
         var result = await handler.HandleAsync(command, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : this.ToActionResult(result.Error!);
+        return this.OkOrProblem(result);
     }
 }

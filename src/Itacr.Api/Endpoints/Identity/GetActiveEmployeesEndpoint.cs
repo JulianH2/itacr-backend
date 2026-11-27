@@ -21,6 +21,6 @@ public sealed class GetActiveEmployeesEndpoint(GetActiveEmployeesHandler handler
         CancellationToken cancellationToken)
     {
         var result = await handler.HandleAsync(new GetActiveEmployeesQuery(role), cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : this.ToActionResult(result.Error!);
+        return this.OkOrProblem(result);
     }
 }

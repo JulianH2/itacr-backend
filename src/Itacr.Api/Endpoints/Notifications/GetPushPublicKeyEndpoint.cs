@@ -26,6 +26,6 @@ public sealed class GetPushPublicKeyEndpoint(GetPushPublicKeyHandler handler) : 
     public ActionResult<PushPublicKeyResponse> Handle()
     {
         var result = handler.Handle();
-        return result.IsSuccess ? Ok(result.Value) : this.ToActionResult(result.Error!);
+        return this.OkOrProblem(result);
     }
 }

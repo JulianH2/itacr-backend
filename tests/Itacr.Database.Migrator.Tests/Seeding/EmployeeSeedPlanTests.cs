@@ -125,11 +125,13 @@ public sealed class EmployeeSeedPlanTests
         Assert.Empty(employees);
     }
 
-    [Fact]
-    public void Build_ShouldReturnNothing_WhenProductionPinIsNotFourDigits()
+    [Theory]
+    [InlineData("12a4")]
+    [InlineData("123")]
+    public void Build_ShouldReturnNothing_WhenProductionPinIsNotFourDigits(string pin)
     {
         // Arrange
-        var plan = CreatePlan(new SeedOptions { ManagerName = "Gerente", ManagerEmail = "g@itacr.example", ManagerPin = "12a4" });
+        var plan = CreatePlan(new SeedOptions { ManagerName = "Gerente", ManagerEmail = "g@itacr.example", ManagerPin = pin });
 
         // Act
         var employees = plan.Build(isDevelopment: false, NoEmails, hasManager: false);

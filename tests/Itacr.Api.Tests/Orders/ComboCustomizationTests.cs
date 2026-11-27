@@ -159,15 +159,26 @@ public sealed class ComboCustomizationTests(DatabaseFixture database) : Database
         Assert.Equal([OrdersErrors.DrinkRequiredMessage], await FieldMessagesAsync(response, "items[0]"));
     }
 
-    [Fact]
-    public async Task Post_ShouldRejectTheOrder_WhenAProductThatIsNotAComboCarriesOptions()
+    [Theory]
+    [InlineData("size")]
+    [InlineData("drink")]
+    [InlineData("extra")]
+    [InlineData("exclusion")]
+    public async Task Post_ShouldRejectTheOrder_WhenAProductThatIsNotAComboCarriesOptions(string option)
     {
         // Arrange
         await using var factory = new AuthApiFactory(Database);
         var (waiter, _) = await SignInAsync(factory, EmployeeRole.Waiter);
+        var line = option switch
+        {
+            "size" => Line(ClassicBurger, 1, LargeSize, null, [], []),
+            "drink" => Line(ClassicBurger, 1, null, ColaDrink, [], []),
+            "extra" => Line(ClassicBurger, 1, null, null, [CheeseExtra], []),
+            _ => Line(ClassicBurger, 1, null, null, [], [NoOnion]),
+        };
 
         // Act
-        using var response = await waiter.PostAsJsonAsync(OrdersRoute, WaiterBody(Guid.NewGuid(), Line(ClassicBurger, 1, LargeSize, null, [], [])));
+        using var response = await waiter.PostAsJsonAsync(OrdersRoute, WaiterBody(Guid.NewGuid(), line));
 
         // Assert
         Assert.Equal([OrdersErrors.NotCustomizableMessage], await FieldMessagesAsync(response, "items[0]"));

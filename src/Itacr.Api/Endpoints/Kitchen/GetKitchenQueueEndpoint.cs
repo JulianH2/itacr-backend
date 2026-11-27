@@ -29,6 +29,6 @@ public sealed class GetKitchenQueueEndpoint(GetKitchenQueueHandler handler) : Co
     public async Task<ActionResult<KitchenQueueResponse>> HandleAsync(CancellationToken cancellationToken)
     {
         var result = await handler.HandleAsync(cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : this.ToActionResult(result.Error!);
+        return this.OkOrProblem(result);
     }
 }

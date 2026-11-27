@@ -22,6 +22,6 @@ public sealed class GetCategoriesEndpoint(GetCategoriesHandler handler) : Contro
     public async Task<ActionResult<IReadOnlyList<CategoryResponse>>> HandleAsync(CancellationToken cancellationToken)
     {
         var result = await handler.HandleAsync(cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : this.ToActionResult(result.Error!);
+        return this.OkOrProblem(result);
     }
 }
