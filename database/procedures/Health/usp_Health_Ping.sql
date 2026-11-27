@@ -12,5 +12,10 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT 1 AS Ok;
+    BEGIN TRY
+        SELECT 1 AS Ok;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

@@ -24,27 +24,37 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    DECLARE @CustomerId uniqueidentifier =
-        (SELECT CustomerId FROM dbo.Orders WHERE ClientOrderId = @ClientOrderId AND Channel = N'MobileApp');
+    BEGIN TRY
+        DECLARE @CustomerId uniqueidentifier =
+            (SELECT CustomerId FROM dbo.Orders WHERE ClientOrderId = @ClientOrderId AND Channel = N'MobileApp');
 
-    IF @CustomerId IS NULL
-    BEGIN
-        SELECT CAST(0 AS bit) AS Saved;
-        RETURN;
-    END;
+        IF @CustomerId IS NULL
+        BEGIN
+            SELECT CAST(0 AS bit) AS Saved;
+            RETURN;
+        END;
 
-    BEGIN TRANSACTION;
+        BEGIN TRANSACTION;
 
-    UPDATE dbo.PushSubscriptions WITH (UPDLOCK, HOLDLOCK)
-    SET CustomerId = @CustomerId, EmployeeId = NULL, P256dh = @P256dh, Auth = @Auth, UpdatedAt = @Now
-    WHERE Endpoint = @Endpoint;
+        UPDATE dbo.PushSubscriptions WITH (UPDLOCK, HOLDLOCK)
+        SET CustomerId = @CustomerId, EmployeeId = NULL, P256dh = @P256dh, Auth = @Auth, UpdatedAt = @Now
+        WHERE Endpoint = @Endpoint;
 
-    IF @@ROWCOUNT = 0
-    BEGIN
-        INSERT INTO dbo.PushSubscriptions (Id, EmployeeId, CustomerId, Endpoint, P256dh, Auth, CreatedAt, UpdatedAt)
-        VALUES (@Id, NULL, @CustomerId, @Endpoint, @P256dh, @Auth, @Now, @Now);
-    END;
+        IF @@ROWCOUNT = 0
+        BEGIN
+            INSERT INTO dbo.PushSubscriptions (Id, EmployeeId, CustomerId, Endpoint, P256dh, Auth, CreatedAt, UpdatedAt)
+            VALUES (@Id, NULL, @CustomerId, @Endpoint, @P256dh, @Auth, @Now, @Now);
+        END;
 
-    COMMIT TRANSACTION;
-    SELECT CAST(1 AS bit) AS Saved;
+        COMMIT TRANSACTION;
+        SELECT CAST(1 AS bit) AS Saved;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
+
+        THROW;
+    END CATCH;
 END;

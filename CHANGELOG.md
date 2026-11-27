@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.2](https://github.com/JulianH2/itacr-backend/compare/v0.7.1...v0.7.2) (2026-11-27)
+
+
+### Fixed
+
+* **db:** wrap every stored procedure in try and catch (ITACR-69) ([2c45f11](https://github.com/JulianH2/itacr-backend/commit/2c45f112af46cbdf12b8d46ac0fa21fcdb45900c))
+* **db:** wrap every stored procedure in try and catch (ITACR-69) ([545ba45](https://github.com/JulianH2/itacr-backend/commit/545ba45d257e00cb563dc2013ddcf6ec4a5a83d1))
+
+
+### Documentation
+
+* **repo:** require try and catch in every stored procedure (ITACR-69) ([f4981e2](https://github.com/JulianH2/itacr-backend/commit/f4981e26fc6ef4cf31f2e75f33c58539652e4433))
+
 ## [0.7.1](https://github.com/JulianH2/itacr-backend/compare/v0.7.0...v0.7.1) (2026-11-23)
 
 

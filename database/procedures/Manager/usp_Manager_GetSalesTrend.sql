@@ -19,21 +19,26 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE @Origin datetime2 = CAST(N'2000-01-01T00:00:00' AS datetime2);
+    BEGIN TRY
+        DECLARE @Origin datetime2 = CAST(N'2000-01-01T00:00:00' AS datetime2);
 
-    SELECT
-        events.HourStart,
-        SUM(events.Orders) AS Orders,
-        CAST(SUM(events.Sales) AS decimal(12, 2)) AS Sales
-    FROM (
-        SELECT DATEADD(HOUR, DATEDIFF(HOUR, @Origin, o.CreatedAt), @Origin) AS HourStart, 1 AS Orders, CAST(0 AS decimal(12, 2)) AS Sales
-        FROM dbo.Orders AS o
-        WHERE o.CreatedAt >= @From AND o.CreatedAt < @To
-        UNION ALL
-        SELECT DATEADD(HOUR, DATEDIFF(HOUR, @Origin, o.DeliveredAt), @Origin), 0, CAST(o.Total AS decimal(12, 2))
-        FROM dbo.Orders AS o
-        WHERE o.Status = N'Delivered' AND o.DeliveredAt >= @From AND o.DeliveredAt < @To
-    ) AS events
-    GROUP BY events.HourStart
-    ORDER BY events.HourStart;
+        SELECT
+            events.HourStart,
+            SUM(events.Orders) AS Orders,
+            CAST(SUM(events.Sales) AS decimal(12, 2)) AS Sales
+        FROM (
+            SELECT DATEADD(HOUR, DATEDIFF(HOUR, @Origin, o.CreatedAt), @Origin) AS HourStart, 1 AS Orders, CAST(0 AS decimal(12, 2)) AS Sales
+            FROM dbo.Orders AS o
+            WHERE o.CreatedAt >= @From AND o.CreatedAt < @To
+            UNION ALL
+            SELECT DATEADD(HOUR, DATEDIFF(HOUR, @Origin, o.DeliveredAt), @Origin), 0, CAST(o.Total AS decimal(12, 2))
+            FROM dbo.Orders AS o
+            WHERE o.Status = N'Delivered' AND o.DeliveredAt >= @From AND o.DeliveredAt < @To
+        ) AS events
+        GROUP BY events.HourStart
+        ORDER BY events.HourStart;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

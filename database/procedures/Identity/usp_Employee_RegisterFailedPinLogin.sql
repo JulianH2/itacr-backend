@@ -22,25 +22,30 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    DECLARE @Result TABLE (IsLocked bit NOT NULL, LockoutEndAt datetime2 NULL);
+    BEGIN TRY
+        DECLARE @Result TABLE (IsLocked bit NOT NULL, LockoutEndAt datetime2 NULL);
 
-    UPDATE dbo.Employees
-    SET FailedLoginAttempts = CASE WHEN FailedLoginAttempts + 1 >= @MaxFailedAttempts THEN 0 ELSE FailedLoginAttempts + 1 END,
-        LockoutEndAt = CASE WHEN FailedLoginAttempts + 1 >= @MaxFailedAttempts THEN @LockoutEndAt ELSE LockoutEndAt END,
-        UpdatedAt = @Now
-    OUTPUT CAST(CASE WHEN deleted.FailedLoginAttempts + 1 >= @MaxFailedAttempts THEN 1 ELSE 0 END AS bit), inserted.LockoutEndAt
-        INTO @Result (IsLocked, LockoutEndAt)
-    WHERE Id = @Id AND (LockoutEndAt IS NULL OR LockoutEndAt <= @Now);
+        UPDATE dbo.Employees
+        SET FailedLoginAttempts = CASE WHEN FailedLoginAttempts + 1 >= @MaxFailedAttempts THEN 0 ELSE FailedLoginAttempts + 1 END,
+            LockoutEndAt = CASE WHEN FailedLoginAttempts + 1 >= @MaxFailedAttempts THEN @LockoutEndAt ELSE LockoutEndAt END,
+            UpdatedAt = @Now
+        OUTPUT CAST(CASE WHEN deleted.FailedLoginAttempts + 1 >= @MaxFailedAttempts THEN 1 ELSE 0 END AS bit), inserted.LockoutEndAt
+            INTO @Result (IsLocked, LockoutEndAt)
+        WHERE Id = @Id AND (LockoutEndAt IS NULL OR LockoutEndAt <= @Now);
 
-    -- Another request locked it between the caller's read and this UPDATE.
-    IF NOT EXISTS (SELECT 1 FROM @Result)
-    BEGIN
-        INSERT INTO @Result (IsLocked, LockoutEndAt)
-        SELECT CAST(1 AS bit), e.LockoutEndAt
-        FROM dbo.Employees AS e
-        WHERE e.Id = @Id;
-    END;
+        -- Another request locked it between the caller's read and this UPDATE.
+        IF NOT EXISTS (SELECT 1 FROM @Result)
+        BEGIN
+            INSERT INTO @Result (IsLocked, LockoutEndAt)
+            SELECT CAST(1 AS bit), e.LockoutEndAt
+            FROM dbo.Employees AS e
+            WHERE e.Id = @Id;
+        END;
 
-    SELECT r.IsLocked, r.LockoutEndAt
-    FROM @Result AS r;
+        SELECT r.IsLocked, r.LockoutEndAt
+        FROM @Result AS r;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

@@ -12,7 +12,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT t.Id, t.Number
-    FROM dbo.DiningTables AS t
-    ORDER BY t.Number;
+    BEGIN TRY
+        SELECT t.Id, t.Number
+        FROM dbo.DiningTables AS t
+        ORDER BY t.Number;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

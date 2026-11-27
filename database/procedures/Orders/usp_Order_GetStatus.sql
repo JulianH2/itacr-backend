@@ -15,14 +15,19 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT o.Id, o.Status, o.WaiterId,
-        h.FromStatus AS LastFromStatus, h.ToStatus AS LastToStatus, h.ChangedById AS LastChangedById, h.CreatedAt AS LastChangedAt
-    FROM dbo.Orders AS o
-    CROSS APPLY (
-        SELECT TOP (1) FromStatus, ToStatus, ChangedById, CreatedAt
-        FROM dbo.OrderStatusHistory
-        WHERE OrderId = o.Id
-        ORDER BY CreatedAt DESC, Id DESC
-    ) AS h
-    WHERE o.Id = @Id;
+    BEGIN TRY
+        SELECT o.Id, o.Status, o.WaiterId,
+            h.FromStatus AS LastFromStatus, h.ToStatus AS LastToStatus, h.ChangedById AS LastChangedById, h.CreatedAt AS LastChangedAt
+        FROM dbo.Orders AS o
+        CROSS APPLY (
+            SELECT TOP (1) FromStatus, ToStatus, ChangedById, CreatedAt
+            FROM dbo.OrderStatusHistory
+            WHERE OrderId = o.Id
+            ORDER BY CreatedAt DESC, Id DESC
+        ) AS h
+        WHERE o.Id = @Id;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

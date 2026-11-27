@@ -19,11 +19,16 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    UPDATE dbo.Employees
-    SET FailedLoginAttempts = 0,
-        LockoutEndAt = NULL,
-        PinHash = COALESCE(@NewPinHash, PinHash),
-        UpdatedAt = @Now
-    WHERE Id = @Id
-        AND (FailedLoginAttempts <> 0 OR LockoutEndAt IS NOT NULL OR @NewPinHash IS NOT NULL);
+    BEGIN TRY
+        UPDATE dbo.Employees
+        SET FailedLoginAttempts = 0,
+            LockoutEndAt = NULL,
+            PinHash = COALESCE(@NewPinHash, PinHash),
+            UpdatedAt = @Now
+        WHERE Id = @Id
+            AND (FailedLoginAttempts <> 0 OR LockoutEndAt IS NOT NULL OR @NewPinHash IS NOT NULL);
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

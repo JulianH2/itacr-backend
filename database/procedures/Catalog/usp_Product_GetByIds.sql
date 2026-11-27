@@ -15,7 +15,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT p.Id, p.CategoryId, p.Name, p.Description, p.Price, p.ImageUrl, p.IsCombo
-    FROM dbo.Products AS p
-    WHERE p.Id IN (SELECT TRY_CAST(ids.value AS uniqueidentifier) FROM OPENJSON(@ProductIdsJson) AS ids);
+    BEGIN TRY
+        SELECT p.Id, p.CategoryId, p.Name, p.Description, p.Price, p.ImageUrl, p.IsCombo
+        FROM dbo.Products AS p
+        WHERE p.Id IN (SELECT TRY_CAST(ids.value AS uniqueidentifier) FROM OPENJSON(@ProductIdsJson) AS ids);
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

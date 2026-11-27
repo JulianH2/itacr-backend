@@ -17,15 +17,20 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT o.ClientOrderId, o.OrderNumber, o.Status, o.Total, o.CreatedAt,
-        (
-            SELECT p.Name, i.Quantity, i.UnitPrice, i.Subtotal
-            FROM dbo.OrderItems AS i
-            JOIN dbo.Products AS p ON p.Id = i.ProductId
-            WHERE i.OrderId = o.Id
-            ORDER BY i.Id
-            FOR JSON PATH
-        ) AS ItemsJson
-    FROM dbo.Orders AS o
-    WHERE o.ClientOrderId = @ClientOrderId AND o.Channel = N'MobileApp';
+    BEGIN TRY
+        SELECT o.ClientOrderId, o.OrderNumber, o.Status, o.Total, o.CreatedAt,
+            (
+                SELECT p.Name, i.Quantity, i.UnitPrice, i.Subtotal
+                FROM dbo.OrderItems AS i
+                JOIN dbo.Products AS p ON p.Id = i.ProductId
+                WHERE i.OrderId = o.Id
+                ORDER BY i.Id
+                FOR JSON PATH
+            ) AS ItemsJson
+        FROM dbo.Orders AS o
+        WHERE o.ClientOrderId = @ClientOrderId AND o.Channel = N'MobileApp';
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

@@ -13,8 +13,13 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT e.Id, e.FullName, e.Email, e.Phone, e.Role, e.PinHash, e.PasswordHash, e.Status, e.ApprovedById,
-        e.FailedLoginAttempts, e.LockoutEndAt, e.CreatedAt, e.UpdatedAt
-    FROM dbo.Employees AS e
-    WHERE e.Email = @Email;
+    BEGIN TRY
+        SELECT e.Id, e.FullName, e.Email, e.Phone, e.Role, e.PinHash, e.PasswordHash, e.Status, e.ApprovedById,
+            e.FailedLoginAttempts, e.LockoutEndAt, e.CreatedAt, e.UpdatedAt
+        FROM dbo.Employees AS e
+        WHERE e.Email = @Email;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

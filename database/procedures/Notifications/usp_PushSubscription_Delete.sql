@@ -13,5 +13,10 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    DELETE FROM dbo.PushSubscriptions WHERE Endpoint = @Endpoint;
+    BEGIN TRY
+        DELETE FROM dbo.PushSubscriptions WHERE Endpoint = @Endpoint;
+    END TRY
+    BEGIN CATCH
+        THROW;
+    END CATCH;
 END;

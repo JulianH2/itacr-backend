@@ -20,24 +20,34 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    BEGIN TRANSACTION;
+    BEGIN TRY
+        BEGIN TRANSACTION;
 
-    IF NOT EXISTS (SELECT 1 FROM dbo.Orders WHERE Id = @OrderId AND Status = N'Ready')
-       OR EXISTS (SELECT 1 FROM dbo.Notifications WITH (UPDLOCK, HOLDLOCK) WHERE OrderId = @OrderId AND Type = N'OrderReady')
-    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM dbo.Orders WHERE Id = @OrderId AND Status = N'Ready')
+           OR EXISTS (SELECT 1 FROM dbo.Notifications WITH (UPDLOCK, HOLDLOCK) WHERE OrderId = @OrderId AND Type = N'OrderReady')
+        BEGIN
+            COMMIT TRANSACTION;
+            RETURN;
+        END;
+
+        INSERT INTO dbo.Notifications (Id, Type, RecipientEmployeeId, RecipientCustomerId, OrderId, SentAt, CreatedAt, UpdatedAt)
+        SELECT @Id, N'OrderReady', o.WaiterId, o.CustomerId, o.Id, @Now, @Now, @Now
+        FROM dbo.Orders AS o
+        WHERE o.Id = @OrderId;
+
         COMMIT TRANSACTION;
-        RETURN;
-    END;
 
-    INSERT INTO dbo.Notifications (Id, Type, RecipientEmployeeId, RecipientCustomerId, OrderId, SentAt, CreatedAt, UpdatedAt)
-    SELECT @Id, N'OrderReady', o.WaiterId, o.CustomerId, o.Id, @Now, @Now, @Now
-    FROM dbo.Orders AS o
-    WHERE o.Id = @OrderId;
+        SELECT o.OrderNumber, o.Channel, t.Number AS TableNumber, o.WaiterId, o.CustomerId
+        FROM dbo.Orders AS o
+        LEFT JOIN dbo.DiningTables AS t ON t.Id = o.TableId
+        WHERE o.Id = @OrderId;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+        BEGIN
+            ROLLBACK TRANSACTION;
+        END;
 
-    COMMIT TRANSACTION;
-
-    SELECT o.OrderNumber, o.Channel, t.Number AS TableNumber, o.WaiterId, o.CustomerId
-    FROM dbo.Orders AS o
-    LEFT JOIN dbo.DiningTables AS t ON t.Id = o.TableId
-    WHERE o.Id = @OrderId;
+        THROW;
+    END CATCH;
 END;
